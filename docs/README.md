@@ -9,6 +9,7 @@
 |---|---|---|
 | [Social Core v1](specs/social-core-v1.md) | Профили, публикации, подписки, приватность, блокировка и приёмочные сценарии | Проект на утверждение |
 | [ROADMAP.md](ROADMAP.md) | Этапы подготовки, реализации и контрольные точки | Рабочий план |
+| [Visual Directions v1](design/visual-directions-v1.md) | Editorial Dark, Rift Immersive, Social Premium | Концепты на рассмотрении |
 | [BRAND.md](BRAND.md) | Визуальные принципы, оригинальные SVG-материалы | Предварительное направление |
 
 ## Порядок утверждения
