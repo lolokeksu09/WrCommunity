@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/brand/banner.svg" alt="WrCommunity — Твои люди. Твоя игра." width="100%">
+<img src="assets/brand/banner.webp" alt="WrCommunity — Твои люди. Твоя игра." width="100%">
 
 <br>
 
