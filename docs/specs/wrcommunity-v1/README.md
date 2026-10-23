@@ -8,12 +8,12 @@
 
 | Файл | Назначение |
 |---|---|
-| [Functional-Specification-v1.md](Functional-Specification-v1.md) | Исходный документ продуктовых требований по раундам 1–9 (копия без правок) |
-| [Screen-Map-v1.md](Screen-Map-v1.md) | Исходная карта экранов и пользовательских маршрутов (копия без правок) |
+| [Functional-Specification-v1.md](Functional-Specification-v1.md) | Документ продуктовых требований по раундам 1–9 |
+| [Screen-Map-v1.md](Screen-Map-v1.md) | Карта экранов и пользовательских маршрутов |
 | [Product-Decisions-v1.1.md](Product-Decisions-v1.1.md) | 15 вопросов: 13 инженерных решений по делегированию; 2 внешних правовых/лицензионных gate остаются до публичного запуска |
 | [Technical-Architecture-v1.md](Technical-Architecture-v1.md) | Выбор стека, архитектурные границы, ACL, модели данных, транзакции, API, безопасность, развёртывание |
 | [Social-Core-Amendments-PROPOSAL.md](Social-Core-Amendments-PROPOSAL.md) | Предлагаемые текстовые поправки к действующему Social Core, без применения |
-| [Implementation-Plan-v1.md](Implementation-Plan-v1.md) | 13 инкрементов M0–M12, будущие пути файлов, контракты, тесты и проверки готовности |
+| [Implementation-Plan-v1.md](Implementation-Plan-v1.md) | Краткий план инкрементов M0–M12 и контрольные проверки; полная локальная редакция отдельно доступна автору |
 
 ## Как читать
 
