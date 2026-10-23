@@ -80,6 +80,7 @@ UX / UI дизайн               ○ впереди
 | [docs/README.md](docs/README.md) | Навигация по документации |
 | [docs/specs/social-core-v1.md](docs/specs/social-core-v1.md) | Социальное ядро: доступ, приватность, подписки, блокировки |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Порядок подготовки и реализации |
+| [docs/design/visual-directions-v1.md](docs/design/visual-directions-v1.md) | Три визуальных направления мобильного сайта для обсуждения |
 | [docs/BRAND.md](docs/BRAND.md) | Принципы визуального языка и бренд-материалы |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Как предлагать улучшения |
 | [SECURITY.md](SECURITY.md) | Как сообщать об уязвимостях |
