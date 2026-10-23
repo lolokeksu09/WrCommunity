@@ -13,7 +13,7 @@
 ![Language](https://img.shields.io/badge/language-%D0%A0%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9-8496B5?style=flat-square)
 ![License](https://img.shields.io/badge/license-not%20selected-748095?style=flat-square)
 
-[Концепция](#о-проекте) · [Функции](#возможности) · [План развития](docs/ROADMAP.md) · [Спецификация](docs/specs/social-core-v1.md) · [Участие](CONTRIBUTING.md)
+[Демо главной v6](prototypes/home/v6/index.html) · [Концепция](#о-проекте) · [Функции](#возможности) · [План развития](docs/ROADMAP.md) · [Спецификация](docs/specs/social-core-v1.md) · [Участие](CONTRIBUTING.md)
 
 </div>
 
@@ -72,6 +72,10 @@ UX / UI дизайн               ○ впереди
 ```
 
 [Дорожная карта и критерии перехода](docs/ROADMAP.md).
+
+## Текущий дизайн-прототип
+
+**Главная v6 — Editorial Social** зафиксирована как базовый вариант для дальнейших изменений: [интерактивный HTML](prototypes/home/v6/index.html) и [инструкция](prototypes/home/v6/README.md). Это автономный прототип с примерами контента, без аккаунтов, базы данных и сервера. Чтобы использовать интерактивность, скачайте HTML и откройте его в браузере; GitHub показывает исходный код, а не исполняет HTML.
 
 ## Документация
 

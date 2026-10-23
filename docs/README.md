@@ -12,6 +12,7 @@
 | [Visual Directions v1](design/visual-directions-v1.md) | Сравнение Editorial Dark, Rift Immersive, Social Premium | Архив альтернатив |
 | [Design Direction v1](design/design-direction-v1.md) | Выбранный сдержанный гибрид: мобильная иерархия, графика, движение, доступность | Направление выбрано, экраны на ревью |
 | [BRAND.md](BRAND.md) | Визуальные принципы, оригинальные SVG-материалы | Предварительное направление |
+| [Главная v6](../prototypes/home/v6/README.md) | Текущий интерактивный HTML-макет и инструкция по просмотру | Зафиксирован как базовая версия, не релиз |
 
 ## Порядок утверждения
 
