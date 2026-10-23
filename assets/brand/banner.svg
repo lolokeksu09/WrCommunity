@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 440" role="img" aria-labelledby="title desc">
+<title id="title">WrCommunity — игровое сообщество Wild Rift</title>
+<desc id="desc">Тёмный атмосферный баннер с фирменным абстрактным порталом и девизом «Твои люди. Твоя игра.»</desc>
+<defs>
+ <linearGradient id="background" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0C111D"/><stop offset=".58" stop-color="#151A2D"/><stop offset="1" stop-color="#0A1320"/></linearGradient>
+ <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#C4B6FF"/><stop offset=".43" stop-color="#918BF5"/><stop offset=".85" stop-color="#5CD6CC"/><stop offset="1" stop-color="#A7F5E7"/></linearGradient>
+ <radialGradient id="glow"><stop stop-color="#8076EC" stop-opacity=".45"/><stop offset=".57" stop-color="#7467B8" stop-opacity=".1"/><stop offset="1" stop-color="#7467B8" stop-opacity="0"/></radialGradient>
+ <pattern id="dots" width="30" height="30" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#9EA6D4" opacity=".16"/></pattern>
+ <clipPath id="border"><rect x="0" y="0" width="1280" height="440" rx="28"/></clipPath>
+</defs>
+<g clip-path="url(#border)">
+ <rect width="1280" height="440" fill="url(#background)"/>
+ <rect width="1280" height="440" fill="url(#dots)"/>
+ <path d="M-70 347Q270 237 540 390T1260 303" fill="none" stroke="#7882BD" stroke-width="2" opacity=".12"/>
+ <path d="M-100 394Q240 284 570 430T1290 355" fill="none" stroke="#A59BDF" stroke-width="1" opacity=".14"/>
+ <path d="M0 0H1280V440H0Z" fill="none" stroke="#3C4761" stroke-width="2" opacity=".65"/>
+ <rect x="15" y="15" width="1250" height="410" rx="19" fill="none" stroke="#7A82A0" opacity=".18"/>
+ <g transform="translate(930 215)">
+  <circle r="255" fill="url(#glow)"/>
+  <circle r="177" fill="none" stroke="#7576B8" stroke-width="1" stroke-dasharray="4 12" opacity=".4"/>
+  <circle r="137" fill="none" stroke="#5D668E" stroke-width="1" opacity=".65"/>
+  <path d="M52-160A167 167 0 0 0-108-128L-142-86M-50 161A167 167 0 0 0 108 128L142 86" fill="none" stroke="url(#rim)" stroke-width="15" stroke-linecap="round"/>
+  <path d="M139-80A160 160 0 0 1 139 80M-139 80A160 160 0 0 1-139-80" fill="none" stroke="#7780C6" stroke-width="8" stroke-linecap="round" opacity=".8"/>
+  <path d="M0-105 51 0 0 105-51 0Z" fill="#101B2A" stroke="url(#rim)" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M0-68 30 0 0 68-30 0Z" fill="#5665BD" opacity=".15"/>
+  <circle r="21" fill="#D7E9F4"/>
+  <circle r="34" fill="#C6CAFF" opacity=".22"/>
+  <circle cx="-158" cy="-118" r="5" fill="#9FEEDE"/>
+  <circle cx="160" cy="128" r="4" fill="#B6A6FF"/>
+  <path d="M-158-118 -208-148 M160 128 204 151" stroke="#8C94C1" opacity=".5"/>
+ </g>
+ <rect x="70" y="70" width="140" height="34" rx="17" fill="#273247" stroke="#566581"/>
+ <circle cx="91" cy="87" r="5" fill="#77DACB"/>
+ <text x="105" y="93" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2" fill="#D7E3EE">PROJECT • 2026</text>
+ <text x="70" y="199" font-family="Arial,Helvetica,sans-serif" font-size="76" font-weight="800" letter-spacing="-3" fill="#F5F6FF">WrCommunity</text>
+ <rect x="71" y="222" width="70" height="4" rx="2" fill="#AFA0FF"/>
+ <rect x="150" y="222" width="27" height="4" rx="2" fill="#74D9CE"/>
+ <text x="70" y="280" font-family="Arial,Helvetica,sans-serif" font-size="33" font-weight="600" fill="#D9E0F5">Твои люди. Твоя игра.</text>
+ <text x="72" y="324" font-family="Arial,Helvetica,sans-serif" font-size="20" fill="#A7B4CF">Социальная платформа для игроков Wild Rift</text>
+ <text x="72" y="380" font-family="Arial,Helvetica,sans-serif" font-size="15" letter-spacing="3" fill="#8495B7">MOBILE FIRST  /  COMMUNITY FIRST</text>
+</g>
+</svg>
