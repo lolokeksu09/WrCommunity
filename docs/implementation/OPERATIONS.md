@@ -50,3 +50,13 @@ Back up PostgreSQL with PostgreSQL 18 `pg_dump --format=custom --no-owner --no-a
 `npm run smoke:docker` creates a unique disposable Compose project, builds the production image, runs migrations, waits for API and worker health, and checks the built SPA and a private media request. It cleans up only its own containers and volumes. It does not contact a production deployment.
 
 Workspace evidence on 23 October 2026: exact dependency install succeeded; production dependency audit reported zero known vulnerabilities; server compilation and migration copying succeeded. PostgreSQL 18.6 was installed and exercised for integration and logical restore. The workspace isolates each execution in a separate network/user namespace with only UID 0 mapped and no Linux capabilities, so local PostgreSQL needed a scratch-only initial UID-guard shim and all database consumers in one persistent shell. This shim is not included in application source or images. Docker/Compose CLIs installed, but the Docker daemon cannot create its Unix socket (`Operation not permitted`) and cannot set mount propagation. Container runtime smoke is therefore configured for CI, with local execution blocked by the workspace environment. CI status and current acceptance totals must be reported from fresh runs, not inferred from this runbook.
+
+## Первое назначение администратора платформы
+
+Публичной регистрации с повышенной ролью нет. Сначала оператор регистрирует свой аккаунт и подтверждает почту. Затем из доверенного терминала с доступом к контейнеру и базе выполняет:
+
+```bash
+docker compose -f compose.local.yml exec web-api node dist/server/commands/grant-admin.js user@example.com --confirm
+```
+
+В production используется `docker compose exec web-api …` с настоящим адресом собственного подтверждённого аккаунта. Команда меняет только роль указанного действующего подтверждённого аккаунта и пишет запись аудита; пароли и токены не выводятся. Не предоставляйте доступ к Docker/БД посторонним. Роль можно проверить после обновления страницы. Членство и права клуба не повышают глобальные полномочия.

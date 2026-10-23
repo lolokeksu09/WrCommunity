@@ -96,6 +96,46 @@ test('club report management is scoped to current club leadership and omits repo
   assert.ok(await one("SELECT id FROM audit_actions WHERE club_id=$1 AND target_id=$2 AND action='club_report_resolved'", [club.id, report.json().id]));
 });
 
+test('confirmed owner deletion revokes club access, cancels participation, and permits account deletion', async () => {
+  const { owner, author, club } = await fixture();
+  const event = await request('POST', `/clubs/${club.id}/events`, owner, { title: 'Club deletion review', description: 'Future participation must be cancelled atomically', audience: 'public', starts_at: new Date(Date.now() + 172800000).toISOString(), ends_at: new Date(Date.now() + 180000000).toISOString(), registration_closes_at: new Date(Date.now() + 86400000).toISOString(), capacity: 10 });
+  assert.equal(event.statusCode, 201, event.body);
+  const registration = await request('POST', `/events/${event.json().id}/registration`, author);
+  assert.equal(registration.statusCode, 200, registration.body);
+  const transfer = await request('POST', `/clubs/${club.id}/transfers`, owner, { to_user_id: author.id });
+  assert.equal(transfer.statusCode, 201, transfer.body);
+  const mediaId = await image(author);
+  const pending = await request('POST', `/clubs/${club.id}/posts`, author, { body: 'Published material removed with its club', images: [mediaId] });
+  assert.equal(pending.statusCode, 201, pending.body);
+  assert.equal((await request('POST', `/clubs/posts/${pending.json().id}/revisions/${pending.json().revision.id}/decision`, owner, { decision: 'approve' })).statusCode, 200);
+  assert.equal((await request('GET', `/media/${mediaId}`)).statusCode, 200);
+  const blockedAccountDeletion = await request('DELETE', '/me/account', owner, { password: owner.password, confirmation: 'DELETE' });
+  assert.equal(blockedAccountDeletion.statusCode, 409, blockedAccountDeletion.body);
+  const nonowner = await request('DELETE', `/clubs/${club.id}`, author, { password: author.password, confirmation: 'DELETE' });
+  assert.equal(nonowner.statusCode, 403, nonowner.body);
+  const wrongPassword = await request('DELETE', `/clubs/${club.id}`, owner, { password: 'This-is-not-the-right-password', confirmation: 'DELETE' });
+  assert.equal(wrongPassword.statusCode, 401, wrongPassword.body);
+  const unconfirmed = await request('DELETE', `/clubs/${club.id}`, owner, { password: owner.password });
+  assert.equal(unconfirmed.statusCode, 422, unconfirmed.body);
+  assert.equal((await one<{ state: string }>('SELECT state FROM clubs WHERE id=$1', [club.id]))?.state, 'active');
+  const deleted = await request('DELETE', `/clubs/${club.id}`, owner, { password: owner.password, confirmation: 'DELETE' });
+  assert.equal(deleted.statusCode, 200, deleted.body);
+  assert.equal((await one<{ state: string }>('SELECT state FROM clubs WHERE id=$1', [club.id]))?.state, 'deleted');
+  assert.equal(await one("SELECT id FROM club_memberships WHERE club_id=$1 AND (state IN ('active','pending') OR revoked_at IS NULL)", [club.id]), undefined);
+  assert.equal((await one<{ state: string }>('SELECT state FROM event_registrations WHERE id=$1', [registration.json().id]))?.state, 'cancelled');
+  assert.equal((await one<{ state: string }>('SELECT state FROM events WHERE id=$1', [event.json().id]))?.state, 'cancelled');
+  assert.equal((await one<{ state: string }>('SELECT state FROM club_transfers WHERE id=$1', [transfer.json().id]))?.state, 'cancelled');
+  for (const url of [`/clubs/${club.id}`, `/posts/${pending.json().id}`, `/events/${event.json().id}`, `/media/${mediaId}`]) {
+    const hidden = await request('GET', url);
+    assert.equal(hidden.statusCode, 404, `${url}: ${hidden.body}`);
+  }
+  const acceptDeletedTransfer = await request('POST', `/clubs/transfers/${transfer.json().id}/accept`, author);
+  assert.equal(acceptDeletedTransfer.statusCode, 404, acceptDeletedTransfer.body);
+  const accountDeletion = await request('DELETE', '/me/account', owner, { password: owner.password, confirmation: 'DELETE' });
+  assert.equal(accountDeletion.statusCode, 200, accountDeletion.body);
+  assert.equal((await one<{ status: string }>('SELECT status FROM users WHERE id=$1', [owner.id]))?.status, 'deleted');
+});
+
 async function revokeVerificationDuringWrite(user: TestUser, write: () => ReturnType<typeof request>) {
   const blocker = await pool.connect();
   let writing: ReturnType<typeof request> | undefined;

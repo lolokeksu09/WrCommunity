@@ -21,7 +21,7 @@ jobs:
           POSTGRES_DB: wrcommunity_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd 'pg_isready -U wrcommunity -d wrcommunity_test'
+          --health-cmd "pg_isready -U wrcommunity -d wrcommunity_test"
           --health-interval 5s --health-timeout 5s --health-retries 20
       mailpit:
         image: axllent/mailpit:v1.31.5
@@ -39,6 +39,7 @@ jobs:
       MEDIA_STORAGE_DIR: /tmp/wrc-ci-media
       MEDIA_DIR: /tmp/wrc-ci-media
       WEB_ROOT: dist/web
+      E2E_MAILPIT_URL: http://localhost:8025
     steps:
       - uses: actions/checkout@v5.0.0
       - uses: actions/setup-node@v5.0.0
@@ -66,6 +67,7 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            docs/evidence/screens/
           if-no-files-found: ignore
           retention-days: 7
   docker-smoke:
@@ -73,4 +75,20 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5.0.0
+      - name: Validate Compose configurations
+        env:
+          DOMAIN: ci.example.invalid
+          APP_ORIGIN: https://ci.example.invalid
+          DATABASE_URL: postgresql://wrcommunity:ci-disposable-only@postgres:5432/wrcommunity
+          POSTGRES_PASSWORD: ci-disposable-only
+          COOKIE_SECRET: ci-disposable-cookie-secret-at-least-thirty-two-characters
+          LFG_CONTACT_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          SMTP_HOST: smtp.example.invalid
+          SMTP_USER: ci-placeholder
+          SMTP_PASS: ci-placeholder-not-used
+          SMTP_FROM: WrCommunity CI <no-reply@example.invalid>
+        run: |
+          docker compose -f compose.yml config --quiet
+          docker compose -f compose.dev.yml config --quiet
+          docker compose -f compose.local.yml config --quiet
       - run: sh scripts/docker-smoke.sh

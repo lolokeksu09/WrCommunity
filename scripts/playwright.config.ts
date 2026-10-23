@@ -10,6 +10,8 @@ export default defineConfig({
   outputDir: '../test-results',
   use: {
     baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000',
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
     launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {},
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

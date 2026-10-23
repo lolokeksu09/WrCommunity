@@ -17,7 +17,7 @@ export async function api<T=any>(context:APIRequestContext,path:string,method='G
 
 // Reading delivery output is a test fixture, never a production verification bypass.
 // Prefer actual delivered SMTP mail; a DB outbox is supported when no worker is running.
-export async function verificationToken(email:string):Promise<string> {
+export async function verificationToken(email:string,purpose:'verify'|'reset'='verify'):Promise<string> {
   const mailpit = process.env.E2E_MAILPIT_URL;
   if (mailpit) {
     const client = await requests.newContext({baseURL:mailpit});
@@ -28,7 +28,9 @@ export async function verificationToken(email:string):Promise<string> {
       const result=await search.json();
       for(const item of result.messages??[]) {
         const message=await (await client.get('/api/v1/message/'+item.ID)).json();
-        const match=String(message.Text??'').match(/token=([A-Za-z0-9_-]{43})/);
+        const messageText=String(message.Text??'');
+        if(!messageText.includes('/auth/'+purpose+'?'))continue;
+        const match=messageText.match(/token=([A-Za-z0-9_-]{43})/);
         if(match){token=match[1];return true;}
       }
       return false;

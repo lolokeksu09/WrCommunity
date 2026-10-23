@@ -11,6 +11,7 @@ import {readdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {one} from './db/index.js';
 import {HttpError,fail} from './lib.js';
+import {documentRoute} from './openapi.js';
 import './types.js';
 import {registerAuth,resolveSession} from './modules/auth/routes.js';
 import {registerProfiles} from './modules/profiles/routes.js';
@@ -34,7 +35,7 @@ export async function buildApp(options:{logger?:boolean}={}):Promise<FastifyInst
  await app.register(cookie,{secret:process.env.COOKIE_SECRET??fallbackCookieSecret});
  await app.register(helmet,{contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'"],imgSrc:["'self'",'blob:','data:'],connectSrc:["'self'"],fontSrc:["'self'"],objectSrc:["'none'"],frameAncestors:["'none'"],baseUri:["'self'"],formAction:["'self'"],upgradeInsecureRequests:production?[]:null}},crossOriginResourcePolicy:{policy:'same-origin'}});
  await app.register(rateLimit,{global:process.env.NODE_ENV!=='test',max:180,allowList:process.env.NODE_ENV==='test'?['127.0.0.1']:[],timeWindow:'1 minute',keyGenerator:req=>req.ip});
- await app.register(swagger,{openapi:{info:{title:'WrCommunity API',version:'1.0.0'},servers:[{url:'/'}],components:{securitySchemes:{session:{type:'apiKey',in:'cookie',name:'wr_session'},csrf:{type:'apiKey',in:'header',name:'X-CSRF-Token'}}}}});
+ await app.register(swagger,{transform:({schema,url,route})=>({schema:documentRoute(route.method,url,schema),url}),openapi:{info:{title:'WrCommunity API',version:'1.0.0'},servers:[{url:'/'}],components:{securitySchemes:{session:{type:'apiKey',in:'cookie',name:'wr_session'},csrf:{type:'apiKey',in:'header',name:'X-CSRF-Token'}}}}});
  app.addHook('onRoute',route=>{if(!route.url.startsWith('/api/v1'))return;route.schema??={};route.schema.tags??=[route.url.split('/')[3]??'api'];route.schema.summary??=`${String(route.method)} ${route.url}`;});
  await app.register(swaggerUI,{routePrefix:'/api/docs',staticCSP:true});
  app.decorateRequest('viewer',null);app.decorateRequest('sessionId',null);app.decorateRequest('csrfToken','');
