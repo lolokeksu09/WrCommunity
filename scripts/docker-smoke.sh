@@ -81,11 +81,16 @@ if ! docker compose -p "$project" -f "$work/compose.yml" up --build --wait --wai
   exit 1
 fi
 docker compose -p "$project" -f "$work/compose.yml" exec -T api node --input-type=module - <<'JS'
+import { writeFile } from 'node:fs/promises';
+const privateToken = 'private-smoke-' + crypto.randomUUID();
+await writeFile('/app/media/smoke-private.txt', privateToken);
 const ready = await fetch('http://localhost:3000/health/ready');
 if (!ready.ok) throw new Error('Readiness failed');
 const spa = await fetch('http://localhost:3000/');
 if (!spa.ok || !(await spa.text()).includes('<div id="root"></div>')) throw new Error('Built SPA missing');
-const privateFile = await fetch('http://localhost:3000/media/nonexistent.jpg');
-if (privateFile.headers.get('content-type')?.startsWith('image/')) throw new Error('Private media exposed');
+const privateFile = await fetch('http://localhost:3000/media/smoke-private.txt');
+if ((await privateFile.text()).includes(privateToken)) throw new Error('Private media exposed');
+const unknownMedia = await fetch('http://localhost:3000/api/v1/media/00000000-0000-4000-8000-000000000001');
+if (![401, 404].includes(unknownMedia.status)) throw new Error('Unknown private media was not denied');
 console.log('Container migrations, API readiness, built SPA, worker heartbeat and private media smoke passed.');
 JS

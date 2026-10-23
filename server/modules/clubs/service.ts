@@ -8,7 +8,7 @@ export interface ClubMembership {
   avatar_id:string|null;roles:string[];consent_version:number|null;consented_at:Date|null;revoked_at:Date|null;
   reason:string|null;joined_at:Date|null;updated_at:Date;created_at:Date;
 }
-export interface Club { id:string;owner_id:string;name:string;description:string;join_mode:'open'|'approval';feed_visibility:'public'|'members_only';avatar_id:string|null;cover_id:string|null;rules:string;event_roles:ClubRole[];state:string;pinned_post_id:string|null;version:number;created_at:Date;updated_at:Date }
+export interface Club { id:string;owner_id:string;name:string;description:string;join_mode:'open'|'approval';feed_visibility:'public'|'members_only';avatar_id:string|null;cover_id:string|null;rules:string;event_roles:ClubRole[];state:string;platform_restricted:boolean;pinned_post_id:string|null;version:number;created_at:Date;updated_at:Date }
 export async function membership(userId:string,clubId:string,tx?:PoolClient):Promise<ClubMembership|undefined> {
   return one<ClubMembership>('SELECT * FROM club_memberships WHERE user_id=$1 AND club_id=$2',[userId,clubId],tx);
 }

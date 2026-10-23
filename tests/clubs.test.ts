@@ -47,6 +47,7 @@ test('hidden club identity is consent-gated and limited to members or pending re
   const f=await fixture({join:'approval',feed:'members_only'}),hidden=await createUser({visibility:'hidden'}),outsider=await createUser();
   const invalid=await request('POST',`/clubs/${f.id}/requests`,hidden,{nickname:'Закрытое имя'});assert.equal(invalid.statusCode,422);
   const joined=await request('POST',`/clubs/${f.id}/requests`,hidden,identity('Закрытое имя'));assert.equal(joined.statusCode,201,joined.body);
+  assert.ok((await request('GET','/me/clubs',hidden)).json().items.some((club:any)=>club.id===f.id&&club.membership.state==='pending'));
   assert.equal((await request('GET',`/clubs/${f.id}/members`,outsider)).statusCode,404);
   const queue=await request('GET',`/clubs/${f.id}/requests`,f.owner);assert.equal(queue.statusCode,200);assert.equal(queue.json().items[0].nickname,'Закрытое имя');assert.equal(queue.json().items[0].profile,undefined);assert.equal(queue.json().items[0].user_id,undefined);
   assert.equal((await request('GET',`/clubs/${f.id}/requests`,outsider)).statusCode,403);
@@ -93,6 +94,8 @@ test('club posts require premoderation, independent reviews and retain old appro
   await addMember(f.id,admin,'admin','Первый проверяющий');await addMember(f.id,author,'member','Автор публикации');await addMember(f.id,hidden,'member','Скрытый участник');
   assert.equal((await request('POST',`/clubs/${f.id}/posts`,hidden,{body:'Запрещённая запись'})).statusCode,403);
   const pending=await submit(f.id,author);assert.equal((await request('GET',`/clubs/${f.id}/posts`)).json().items.length,0);
+  const own=(await request('GET',`/clubs/${f.id}/my-posts`,author)).json().items[0];assert.equal(own.body,'Первая клубная редакция');assert.equal(own.author.id,author.id);assert.equal(own.revision_status,'pending');
+  assert.equal((await request('GET',`/clubs/posts/${pending.id}/edit`,admin)).statusCode,404);
   assert.equal((await decide(pending,admin)).statusCode,200);
   const edit=await request('PATCH',`/clubs/posts/${pending.id}`,author,{body:'Вторая редакция ожидает проверки'});assert.equal(edit.statusCode,200,edit.body);
   let live=(await request('GET',`/posts/${pending.id}`)).json();assert.equal(live.body,'Первая клубная редакция');
@@ -116,6 +119,8 @@ test('lone owner exception is audited; opening club preserves archive and pin is
   assert.equal((await request('GET',`/posts/${fresh.id}`)).statusCode,404);
   const pins=await Promise.all([request('POST',`/clubs/${f.id}/pin`,f.owner,{post_id:old.id}),request('POST',`/clubs/${f.id}/pin`,f.owner,{post_id:fresh.id})]);assert.ok(pins.every(p=>p.statusCode===200));
   const club=await one<any>('SELECT pinned_post_id FROM clubs WHERE id=$1',[f.id]);assert.ok([old.id,fresh.id].includes(club.pinned_post_id));
+  const guestDetail=await request('GET',`/clubs/${f.id}`);assert.equal(guestDetail.statusCode,200,guestDetail.body);assert.equal(guestDetail.json().pinned_post_id,null);
+  assert.equal((await request('GET','/clubs')).json().items.find((c:any)=>c.id===f.id)?.pinned_post_id,undefined);
   const history=await query<any>("SELECT metadata FROM audit_actions WHERE club_id=$1 AND action='club_post_approve'",[f.id]);assert.ok(history.some(x=>x.metadata.self_review));
 });
 

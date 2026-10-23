@@ -4,7 +4,7 @@ import sharp from 'sharp';
 import { randomUUID, createHash } from 'node:crypto';
 import { mkdir, writeFile, readFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { one, execute, transaction } from '../../db/index.js';
+import { one, execute, transaction, lockUsers } from '../../db/index.js';
 import { requireUser, idParam, fail } from '../../lib.js';
 import { canReadMedia, mediaDirectory } from './service.js';
 
@@ -29,7 +29,11 @@ export async function registerMedia(app:FastifyInstance):Promise<void>{
   }catch(error:any){if(error.statusCode)throw error;fail(422,'invalid_image','Не удалось безопасно обработать изображение');}
   const id=randomUUID(),key=`${id}.webp`,directory=mediaDirectory();await mkdir(directory,{recursive:true,mode:0o700});
   await writeFile(join(directory,key),output,{flag:'wx',mode:0o600});
-  try{await execute('INSERT INTO media_blobs(id,owner_id,storage_key,mime,size_bytes,sha256) VALUES($1,$2,$3,$4,$5,$6)',[id,user.id,key,'image/webp',output.length,createHash('sha256').update(output).digest('hex')]);}
+  try{await transaction(async tx=>{
+   await lockUsers(tx,[user.id]);
+   if(!await one("SELECT 1 FROM users WHERE id=$1 AND status='active' AND verified_at IS NOT NULL",[user.id],tx))fail(403,'account_unavailable','Аккаунт недоступен');
+   await execute('INSERT INTO media_blobs(id,owner_id,storage_key,mime,size_bytes,sha256) VALUES($1,$2,$3,$4,$5,$6)',[id,user.id,key,'image/webp',output.length,createHash('sha256').update(output).digest('hex')],tx);
+  });}
   catch(error){await unlink(join(directory,key));throw error;}
   return {id,url:`/api/v1/media/${id}`,mime:'image/webp',size_bytes:output.length,width,height};
  });
@@ -43,6 +47,8 @@ export async function registerMedia(app:FastifyInstance):Promise<void>{
  app.delete('/api/v1/media/:id',async request=>{
   const user=requireUser(request);const id=idParam(request);
   const key=await transaction(async tx=>{
+   await lockUsers(tx,[user.id]);
+   if(!await one("SELECT 1 FROM users WHERE id=$1 AND status='active' AND verified_at IS NOT NULL",[user.id],tx))fail(403,'account_unavailable','Аккаунт недоступен');
    const media=await one<{storage_key:string}>('SELECT storage_key FROM media_blobs WHERE id=$1 AND owner_id=$2 AND state=\'ready\' FOR UPDATE',[id,user.id],tx);
    if(!media)fail(404,'not_found','Изображение не найдено');
    const used=await one(`SELECT 1 WHERE EXISTS(SELECT 1 FROM users WHERE avatar_id=$1 OR cover_id=$1) OR EXISTS(SELECT 1 FROM clubs WHERE avatar_id=$1 OR cover_id=$1) OR EXISTS(SELECT 1 FROM club_memberships WHERE avatar_id=$1) OR EXISTS(SELECT 1 FROM comments WHERE snapshot_avatar_id=$1 AND state='published') OR EXISTS(SELECT 1 FROM posts p JOIN post_revisions r ON r.id=p.current_revision_id WHERE p.state<>'removed' AND r.images ? $2)`,[id,id],tx);

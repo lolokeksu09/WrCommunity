@@ -141,3 +141,13 @@ test('profile and historic private club avatar media inherit their own ACL, incl
  const historical=(await request('GET',`/posts/${f.postId}/comments`,owner)).json().items[0];assert.equal(historical.author.display_name,'Удалённый участник');assert.equal(historical.author.avatar_url,null);
  assert.equal((await request('GET',`/media/${image.id}`,owner)).statusCode,404);
 });
+
+test('a hidden comment author can be contextually blocked without leaking private identity in the block list',async()=>{
+ const owner=await createUser();const hidden=await createUser({visibility:'hidden'});const p=await post(owner);const c=await comment(hidden,p.id);
+ const before=(await request('GET',`/posts/${p.id}/comments`,owner)).json().items[0];assert.equal(before.can_block,true);assert.equal(before.author.id,null);
+ const blocked=await request('PUT',`/comments/${c.id}/block-author`,owner);assert.equal(blocked.statusCode,200,blocked.body);
+ assert.equal((await request('GET',`/posts/${p.id}/comments`,owner)).json().items.length,0);
+ const entry=(await request('GET','/blocks',owner)).json().items.find((u:any)=>u.id===hidden.id);assert.equal(entry.handle,null);assert.equal(entry.display_name,'Скрытый участник');
+ assert.equal((await request('DELETE',`/profiles/${entry.id}/block`,owner)).statusCode,200);
+ assert.equal((await request('GET',`/posts/${p.id}/comments`,owner)).json().items.length,1);
+});

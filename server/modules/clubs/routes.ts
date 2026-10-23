@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { createHash } from 'node:crypto';
 import { query, one, execute, transaction, lockUsers, lockPair } from '../../db/index.js';
 import { requireUser, fail, idParam, parse, notify } from '../../lib.js';
-import { blocked } from '../policy/service.js';
+import { blocked, canReadPost } from '../policy/service.js';
+import {checkPassword} from '../auth/service.js';
 import { membership, canManageClub, canReadClubContent, requireClub, requireManager, checkedText, nicknameIdentity, assertIdentityAvailable, assertMedia, audit, ownershipGate, endMembership, assertActiveUser, releaseUnusedNames } from './service.js';
 import type { Club, ClubMembership, ClubRole } from './service.js';
 
@@ -13,11 +14,17 @@ const identitySchema=z.object({nickname:z.string(),avatar_id:uuid.nullable().opt
 const fields={name:z.string(),description:z.string(),join_mode:z.enum(['open','approval']),feed_visibility:z.enum(['public','members_only']),rules:z.string().max(10000).optional(),avatar_id:uuid.nullable().optional(),cover_id:uuid.nullable().optional(),event_roles:z.array(role).max(4).optional()};
 const createSchema=z.object(fields).strict();
 const updateSchema=z.object({...fields,name:fields.name.optional(),description:fields.description.optional(),join_mode:fields.join_mode.optional(),feed_visibility:fields.feed_visibility.optional(),visibility_change_acknowledged:z.literal(true).optional(),state:z.enum(['active','archived']).optional()}).strict();
-const visibleClub=(c:Club)=>({id:c.id,name:c.name,description:c.description,rules:c.rules,join_mode:c.join_mode,feed_visibility:c.feed_visibility,avatar_id:c.avatar_id,cover_id:c.cover_id,event_roles:c.event_roles,state:c.state,pinned_post_id:c.pinned_post_id,created_at:c.created_at,updated_at:c.updated_at,version:c.version});
+const visibleClub=(c:Club)=>({id:c.id,name:c.name,description:c.description,rules:c.rules,join_mode:c.join_mode,feed_visibility:c.feed_visibility,avatar_id:c.avatar_id,cover_id:c.cover_id,event_roles:c.event_roles,state:c.state,created_at:c.created_at,updated_at:c.updated_at,version:c.version});
 const memberIdentity=(m:any)=>({membership_id:m.id,nickname:m.nickname,avatar_id:m.avatar_id,roles:m.roles,role:m.role,state:m.state,joined_at:m.joined_at,...(m.visibility==='public'?{profile:{id:m.user_id,handle:m.handle,display_name:m.display_name}}:{})});
 const rank:Record<ClubRole,number>={owner:4,admin:3,moderator:2,member:1};
 
 export async function registerClubs(app:FastifyInstance):Promise<void> {
+  app.get('/api/v1/me/clubs',async req=>{
+    const viewer=requireUser(req,false);
+    const rows=await query<Club>(`SELECT c.* FROM clubs c JOIN club_memberships m ON m.club_id=c.id
+      WHERE m.user_id=$1 AND m.state IN ('active','pending') AND m.consented_at IS NOT NULL AND m.revoked_at IS NULL AND c.state<>'deleted' ORDER BY c.updated_at DESC,c.id LIMIT 100`,[viewer.id]);
+    const items=[];for(const c of rows)items.push({...visibleClub(c),membership:await membership(viewer.id,c.id)});return {items};
+  });
   app.get('/api/v1/clubs',async req=>{
     const {search}=parse(z.object({search:z.string().max(100).optional()}),req.query);
     const rows=await query<Club>("SELECT * FROM clubs WHERE state<>'deleted' AND ($1::text IS NULL OR name ILIKE '%'||$1||'%' OR description ILIKE '%'||$1||'%') ORDER BY created_at DESC,id LIMIT 100",[search??null]);
@@ -49,13 +56,15 @@ export async function registerClubs(app:FastifyInstance):Promise<void> {
     let owner=await one('SELECT id,handle,display_name FROM users WHERE id=$1 AND visibility=\'public\' AND status=\'active\'',[c.owner_id]);
     if(req.viewer&&await blocked(req.viewer.id,c.owner_id))owner=undefined;
     const transfer=req.viewer?await one<any>("SELECT id,to_id FROM club_transfers WHERE club_id=$1 AND state='pending' AND (to_id=$2 OR from_id=$2) ORDER BY created_at DESC LIMIT 1",[c.id,req.viewer.id]):undefined;
-    return {...visibleClub(c),owner,membership:me??null,pending_transfer:transfer?{id:transfer.id,to_user_id:transfer.to_id}:null,incoming_transfer_id:transfer?.to_id===req.viewer?.id?transfer.id:null,permissions:{manage:req.viewer?await canManageClub(req.viewer.id,c.id):false,read_content:await canReadClubContent(req.viewer?.id??null,c.id,c.feed_visibility),owner:me?.state==='active'&&me.role==='owner'}};
+    const pinned=c.pinned_post_id&&await canReadPost(req.viewer?.id??null,c.pinned_post_id)?c.pinned_post_id:null;
+    return {...visibleClub(c),owner,pinned_post_id:pinned,membership:me??null,pending_transfer:transfer?{id:transfer.id,to_user_id:transfer.to_id}:null,incoming_transfer_id:transfer&&req.viewer&&transfer.to_id===req.viewer.id?transfer.id:null,permissions:{manage:req.viewer?await canManageClub(req.viewer.id,c.id):false,read_content:await canReadClubContent(req.viewer?.id??null,c.id,c.feed_visibility),owner:me?.state==='active'&&me.role==='owner'}};
   });
   app.patch('/api/v1/clubs/:id',async req=>{
     const viewer=requireUser(req),id=idParam(req),body=parse(updateSchema,req.body);
     return transaction(async tx=>{
       await lockUsers(tx,[viewer.id]);await assertActiveUser(viewer.id,tx);const c=await requireClub(id,tx,true);
-      // Archived clubs still have an owner, who may reactivate them.
+      // Owner archives can be reopened; platform restrictions require a separate audited decision.
+      if(c.platform_restricted)fail(403,'PLATFORM_RESTRICTED','Клуб ограничен модерацией платформы. Настройки доступны после пересмотра решения.');
       if(c.owner_id!==viewer.id)fail(403,'CLUB_PERMISSION','Изменять настройки может только владелец клуба');
       if(body.feed_visibility && body.feed_visibility!==c.feed_visibility && !body.visibility_change_acknowledged)fail(422,'VISIBILITY_ACK_REQUIRED','Подтвердите изменение аудитории и правила сохранения закрытой истории');
       await assertMedia(viewer.id,body.avatar_id,5*1024*1024,tx);await assertMedia(viewer.id,body.cover_id,10*1024*1024,tx);
@@ -67,6 +76,21 @@ export async function registerClubs(app:FastifyInstance):Promise<void> {
       const updated=(await one<Club>(`UPDATE clubs SET name=$2,description=$3,join_mode=$4,feed_visibility=$5,rules=$6,avatar_id=$7,cover_id=$8,event_roles=$9::jsonb,state=$10,updated_at=now(),version=version+1 WHERE id=$1 RETURNING *`,[id,body.name===undefined?c.name:checkedText(body.name,3,60,'Название клуба'),body.description===undefined?c.description:checkedText(body.description,10,1000,'Описание'),body.join_mode??c.join_mode,body.feed_visibility??c.feed_visibility,body.rules??c.rules,body.avatar_id===undefined?c.avatar_id:body.avatar_id,body.cover_id===undefined?c.cover_id:body.cover_id,JSON.stringify(body.event_roles??c.event_roles),body.state??c.state],tx))!;
       await audit(tx,viewer.id,id,'club_settings',id,'',{before:{feed_visibility:c.feed_visibility,state:c.state},after:{feed_visibility:updated.feed_visibility,state:updated.state}});
       return visibleClub(updated);
+    });
+  });
+  app.delete('/api/v1/clubs/:id',async req=>{
+    const viewer=requireUser(req),id=idParam(req);const body=parse(z.object({password:z.string().min(1).max(128),confirmation:z.literal('DELETE')}).strict(),req.body);
+    return transaction(async tx=>{
+      await lockUsers(tx,[viewer.id]);await assertActiveUser(viewer.id,tx);const club=await requireClub(id,tx,true);
+      if(club.owner_id!==viewer.id)fail(403,'CLUB_PERMISSION','Удалить клуб может только его владелец.');
+      const account=await one<{password_hash:string}>('SELECT password_hash FROM users WHERE id=$1',[viewer.id],tx);
+      if(!account||!await checkPassword(account.password_hash,body.password))fail(401,'invalid_credentials','Проверьте пароль.');
+      await execute("UPDATE clubs SET state='deleted',pinned_post_id=NULL,updated_at=now(),version=version+1 WHERE id=$1",[id],tx);
+      await execute("UPDATE club_memberships SET state='left',revoked_at=now(),updated_at=now() WHERE club_id=$1 AND state IN ('active','pending')",[id],tx);
+      await execute("UPDATE event_registrations r SET state='cancelled' FROM events e WHERE r.event_id=e.id AND e.club_id=$1 AND e.starts_at>now() AND r.state='active'",[id],tx);
+      await execute("UPDATE events SET state='cancelled',updated_at=now() WHERE club_id=$1 AND state='open' AND starts_at>now()",[id],tx);
+      await execute("UPDATE club_transfers SET state='cancelled' WHERE club_id=$1 AND state='pending'",[id],tx);
+      await audit(tx,viewer.id,id,'club_delete',id,'Владелец подтвердил удаление клуба');return {ok:true};
     });
   });
   app.get('/api/v1/clubs/:id/members',async req=>{

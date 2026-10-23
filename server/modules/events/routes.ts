@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import { execute, lockUsers, one, query, transaction } from '../../db/index.js';
-import { fail,idParam,notify,parse,requireUser } from '../../lib.js';
+import { assertCurrentActor, fail,idParam,notify,parse,requireUser } from '../../lib.js';
 import { canManageEvent,canReadEvent,eventDTO,eventMember,eventRow,registrationDTOs,type EventRow } from './service.js';
 
 const fields={title:z.string().trim().min(3).max(160),description:z.string().trim().min(1).max(5000),audience:z.enum(['public','members_only']),starts_at:z.string().datetime({offset:true}),ends_at:z.string().datetime({offset:true}),registration_closes_at:z.string().datetime({offset:true}),capacity:z.number().int().min(1).max(100000)};
@@ -15,7 +15,7 @@ async function lockClub(tx:PoolClient,id:string):Promise<Club> {
   return club;
 }
 async function lockEventContext(tx:PoolClient,eventId:string,userId:string):Promise<EventRow> {
-  await lockUsers(tx,[userId]);
+  await lockUsers(tx,[userId]);await assertCurrentActor(tx,userId);
   const initial=await eventRow(eventId,tx);if(!initial)fail(404,'not_found','Мероприятие не найдено');
   const club=await lockClub(tx,initial.club_id);
   const event=await eventRow(eventId,tx,true);
@@ -47,7 +47,7 @@ export async function registerEvents(app:FastifyInstance):Promise<void> {
   app.post('/api/v1/clubs/:id/events',async(request,reply)=>{
     const viewer=requireUser(request);const clubId=idParam(request);const input=parse(createSchema,request.body);
     const created=await transaction(async tx=>{
-      await lockUsers(tx,[viewer.id]);const club=await lockClub(tx,clubId);
+      await lockUsers(tx,[viewer.id]);await assertCurrentActor(tx,viewer.id);const club=await lockClub(tx,clubId);
       if(club.state!=='active')fail(409,'club_archived','Клуб находится в архиве');
       const member=await eventMember(viewer.id,clubId,tx);
       if(!member||!club.event_roles.includes(member.role))fail(403,'event_permission_required','Эта роль не может создавать мероприятия');

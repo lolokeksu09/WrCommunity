@@ -7,6 +7,7 @@ import swaggerUI from '@fastify/swagger-ui';
 import fastifyStatic from '@fastify/static';
 import {randomBytes,timingSafeEqual} from 'node:crypto';
 import {existsSync} from 'node:fs';
+import {readdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {one} from './db/index.js';
 import {HttpError,fail} from './lib.js';
@@ -28,6 +29,7 @@ export async function buildApp(options:{logger?:boolean}={}):Promise<FastifyInst
  const production=process.env.NODE_ENV==='production';
  const origin=process.env.APP_ORIGIN??'http://localhost:3000';
  if(production){if(!process.env.DATABASE_URL||!process.env.COOKIE_SECRET||process.env.COOKIE_SECRET.length<32||!/^[a-f\d]{64}$/i.test(process.env.LFG_CONTACT_KEY??'')||!process.env.APP_ORIGIN||!process.env.SMTP_HOST||!process.env.SMTP_FROM)throw new Error('Required production configuration missing');}
+ const expectedMigrations=(await readdir(new URL('./db/migrations/',import.meta.url))).filter(x=>x.endsWith('.sql'));
  const app=Fastify({logger:options.logger===false?false:{level:'info',redact:['req.headers.cookie','req.headers.authorization','req.headers.x-csrf-token','res.headers.set-cookie']},logController:new LogController({disableRequestLogging:true}),bodyLimit:1024*1024,trustProxy:process.env.TRUST_PROXY_CIDR?.split(',').map(x=>x.trim()).filter(Boolean)??false,requestTimeout:30000});
  await app.register(cookie,{secret:process.env.COOKIE_SECRET??fallbackCookieSecret});
  await app.register(helmet,{contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'"],imgSrc:["'self'",'blob:','data:'],connectSrc:["'self'"],fontSrc:["'self'"],objectSrc:["'none'"],frameAncestors:["'none'"],baseUri:["'self'"],formAction:["'self'"],upgradeInsecureRequests:production?[]:null}},crossOriginResourcePolicy:{policy:'same-origin'}});
@@ -60,7 +62,7 @@ export async function buildApp(options:{logger?:boolean}={}):Promise<FastifyInst
   return reply.code(status).send({error:{code,message,requestId:request.id}});
  });
  app.get('/health/live',async()=>({ok:true}));
- app.get('/health/ready',async(_request,reply)=>{try{const result=await one<{ready:boolean}>('SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE name=\'001_initial.sql\') ready');if(!result?.ready)return reply.code(503).send({ok:false});return {ok:true};}catch{return reply.code(503).send({ok:false});}});
+ app.get('/health/ready',async(_request,reply)=>{try{const result=await one<{ready:boolean}>('SELECT count(*)=$2::integer AS ready FROM schema_migrations WHERE name=ANY($1::text[])',[expectedMigrations,expectedMigrations.length]);if(!result?.ready)return reply.code(503).send({ok:false});return {ok:true};}catch{return reply.code(503).send({ok:false});}});
  for(const register of [registerAuth,registerProfiles,registerSocial,registerMedia,registerClubs,registerClubContent,registerDiscovery,registerLfg,registerEvents,registerNotifications,registerModeration])await register(app);
  app.get('/api/v1/openapi.json',async()=>app.swagger());
  const webRoot=resolve(process.env.WEB_ROOT??'dist/web');

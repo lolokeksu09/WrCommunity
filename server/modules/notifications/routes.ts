@@ -9,6 +9,7 @@ function category(type:string):string {if(/like|reaction/.test(type))return 'rea
 const labels:Record<string,string>={comments:'Новый ответ в обсуждении',reactions:'Новая отметка «Нравится»',mentions:'Вас упомянули в публикации',follows:'Новая подписка',clubs:'Обновление в вашем клубе',events:'Изменение клубного мероприятия',lfg:'Обновление поиска команды'};
 async function visible(n:Notification,userId:string):Promise<{href:string}|undefined>{
  if(n.actor_id&&n.actor_id!==userId&&await blocked(userId,n.actor_id))return;
+ if(n.actor_id&&/follow|like|reaction/.test(n.event_type)&&!await canReadProfile(userId,n.actor_id))return;
  if(n.object_type==='post'){if(await canReadPost(userId,n.object_id))return {href:`/posts/${n.object_id}`};return;}
  if(n.object_type==='comment'){const c=await one<{post_id:string}>('SELECT post_id FROM comments WHERE id=$1 AND state=\'published\'',[n.object_id]);if(c&&await canReadPost(userId,c.post_id))return {href:`/posts/${c.post_id}`};return;}
  if(n.object_type==='profile'||n.object_type==='user'){if(await canReadProfile(userId,n.object_id))return {href:`/users/${n.object_id}`};return;}

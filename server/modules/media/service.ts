@@ -20,7 +20,16 @@ export async function canReadMedia(viewerId:string|null,mediaId:string,tx?:PoolC
  for(const p of profiles)if(await canReadProfile(viewerId,p.id,tx))return true;
  // Catalogue artwork is deliberately public; no member identity is included.
  if(await one('SELECT 1 FROM clubs WHERE state<>\'deleted\' AND (avatar_id=$1 OR cover_id=$1)',[mediaId],tx))return true;
- // Only the current visible revision grants access. Pending, rejected, old and removed media stay private.
+ // Submitted images are available to the club's current review queue, never its ordinary readers.
+ if(viewerId&&await one(`SELECT 1 FROM post_revisions r JOIN posts p ON p.id=r.post_id JOIN clubs c ON c.id=p.club_id
+   JOIN users author ON author.id=p.author_id JOIN club_memberships author_member ON author_member.club_id=c.id AND author_member.user_id=p.author_id
+   JOIN club_memberships reviewer ON reviewer.club_id=c.id AND reviewer.user_id=$2 JOIN users actor ON actor.id=reviewer.user_id
+   WHERE r.images ? $1 AND r.status='pending' AND p.state IN ('pending','published') AND c.state='active'
+   AND author.status='active' AND author.visibility='public' AND author.verified_at IS NOT NULL
+   AND author_member.state='active' AND author_member.consented_at IS NOT NULL AND author_member.revoked_at IS NULL
+   AND reviewer.state='active' AND reviewer.consented_at IS NOT NULL AND reviewer.revoked_at IS NULL AND reviewer.role IN ('owner','admin','moderator')
+   AND actor.status='active' AND actor.verified_at IS NOT NULL`,[mediaId,viewerId],tx))return true;
+ // Ordinary readers can only access the current visible revision.
  const posts=await query<{id:string}>('SELECT p.id FROM posts p JOIN post_revisions r ON r.id=p.current_revision_id WHERE r.images ? $1',[mediaId],tx);
  for(const p of posts)if(await canReadPost(viewerId,p.id,tx))return true;
  if(viewerId){

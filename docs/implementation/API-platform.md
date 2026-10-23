@@ -16,3 +16,5 @@ GET /moderation/sanctions; POST /moderation/sanctions {user_id,kind:warning|susp
 GET /moderation/audit -> append-only decision log {items}.
 
 All lists bounded. No blanket private profile access for moderators; no club powers over personal account fields. Privileged case reads are audited.
+
+`POST /moderation/content/club/:id/restore` `{reason}` releases a platform hold on an archived club, with a separate audited decision. Owner settings cannot override platform restrictions. Deleted clubs cannot be restored through this operation.

@@ -13,6 +13,10 @@ export function requireUser(request:FastifyRequest,verified=true):Viewer {
  if(verified&&!user.verified)fail(403,'email_unverified','Подтвердите адрес электронной почты.');
  return user;
 }
+export async function assertCurrentActor(tx:PoolClient,userId:string,verified=true):Promise<void>{
+ const actor=await one<{status:string;verified_at:Date|null}>('SELECT status,verified_at FROM users WHERE id=$1',[userId],tx);
+ if(!actor||actor.status!=='active'||(verified&&!actor.verified_at))fail(403,'account_unavailable','Подтвердите почту и проверьте доступ к аккаунту.');
+}
 export function parse<T>(schema:ZodType<T>,value:unknown):T{const parsed=schema.safeParse(value);if(!parsed.success)fail(422,'validation',parsed.error.issues.map(x=>`${x.path.join('.')}: ${x.message}`).join('; '));return parsed.data;}
 export function idParam(request:FastifyRequest,name='id'):string{return parse(z.string().uuid(),(request.params as Record<string,unknown>)[name]);}
 export async function notify(tx:PoolClient,recipient:string,eventType:string,objectType:string,objectId:string,actorId?:string):Promise<void>{

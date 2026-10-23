@@ -44,7 +44,7 @@ export async function periodic():Promise<void>{
  await expireLfg();
  await transaction(async tx=>{
   const rows=await query<{id:string}>("SELECT id FROM users u WHERE status='suspended' AND NOT EXISTS(SELECT 1 FROM sanctions s WHERE s.user_id=u.id AND s.kind='suspension' AND s.revoked_at IS NULL AND (s.expires_at IS NULL OR s.expires_at>now())) FOR UPDATE",[],tx);
-  for(const row of rows)await execute("UPDATE users SET status='active' WHERE id=$1",[row.id],tx);
+  for(const row of rows)await execute("UPDATE users SET status='active' WHERE id=$1 AND status='suspended' AND NOT EXISTS(SELECT 1 FROM sanctions s WHERE s.user_id=$1 AND s.kind='suspension' AND s.revoked_at IS NULL AND (s.expires_at IS NULL OR s.expires_at>now()))",[row.id],tx);
  });
  await writeFile(process.env.WORKER_HEARTBEAT_FILE??'/tmp/wrc-worker-heartbeat',String(Date.now()),{mode:0o600});
 }

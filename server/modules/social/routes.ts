@@ -59,7 +59,7 @@ async function createBlock(tx:PoolClient,actorId:string,targetId:string){
    await execute('DELETE FROM follows WHERE (follower_id=$1 AND followee_id=$2) OR (follower_id=$2 AND followee_id=$1)',[actorId,targetId],tx);
    await execute('DELETE FROM reactions r USING posts p WHERE p.id=r.post_id AND ((r.user_id=$1 AND p.author_id=$2) OR (r.user_id=$2 AND p.author_id=$1))',[actorId,targetId],tx);
    await execute('DELETE FROM notifications WHERE (recipient_id=$1 AND actor_id=$2) OR (recipient_id=$2 AND actor_id=$1)',[actorId,targetId],tx);
-   await execute("DELETE FROM outbox WHERE type='notification' AND completed_at IS NULL AND ((payload->>'recipient'=$1 AND payload->>'actorId'=$2) OR (payload->>'recipient'=$2 AND payload->>'actorId'=$1))",[actorId,targetId],tx);
+   await execute("DELETE FROM outbox WHERE id IN (SELECT id FROM outbox WHERE type='notification' AND completed_at IS NULL AND ((payload->>'recipient'=$1 AND payload->>'actorId'=$2) OR (payload->>'recipient'=$2 AND payload->>'actorId'=$1)) FOR UPDATE SKIP LOCKED)",[actorId,targetId],tx);
    await execute('DELETE FROM mentions m USING posts p WHERE p.id=m.post_id AND ((m.user_id=$1 AND p.author_id=$2) OR (m.user_id=$2 AND p.author_id=$1))',[actorId,targetId],tx);
 }
 export async function registerSocial(app:FastifyInstance):Promise<void>{
@@ -126,12 +126,14 @@ export async function registerSocial(app:FastifyInstance):Promise<void>{
  app.post('/api/v1/posts/:id/comments',async request=>{
   const user=requireUser(request);const postId=idParam(request);const input=parse(commentInput,request.body);
   const commentId=await transaction(async tx=>{
-   const p=await one<any>('SELECT p.*,c.state club_state,c.feed_visibility FROM posts p LEFT JOIN clubs c ON c.id=p.club_id WHERE p.id=$1',[postId],tx);
+   let p=await one<any>('SELECT p.*,c.state club_state,c.feed_visibility FROM posts p LEFT JOIN clubs c ON c.id=p.club_id WHERE p.id=$1',[postId],tx);
    if(!p||p.state!=='published')fail(404,'not_found','Публикация не найдена');
    const ancestors=input.parent_id?await query<any>(`WITH RECURSIVE chain AS(SELECT id,parent_id,author_id,post_id,state FROM comments WHERE id=$1 UNION ALL SELECT c.id,c.parent_id,c.author_id,c.post_id,c.state FROM comments c JOIN chain x ON c.id=x.parent_id) SELECT * FROM chain`,[input.parent_id],tx):[];
    await lockUsers(tx,[user.id,p.author_id,...ancestors.filter(a=>a.author_id).map(a=>a.author_id)]);const actor=await activeActor(tx,user.id);
    await lockPairs(tx,[[user.id,p.author_id],...ancestors.filter(a=>a.author_id).map(a=>[user.id,a.author_id] as [string,string])]);
    if(!await canReadPost(user.id,postId,tx))fail(404,'not_found','Публикация не найдена');
+   p=await one<any>('SELECT p.*,c.state club_state,c.feed_visibility FROM posts p LEFT JOIN clubs c ON c.id=p.club_id WHERE p.id=$1',[postId],tx);
+   if(!p||p.state!=='published')fail(404,'not_found','Публикация не найдена');
    if(input.parent_id&&(!ancestors.length||ancestors.some(a=>a.post_id!==postId||a.state!=='published')))fail(404,'not_found','Комментарий не найден');
    for(const a of ancestors)if(a.author_id&&await blocked(user.id,a.author_id,tx))fail(404,'not_found','Комментарий не найден');
    let snapshot:string|null=null,avatar:string|null=null;
@@ -175,6 +177,7 @@ export async function registerSocial(app:FastifyInstance):Promise<void>{
    const user=requireUser(request);const id=idParam(request);await transaction(async tx=>{
     const p=await one<{author_id:string}>('SELECT author_id FROM posts WHERE id=$1',[id],tx);if(!p)fail(404,'not_found','Публикация не найдена');
     await lockUsers(tx,[user.id,p.author_id]);const actor=await activeActor(tx,user.id);await lockPair(tx,user.id,p.author_id);if(!await canReadPost(user.id,id,tx))fail(404,'not_found','Публикация не найдена');
+    if(kind==='like'&&method==='PUT'&&await one("SELECT 1 FROM posts p JOIN clubs c ON c.id=p.club_id WHERE p.id=$1 AND c.state<>'active'",[id],tx))fail(409,'club_archived','Клуб находится в архиве');
     const table=kind==='like'?'reactions':'bookmarks';
     if(method==='PUT'){const inserted=await query(`INSERT INTO ${table}(user_id,post_id) VALUES($1,$2) ON CONFLICT DO NOTHING RETURNING user_id`,[user.id,id],tx);if(inserted.length&&kind==='like'&&user.id!==p.author_id&&actor.visibility==='public')await notify(tx,p.author_id,'like','post',id,user.id);}
     else await execute(`DELETE FROM ${table} WHERE user_id=$1 AND post_id=$2`,[user.id,id],tx);
