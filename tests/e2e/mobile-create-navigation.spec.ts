@@ -16,6 +16,7 @@ test('мобильная навигация позволяет создать п
   try {
     const ui = await browserPerson(browser, player);
     try {
+      await ui.page.setViewportSize({ width: 390, height: 844 });
       await ui.page.goto('/');
       const create = ui.page.getByRole('navigation', { name: 'Основная мобильная навигация' }).getByRole('link', { name: 'Создать публикацию' });
       await create.click();
