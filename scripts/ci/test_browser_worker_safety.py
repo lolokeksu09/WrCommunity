@@ -13,9 +13,14 @@ WORKFLOW = ROOT / ".github/workflows/ci.yml"
 
 
 class BrowserWorkerSafety(unittest.TestCase):
-    def test_ci_uses_two_workers_but_local_stays_serial(self):
+    def test_ci_keeps_local_serial_and_ci_parallelism_bounded(self):
         text = CONFIG.read_text(encoding="utf-8")
-        self.assertRegex(text, r"workers:\s*process\.env\.CI\s*\?\s*2\s*:\s*1\s*,")
+        self.assertIn("WRC_E2E_WORKERS === undefined", text)
+        self.assertIn("Number(process.env.WRC_E2E_WORKERS)", text)
+        self.assertIn("Number.isInteger(requestedWorkers)", text)
+        self.assertIn("requestedWorkers > 4", text)
+        self.assertIn("? 2", text)
+        self.assertIn("workers: process.env.CI ? requestedWorkers : 1,", text)
         self.assertIn("fullyParallel: false", text)
         self.assertIn("retries: process.env.CI ? 1 : 0", text)
 

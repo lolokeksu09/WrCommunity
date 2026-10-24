@@ -1,11 +1,18 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const requestedWorkers = process.env.WRC_E2E_WORKERS === undefined
+  ? 2
+  : Number(process.env.WRC_E2E_WORKERS);
+if (!Number.isInteger(requestedWorkers) || requestedWorkers < 1 || requestedWorkers > 4) {
+  throw new Error('WRC_E2E_WORKERS must be an integer from 1 to 4');
+}
+
 export default defineConfig({
   testDir: '../tests/e2e',
   fullyParallel: false,
   // CI runs separate spec files concurrently; each file remains serial.
   // Keep local development lightweight and avoid per-test parallelism on shared PostgreSQL.
-  workers: process.env.CI ? 2 : 1,
+  workers: process.env.CI ? requestedWorkers : 1,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],

@@ -91,6 +91,8 @@ jobs:
           PG_CLIENT_CONTAINER: true
       - run: npx playwright install --with-deps chromium
       - name: Browser acceptance checks
+        env:
+          WRC_E2E_WORKERS: '3'
         run: |
           npm run start:worker > /tmp/wrc-worker.log 2>&1 &
           npm run test:e2e
