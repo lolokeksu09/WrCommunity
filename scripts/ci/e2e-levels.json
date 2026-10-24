@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "description": "Real Playwright scenarios; a name is an exact title fragment (dynamic viewport titles use prefix). No application data and no production execution.",
+  "scenarios": [
+    {
+      "file": "platform.spec.ts",
+      "name": "регистрация, подтверждение письма, приватность и публикация сохраняются после обновления",
+      "level": "L3",
+      "area": "auth"
+    },
+    {
+      "file": "platform.spec.ts",
+      "name": "подписка, лайк, закладка, дерево ответов и контекстная блокировка скрытого автора",
+      "level": "L3",
+      "area": "social"
+    },
+    {
+      "file": "platform.spec.ts",
+      "name": "закрытый клуб: скрытая личность, одобрение, премодерация, комментарий и мероприятие",
+      "level": "L3",
+      "area": "clubs"
+    },
+    {
+      "file": "platform.spec.ts",
+      "name": "LFG: скрытый отклик, принятие и двусторонний обмен контактами с отзывом",
+      "level": "L3",
+      "area": "lfg"
+    },
+    {
+      "file": "platform.spec.ts",
+      "name": "уведомления и модерация: настройки сохраняются, жалоба и решение меняют доступ",
+      "level": "L3",
+      "area": "moderation"
+    },
+    {
+      "file": "platform.spec.ts",
+      "name": "восстановление пароля письмом, вход, сессии и подтверждённое удаление аккаунта",
+      "level": "L3",
+      "area": "auth"
+    },
+    {
+      "file": "platform.spec.ts",
+      "name": "незавершённые формы сохраняют ввод при переходе в другой раздел и обратно",
+      "level": "L2",
+      "area": "forms"
+    },
+    {
+      "file": "platform.spec.ts",
+      "name": "адаптивность ",
+      "level": "L2",
+      "area": "navigation"
+    },
+    {
+      "file": "home-feed-ux.spec.ts",
+      "name": "свёрнутая карусель остаётся свёрнутой при переходах внутри сайта",
+      "level": "L2",
+      "area": "feed"
+    },
+    {
+      "file": "home-feed-ux.spec.ts",
+      "name": "вертикальный жест не перелистывает карусель, горизонтальный листает",
+      "level": "L2",
+      "area": "feed"
+    },
+    {
+      "file": "home-feed-ux.spec.ts",
+      "name": "первая публичная публикация читаема и видна без прокрутки на 390px",
+      "level": "L2",
+      "area": "feed"
+    },
+    {
+      "file": "pagination.spec.ts",
+      "name": "добавленные страницы публикаций сохраняются после лайка и закладки",
+      "level": "L3",
+      "area": "feed"
+    },
+    {
+      "file": "pagination.spec.ts",
+      "name": "страницы комментариев обновляются после ответа и удаления без возврата к первым двадцати",
+      "level": "L3",
+      "area": "comments"
+    },
+    {
+      "file": "pagination.spec.ts",
+      "name": "гость видит ошибку догрузки комментариев и может повторить запрос",
+      "level": "L2",
+      "area": "comments"
+    },
+    {
+      "file": "comment-thread-usability.spec.ts",
+      "name": "длинная ветка сообщает число вложенных ответов и позволяет развернуть её",
+      "level": "L3",
+      "area": "comments"
+    },
+    {
+      "file": "comment-thread-usability.spec.ts",
+      "name": "редактор ответа показывает исходный комментарий и ссылку возврата",
+      "level": "L2",
+      "area": "comments"
+    },
+    {
+      "file": "comment-thread-usability.spec.ts",
+      "name": "гостю ответ на комментарий предлагает вход с возвратом к публикации",
+      "level": "L2",
+      "area": "comments"
+    },
+    {
+      "file": "post-image-gallery.spec.ts",
+      "name": "вложения публикации открываются внутри сайта с переключением и возвратом фокуса",
+      "level": "L3",
+      "area": "media"
+    },
+    {
+      "file": "notification-quick-read.spec.ts",
+      "name": "новое уведомление можно прочитать без перехода со страницы",
+      "level": "L3",
+      "area": "notifications"
+    },
+    {
+      "file": "mobile-create-navigation.spec.ts",
+      "name": "мобильная навигация позволяет создать публикацию гостю после входа и авторизованному игроку",
+      "level": "L3",
+      "area": "editor"
+    }
+  ]
+}
