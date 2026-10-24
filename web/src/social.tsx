@@ -1,16 +1,110 @@
 import {useEffect,useRef,useState,type FormEvent} from 'react';
 import {Link,useLoaderData,useNavigate,useParams,useSearchParams} from 'react-router-dom';
 import {ArrowRight,Bookmark,ChevronDown,ChevronLeft,ChevronRight,ChevronUp,Heart,ImagePlus,MessageCircle,MoreHorizontal,Plus,Search,Send,Trash2,X} from 'lucide-react';
-import {api,collection,mediaUrl,query,type Author,type Collection,type Comment,type ImageAsset,type Post,type Profile} from './api';
+import {api,collection,mediaUrl,message,query,type Author,type Collection,type Comment,type ImageAsset,type Post,type Profile} from './api';
 import {Gate,useSession} from './auth';
 import {ApiButton,AuthorName,Avatar,CheckField,ConfirmButton,Empty,Feedback,Field,PageHeading,ReportLink,Select,Submit,date,formValues,isChecked,splitValues,textValue,useTask} from './ui';
 export function Discoveries(){const [collapsed,setCollapsed]=useState(false),[slide,setSlide]=useState(0);const touch=useRef<number|null>(null);const {user}=useSession();const cards=[{title:'Найти своих',description:'Игроки, команды и темы, которые тебе близки.',to:'/discover',button:'Смотреть игроков',label:'Открытия'},{title:'Своя компания',description:'Общие интересы. Знакомые лица. Новые встречи.',to:'/clubs',button:'Открыть клубы',label:'Сообщества'},{title:'Есть что обсудить?',description:'Тактика, впечатления и собственные истории.',to:'/posts/new',button:'Написать пост',label:'Обсуждения'}];const card=cards[slide];function move(n:number){setSlide((n+cards.length)%cards.length);}return <section className={'discoveries'+(user?' compact':'')} aria-label="Открытия"><div className="discoveries-caption"><span>Открой для себя</span><button className="text-control" onClick={()=>setCollapsed(!collapsed)} aria-expanded={!collapsed}>{collapsed?'Развернуть':'Свернуть'}{collapsed?<ChevronDown size={15}/>:<ChevronUp size={15}/>}</button></div>{!collapsed&&<><div className="hero-shell"><div className={'hero hero-'+slide} onTouchStart={e=>{touch.current=e.touches[0].clientX;}} onTouchEnd={e=>{if(touch.current!==null&&Math.abs(e.changedTouches[0].clientX-touch.current)>45)move(slide+(e.changedTouches[0].clientX<touch.current?1:-1));touch.current=null;}} onKeyDown={e=>{if(e.key==='ArrowRight')move(slide+1);if(e.key==='ArrowLeft')move(slide-1);}} tabIndex={0}><div className="hero-portal" aria-hidden="true"><div/><i/><b/></div><div className="hero-content"><span className="hero-label">{card.label}</span><h2>{card.title}</h2><p>{card.description}</p><Link to={card.to} className="hero-action">{card.button}<ArrowRight size={14}/></Link></div><button className="hero-next" aria-label="Следующая карточка" onClick={()=>move(slide+1)}><ArrowRight size={19}/></button></div></div><div className="hero-controls"><span>{slide+1} из {cards.length}</span><div className="hero-dots">{cards.map((_,i)=><button key={i} aria-label={'Карточка '+(i+1)} aria-current={slide===i} className={slide===i?'selected':''} onClick={()=>move(i)}/>)}</div></div></>}</section>;}
 export function Home(){const data=useLoaderData() as Collection<Post>;const [params]=useSearchParams();const mode=params.get('mode')??'all';const {user}=useSession();return <><h1 className="sr-only">Лента WrCommunity</h1><Discoveries/><div className="feed-head"><div><h2>Лента</h2><span>Публикации сообщества</span></div><Link className="quiet-link" to="/discover"><Search size={17}/> Найти</Link></div><nav className="tabs" aria-label="Тип ленты"><Link to="/" preventScrollReset className={mode==='all'?'active':''}>Все</Link><Link to="/?mode=following" preventScrollReset className={mode==='following'?'active':''}>Подписки</Link><Link className="create-link" to="/posts/new" aria-label="Создать публикацию"><Plus size={19}/><span>Написать</span></Link></nav>{mode==='following'&&!user?<Empty title="Твоя лента подписок" to="/login?returnTo=%2F%3Fmode%3Dfollowing" action="Войти">Войди, чтобы читать публикации интересных тебе авторов.</Empty>:<PostList key={mode} data={data} path={'/feed'+query({mode})} emptyTitle={mode==='following'?'Здесь появятся посты твоих авторов':'Сообщество начинается с разговора'} emptyText={mode==='following'?'Найди игроков по ролям и интересам и подпишись на их публикации.':'Публикаций пока нет. Поделись мыслью, задай вопрос или найди компанию для следующего матча.'}/>}<div className="community-note"><img src="/brand.svg" width="32" height="32" alt=""/><div><h2>За пределами матча</h2><p>Независимое русскоязычное сообщество игроков Wild Rift.</p></div></div></>;}
-export function PostList({data,path,emptyTitle='Пока нет публикаций',emptyText='Новые записи появятся здесь.',editable=false}:{data:Collection<Post>;path:string;emptyTitle?:string;emptyText?:string;editable?:boolean}){const [items,setItems]=useState(data.items),[cursor,setCursor]=useState(data.nextCursor);const task=useTask();useEffect(()=>{setItems(data.items);setCursor(data.nextCursor);},[data]);return <><div className="post-list">{items.length?items.map(post=><PostCard post={post} key={post.id} editable={editable}/>):<Empty title={emptyTitle} to="/posts/new" action="Написать пост">{emptyText}</Empty>}</div>{cursor&&<button className="secondary load-more" disabled={task.busy} onClick={()=>task.run(()=>collection<Post>(path+(path.includes('?')?'&':'?')+'cursor='+encodeURIComponent(cursor)),result=>{setItems([...items,...result.items]);setCursor(result.nextCursor);})}>{task.busy?'Загружается…':'Показать ещё'}</button>}<Feedback task={task}/></>;}
+function usePagedCollection<T extends {id:string}>(initial:Collection<T>,path:string){
+ const {user}=useSession();
+ const scope=(user?.id??'guest')+':'+path;
+ const [items,setItems]=useState(initial.items);
+ const [cursor,setCursor]=useState(initial.nextCursor);
+ const [busy,setBusy]=useState(false);
+ const [error,setError]=useState('');
+ const pages=useRef(1);
+ const scopeRef=useRef(scope);
+ const requestVersion=useRef(0);
+ const loadController=useRef<AbortController|null>(null);
+ const pageUrl=(after:string)=>path+(path.includes('?')?'&':'?')+'cursor='+encodeURIComponent(after);
+ useEffect(()=>{
+  const version=++requestVersion.current;
+  loadController.current?.abort();
+  const controller=new AbortController();
+  setError('');
+  if(scopeRef.current!==scope){
+   scopeRef.current=scope;
+   pages.current=1;
+   setItems(initial.items);
+   setCursor(initial.nextCursor);
+   setBusy(false);
+   return ()=>controller.abort();
+  }
+  const pageCount=pages.current;
+  if(pageCount===1){
+   setItems(initial.items);
+   setCursor(initial.nextCursor);
+   setBusy(false);
+   return ()=>controller.abort();
+  }
+  setBusy(true);
+  void (async()=>{
+   let current=[...initial.items];
+   let next=initial.nextCursor;
+   for(let index=1;index<pageCount&&next;index++){
+    const result=await collection<T>(pageUrl(next),controller.signal);
+    current=[...current,...result.items];
+    next=result.nextCursor;
+   }
+   if(version!==requestVersion.current||controller.signal.aborted)return;
+   setItems(Array.from(new Map(current.map(item=>[item.id,item])).values()));
+   setCursor(next);
+  })().catch(cause=>{
+   if(version!==requestVersion.current||controller.signal.aborted)return;
+   // Never retain stale extra pages if access changed or a refresh failed.
+   setItems(initial.items);
+   setCursor(initial.nextCursor);
+   setError(message(cause));
+  }).finally(()=>{
+   if(version===requestVersion.current&&!controller.signal.aborted)setBusy(false);
+  });
+  return ()=>controller.abort();
+ },[initial,scope]);
+ async function loadMore(){
+  if(busy||!cursor)return;
+  const controller=new AbortController();
+  loadController.current=controller;
+  const version=requestVersion.current;
+  setBusy(true);
+  setError('');
+  try{
+   const next=await collection<T>(pageUrl(cursor),controller.signal);
+   if(controller.signal.aborted||version!==requestVersion.current)return;
+   pages.current+=1;
+   setItems(current=>Array.from(new Map([...current,...next.items].map(item=>[item.id,item])).values()));
+   setCursor(next.nextCursor);
+  }catch(cause){
+   if(!controller.signal.aborted&&version===requestVersion.current)setError(message(cause));
+  }finally{
+   if(!controller.signal.aborted&&version===requestVersion.current)setBusy(false);
+  }
+ }
+ return {items,cursor,busy,error,loadMore};
+}
+export function PostList({data,path,emptyTitle='Пока нет публикаций',emptyText='Новые записи появятся здесь.',editable=false}:{data:Collection<Post>;path:string;emptyTitle?:string;emptyText?:string;editable?:boolean}){
+ const {items,cursor,busy,error,loadMore}=usePagedCollection(data,path);
+ return <><div className="post-list">{items.length?items.map(post=><PostCard post={post} key={post.id} editable={editable}/>):<Empty title={emptyTitle} to="/posts/new" action="Написать пост">{emptyText}</Empty>}</div>{cursor&&<button className="secondary load-more" disabled={busy} onClick={loadMore}>{busy?'Загружается…':'Показать ещё'}</button>}{error&&<div className="feedback error" role="alert">{error}</div>}</>;
+}
 export function PostCard({post,detail=false,editable=false,canModerate=false}:{post:Post;detail?:boolean;editable?:boolean;canModerate?:boolean}){const {user}=useSession(),navigate=useNavigate();const task=useTask();const [menu,setMenu]=useState(false);const own=post.author_id===user?.id||editable;async function react(kind:'like'|'bookmark',active:boolean){if(!user){navigate('/login?returnTo='+encodeURIComponent(location.pathname+location.search));return;}await task.run(()=>api('/posts/'+post.id+'/'+kind,active?'DELETE':'PUT',{}));}return <article className={'post'+(detail?' detail':'')}><div className="post-top"><Avatar author={post.author}/><div className="identity"><AuthorName author={post.author}/><span className="byline">{post.author.handle?'@'+post.author.handle+' · ':''}<time dateTime={post.created_at}>{date(post.created_at)}</time>{post.state!=='published'&&<span className="state-label">{post.state==='draft'?'Черновик':post.state==='pending'?'На проверке':post.state==='rejected'?'Отклонено':post.state}</span>}</span></div><button type="button" className="icon-button" aria-label="Действия с публикацией" aria-expanded={menu} onClick={()=>setMenu(!menu)}><MoreHorizontal size={21}/></button></div>{menu&&<div className="context-menu">{own&&<Link to={post.club_id?`/clubs/${post.club_id}/posts/${post.id}/edit`:`/posts/${post.id}/edit`}>Редактировать</Link>}{(own||canModerate)&&<ConfirmButton className="text-control danger-text" warning="Удалить публикацию? Она станет недоступна читателям." perform={()=>api(post.club_id?'/clubs/posts/'+post.id:'/posts/'+post.id,'DELETE')}>Удалить</ConfirmButton>}<ReportLink type="post" id={post.id}/></div>}{post.club_id&&<Link className="post-topic" to={'/clubs/'+post.club_id}>Публикация клуба<ChevronRight size={13}/></Link>}{post.tags?.length>0&&<div className="post-tags">{post.tags.map(tag=><Link key={tag} to={'/discover/content?tag='+encodeURIComponent(tag)}>#{tag}</Link>)}</div>}<div className="post-body">{detail?<p className="copy">{post.body}</p>:<Link className="post-content-link" to={'/posts/'+post.id}><p className="copy">{post.body}</p></Link>}</div>{!detail&&post.body.length>260&&<Link className="read-more" to={'/posts/'+post.id}>Читать полностью<ArrowRight size={13}/></Link>}{post.images?.length>0&&<div className={'post-images count-'+post.images.length}>{post.images.map(img=><a key={img.id} href={img.url} target="_blank" rel="noreferrer"><img src={img.url} alt="Вложение к публикации" loading="lazy"/></a>)}</div>}<div className="post-actions"><button className={'react'+(post.liked?' active':'')} aria-label={post.liked?'Убрать отметку нравится':'Нравится'} aria-pressed={post.liked} disabled={task.busy} onClick={()=>react('like',post.liked)}><Heart size={20} fill={post.liked?'currentColor':'none'}/><span>{post.like_count||'Нравится'}</span></button><Link className="react" to={'/posts/'+post.id+'#comments'} aria-label="Комментарии"><MessageCircle size={20}/><span>{post.comment_count||'Ответить'}</span></Link><button className={'react push'+(post.bookmarked?' saved':'')} aria-label={post.bookmarked?'Убрать закладку':'Сохранить в закладки'} aria-pressed={post.bookmarked} disabled={task.busy} onClick={()=>react('bookmark',post.bookmarked)}><Bookmark size={20} fill={post.bookmarked?'currentColor':'none'}/></button></div><Feedback task={task}/></article>;}
 export function PostsPage({kind}:{kind:'bookmarks'|'drafts'|'mine'|'mentions'|'content'}){const data=useLoaderData() as Collection<Post>;const {user}=useSession();const titles={bookmarks:'Закладки',drafts:'Черновики',mine:'Мои публикации',mentions:'Упоминания',content:'Темы и публикации'};return <><PageHeading title={titles[kind]} back={kind==='content'?'/discover':'/me'} action={kind==='drafts'||kind==='mine'?<Link className="icon-button" to="/posts/new" aria-label="Написать пост"><Plus size={21}/></Link>:undefined}/>{kind==='content'&&<form className="search-form" method="get"><Field name="tag" label="Тема" defaultValue={new URLSearchParams(location.search).get('tag')??''}/><button className="secondary">Найти</button></form>}<PostList data={data} path={kind==='bookmarks'?'/bookmarks':kind==='mentions'?'/mentions':kind==='content'?'/feed'+location.search:'/posts'+query({authorId:user?.id,state:kind==='drafts'?'draft':'published'})} editable={kind==='drafts'||kind==='mine'}/></>;}
 export function PostDetail(){const {post,comments,canModerate}=useLoaderData() as {post:Post;comments:Collection<Comment>;canModerate?:boolean};return <><PageHeading title="Публикация" back={post.club_id?'/clubs/'+post.club_id:'/'}/><PostCard post={post} detail canModerate={canModerate}/><Comments post={post} initial={comments} canModerate={canModerate}/></>;}
-function Comments({post,initial,canModerate=false}:{post:Post;initial:Collection<Comment>;canModerate?:boolean}){const {user}=useSession();const [reply,setReply]=useState<Comment|null>(null);const [items,setItems]=useState(initial.items),[cursor,setCursor]=useState(initial.nextCursor);const task=useTask();const ref=useRef<HTMLTextAreaElement>(null);useEffect(()=>{setItems(initial.items);setCursor(initial.nextCursor);},[initial]);async function submit(event:FormEvent<HTMLFormElement>){const form=event.currentTarget,data=formValues(event);await task.run(()=>api('/posts/'+post.id+'/comments','POST',{body:textValue(data,'body'),parent_id:reply?.id}),()=>{form.reset();setReply(null);},'Комментарий отправлен');}const children=(parent:string|null)=>items.filter(c=>c.parent_id===parent||(!parent&&c.parent_id&&!items.some(p=>p.id===c.parent_id)));function branch(comment:Comment,depth=0):React.ReactNode{return <CommentNode key={comment.id} comment={comment} depth={depth} canModerate={canModerate} onReply={c=>{setReply(c);ref.current?.focus();}}>{children(comment.id).map(c=>branch(c,depth+1))}</CommentNode>;}return <section className="comments" id="comments"><h2 className="section-title">Обсуждение</h2>{items.length?children(null).map(c=>branch(c)):<p className="muted">Пока тихо. Начни обсуждение.</p>}{cursor&&<button className="secondary" onClick={()=>task.run(()=>collection<Comment>('/posts/'+post.id+'/comments?cursor='+encodeURIComponent(cursor)),result=>{setItems([...items,...result.items]);setCursor(result.nextCursor);})} disabled={task.busy}>Загрузить комментарии</button>}{user?<form className="comment-form stack" onSubmit={submit}>{reply&&<div className="reply-context"><span>Ответ {reply.author.display_name??reply.author.nickname??reply.author.handle}</span><button className="icon-button" type="button" aria-label="Отменить ответ" onClick={()=>setReply(null)}><X size={16}/></button></div>}<label className="formrow"><span>{reply?'Ответить':'Твой комментарий'}</span><textarea className="field" ref={ref} name="body" required maxLength={5000} rows={3} placeholder="Поделись мыслями…"/></label><Feedback task={task}/><Submit busy={task.busy}>Отправить<Send size={16}/></Submit></form>:<Empty title="Присоединяйся к разговору" to={'/login?returnTo='+encodeURIComponent('/posts/'+post.id)} action="Войти">Войди, чтобы оставить комментарий.</Empty>}</section>;}
+function Comments({post,initial,canModerate=false}:{post:Post;initial:Collection<Comment>;canModerate?:boolean}){
+ const {user}=useSession();
+ const [reply,setReply]=useState<Comment|null>(null);
+ const {items,cursor,busy,error,loadMore}=usePagedCollection(initial,'/posts/'+post.id+'/comments');
+ const task=useTask();
+ const ref=useRef<HTMLTextAreaElement>(null);
+ async function submit(event:FormEvent<HTMLFormElement>){
+  const form=event.currentTarget,data=formValues(event);
+  await task.run(()=>api('/posts/'+post.id+'/comments','POST',{body:textValue(data,'body'),parent_id:reply?.id}),()=>{form.reset();setReply(null);},'Комментарий отправлен');
+ }
+ const children=(parent:string|null)=>items.filter(c=>c.parent_id===parent||(!parent&&c.parent_id&&!items.some(p=>p.id===c.parent_id)));
+ function branch(comment:Comment,depth=0):React.ReactNode{
+  return <CommentNode key={comment.id} comment={comment} depth={depth} canModerate={canModerate} onReply={c=>{setReply(c);ref.current?.focus();}}>{children(comment.id).map(c=>branch(c,depth+1))}</CommentNode>;
+ }
+ return <section className="comments" id="comments"><h2 className="section-title">Обсуждение</h2>{items.length?children(null).map(c=>branch(c)):<p className="muted">Пока тихо. Начни обсуждение.</p>}{cursor&&<button className="secondary" onClick={loadMore} disabled={busy}>{busy?'Загружается…':'Загрузить комментарии'}</button>}{error&&<div className="feedback error" role="alert">{error}</div>}{user?<form className="comment-form stack" onSubmit={submit}>{reply&&<div className="reply-context"><span>Ответ {reply.author.display_name??reply.author.nickname??reply.author.handle}</span><button className="icon-button" type="button" aria-label="Отменить ответ" onClick={()=>setReply(null)}><X size={16}/></button></div>}<label className="formrow"><span>{reply?'Ответить':'Твой комментарий'}</span><textarea className="field" ref={ref} name="body" required maxLength={5000} rows={3} placeholder="Поделись мыслями…"/></label><Feedback task={task}/><Submit busy={task.busy}>Отправить<Send size={16}/></Submit></form>:<Empty title="Присоединяйся к разговору" to={'/login?returnTo='+encodeURIComponent('/posts/'+post.id)} action="Войти">Войди, чтобы оставить комментарий.</Empty>}</section>;
+}
 function CommentNode({comment,depth,children,onReply,canModerate=false}:{comment:Comment;depth:number;children:React.ReactNode;onReply:(comment:Comment)=>void;canModerate?:boolean}){const {user}=useSession();const task=useTask();const [collapsed,setCollapsed]=useState(false),[edit,setEdit]=useState(false);const own=comment.author.id===user?.id||comment.can_edit;async function save(e:FormEvent<HTMLFormElement>){const data=formValues(e);await task.run(()=>api('/comments/'+comment.id,'PATCH',{body:textValue(data,'body')}),()=>setEdit(false));}return <article className={'comment depth-'+Math.min(depth,3)}><div className="comment-heading"><AuthorName author={comment.author}/><time>{date(comment.created_at)}</time></div>{edit?<form className="stack" onSubmit={save}><Field name="body" label="Изменить комментарий" type="textarea" defaultValue={comment.body} maxLength={5000} required/><Submit busy={task.busy}>Сохранить</Submit><button type="button" className="text-control" onClick={()=>setEdit(false)}>Отмена</button></form>:<p className="copy">{comment.body}</p>}<div className="comment-controls"><button className="text-control" onClick={()=>onReply(comment)}>Ответить</button>{own&&<><button className="text-control" onClick={()=>setEdit(!edit)}>Изменить</button><ConfirmButton className="text-control" warning="Удалить комментарий?" perform={()=>api('/comments/'+comment.id,'DELETE')}>Удалить</ConfirmButton></>}{!own&&(canModerate||comment.can_moderate)&&<ClubCommentRemoval id={comment.id}/>}{comment.can_block&&<ConfirmButton className="text-control" warning="Заблокировать автора комментария? Взаимные подписки и реакции будут прекращены, дальнейшее прямое взаимодействие станет недоступно." perform={()=>api('/comments/'+comment.id+'/block-author','PUT',{})}>Заблокировать автора</ConfirmButton>}<ReportLink type="comment" id={comment.id}/>{Array.isArray(children)&&children.length>0&&<button className="text-control" aria-expanded={!collapsed} onClick={()=>setCollapsed(!collapsed)}>{collapsed?'Развернуть':'Свернуть'}</button>}</div><Feedback task={task}/>{!collapsed&&<div className="comment-children">{children}</div>}</article>;}
 
 function ClubCommentRemoval({id}:{id:string}){const [open,setOpen]=useState(false);const task=useTask();return <><button className="text-control danger-text" type="button" onClick={()=>setOpen(!open)}>Удалить из клуба</button>{open&&<form className="confirm-panel stack" onSubmit={e=>{const data=formValues(e);task.run(()=>api('/clubs/comments/'+id,'DELETE',{reason:textValue(data,'reason')}),()=>setOpen(false));}}><Field label="Причина удаления комментария" name="reason" minLength={5} maxLength={2000} required type="textarea" help="Причина сохранится в журнале клуба."/><Feedback task={task}/><div className="actions"><button className="secondary" type="button" onClick={()=>setOpen(false)}>Отмена</button><Submit busy={task.busy} className="danger">Удалить комментарий</Submit></div></form>}</>;}
