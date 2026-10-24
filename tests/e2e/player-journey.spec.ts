@@ -1,5 +1,5 @@
 import {test,expect} from '@playwright/test';
-import {account,api,browserPerson,noOverflow} from './helpers.js';
+import {account,api,browserPerson,future,noOverflow} from './helpers.js';
 
 test('первые шаги и собственные фильтры не раскрывают скрытый профиль',async({browser},testInfo)=>{
  test.setTimeout(90000);
@@ -36,6 +36,7 @@ test('первые шаги и собственные фильтры не рас
   await preset.getByRole('button',{name:'Использовать мои настройки'}).click();
   await expect.poll(()=>new URL(ui.page.url()).searchParams.get('role')).toBe('Тактик');
   await expect(preset.getByLabel('Роль из моей карточки')).toHaveValue('Тактик');
+  await preset.getByRole('button',{name:'Изменить мои настройки'}).click();
   await preset.getByLabel('Роль из моей карточки').selectOption('support');
   await preset.getByRole('button',{name:'Использовать мои настройки'}).click();
   await expect(ui.page.locator('.person')).toHaveCount(1);
@@ -44,6 +45,7 @@ test('первые шаги и собственные фильтры не рас
   expect(applied.get('server')).toBe('EU');expect(applied.get('role')).toBe('support');expect(applied.has('cursor')).toBe(false);
   await expect(ui.page.locator('.person')).toContainText('Совпадает игровая роль');
   await noOverflow(ui.page);
+  if((ui.page.viewportSize()?.width??1440)<760)expect((await ui.page.locator('.person').first().boundingBox())!.y).toBeLessThan(660);
   await ui.page.screenshot({path:testInfo.outputPath('preferred-search.png'),fullPage:true});
   await ui.page.getByRole('link',{name:'Сбросить фильтры'}).click();
   await expect(ui.page).toHaveURL(/\/discover\?mode=recommended$/);
@@ -68,4 +70,86 @@ test('первые шаги и собственные фильтры не рас
   await expect(ui.page.getByRole('region',{name:'Свои настройки поиска'})).toHaveCount(0);
   expect(guestReads).toEqual([]);expect(ui.errors).toEqual([]);
  }finally{await ui.context.close();await viewer.context.dispose();await other.context.dispose();await target.context.dispose();}
+});
+
+test('поиск команды объясняет решения и двусторонний обмен контактами',async({browser},testInfo)=>{
+ test.setTimeout(90000);
+ const owner=await account(),member=await account({hidden:true}),rejected=await account({hidden:true});
+ const initial=await api(owner.context,'/me/profile');
+ await api(owner.context,'/me/profile','PATCH',{version:initial.version,game:{server:{value:'EU',public:false},roles:{value:['mid'],public:false}}});
+ const a=await browserPerson(browser,owner),b=await browserPerson(browser,member);
+ try{
+  await a.page.goto('/lfg/new');
+  await expect(a.page.getByLabel('Сервер',{exact:true})).toHaveValue('EU');
+  await expect(a.page.getByRole('group',{name:'Кого ищешь',exact:true}).locator('input:checked')).toHaveCount(0);
+  await expect(a.page.getByLabel('Описание',{exact:true})).toHaveAttribute('maxlength','2000');
+  await a.page.getByLabel('Описание',{exact:true}).fill('Ищем спокойного напарника на вечер');
+  await a.page.getByLabel('Принимать отклики до').fill(await future(240));
+  await a.page.getByLabel('Что делать с нерассмотренными заявками после завершения').selectOption('keep');
+  await a.page.getByRole('button',{name:'Опубликовать объявление'}).click();
+  await expect(a.page.getByRole('alert')).toContainText('Выбери хотя бы одну роль');
+  await a.page.getByRole('group',{name:'Кого ищешь',exact:true}).getByRole('checkbox',{name:'Поддержка',exact:true}).check();
+  await a.page.getByRole('button',{name:'Опубликовать объявление'}).click();
+  await expect(a.page).toHaveURL(/\/lfg\/[a-f0-9-]+$/);const url=a.page.url(),id=url.split('/').at(-1)!;
+  await b.page.goto(url);
+  await expect(b.page.getByLabel('Сообщение автору')).toHaveAttribute('maxlength','500');
+  await b.page.getByLabel('Сообщение автору').fill('Буду играть поддержку');
+  await b.page.getByLabel('Разрешаю раскрыть мой ник и сообщение только автору этого объявления.').check();
+  await b.page.getByRole('button',{name:'Отправить отклик'}).click();
+  await expect(b.page.getByRole('region',{name:'Твой отклик'})).toContainText('Решение за автором объявления');
+  const second=await api(rejected.context,'/lfg/'+id+'/applications','POST',{message:'Другой отклик',disclosure_consent:true});
+  await api(owner.context,'/lfg/'+id+'/close','POST',{});
+  await a.page.goto(url+'/applications');
+  await expect(a.page.getByRole('region',{name:'Сводка откликов'})).toContainText('На рассмотрении: 2');
+  const rejectCard=a.page.locator('.request-card').filter({hasText:rejected.handle});
+  await rejectCard.getByRole('button',{name:'Отклонить',exact:true}).click();
+  await expect(rejectCard).toContainText('Обмен контактами недоступен');
+  await a.page.locator('.request-card').filter({hasText:member.handle}).getByRole('button',{name:'Принять',exact:true}).click();
+  await expect(a.page.getByRole('region',{name:'Сводка откликов'})).toContainText('На рассмотрении: 0');
+  await a.page.getByRole('link',{name:'Игровые контакты',exact:true}).click();
+  const aExchange=a.page.getByRole('region',{name:'Состояние обмена'}),bExchange=b.page.getByRole('region',{name:'Состояние обмена'});
+  await expect(aExchange).toContainText('Обмен ещё не разрешён');
+  await expect(a.page.getByRole('checkbox',{name:/Разрешаю показать этот контакт/})).not.toBeChecked();
+  await a.page.getByLabel('Твой игровой контакт').fill('Captain#EU1');
+  await a.page.getByRole('checkbox',{name:/Разрешаю показать этот контакт/}).check();
+  await a.page.getByRole('button',{name:'Разрешить обмен контактами'}).click();
+  await expect(aExchange).toContainText('Ожидаем согласие напарника');
+  await b.page.reload();await b.page.getByRole('link',{name:'Игровые контакты',exact:true}).click();
+  await expect(bExchange).toContainText('Нужно твоё согласие');
+  await expect(b.page.getByText('Captain#EU1',{exact:true})).toHaveCount(0);
+  await b.page.getByLabel('Твой игровой контакт').fill('Support#EU2');
+  await b.page.getByRole('checkbox',{name:/Разрешаю показать этот контакт/}).check();
+  await b.page.getByRole('button',{name:'Разрешить обмен контактами'}).click();
+  await expect(bExchange).toContainText('Контакты доступны');
+  await expect(b.page.getByText('Captain#EU1',{exact:true})).toBeVisible();
+  await a.page.getByRole('button',{name:'Обновить статус'}).click();
+  await expect(a.page.getByText('Support#EU2',{exact:true})).toBeVisible();
+  await a.page.getByRole('button',{name:'Отозвать согласие',exact:true}).click();
+  await expect(aExchange).toContainText('Нужно твоё согласие');
+  await expect(a.page.getByLabel('Твой игровой контакт')).toHaveValue('');
+  await expect(a.page.getByRole('checkbox',{name:/Разрешаю показать этот контакт/})).not.toBeChecked();
+  await a.page.reload();await expect(a.page.getByLabel('Твой игровой контакт')).toHaveValue('');
+  await b.page.route('**/api/v1/lfg/applications/*/contacts',route=>route.request().method()==='GET'?route.abort():route.continue());
+  await b.page.getByRole('button',{name:'Обновить статус'}).click();
+  await expect(b.page.getByRole('alert')).toContainText('Нет соединения');
+  // An unsuccessful refresh must not keep an old partner contact on screen.
+  await expect(b.page.getByText('Captain#EU1',{exact:true})).toHaveCount(0);
+  await b.page.unroute('**/api/v1/lfg/applications/*/contacts');
+  await b.page.getByRole('button',{name:'Обновить статус'}).click();
+  await expect(bExchange).toContainText('Ожидаем согласие напарника');
+  await expect(b.page.getByText('Captain#EU1',{exact:true})).toHaveCount(0);
+  await noOverflow(a.page);await noOverflow(b.page);
+  await b.page.evaluate(()=>{(document.activeElement as HTMLElement)?.blur();window.scrollTo(0,0);});
+  await b.page.screenshot({path:testInfo.outputPath('contact-consent.png'),fullPage:true});
+  const app=(await api(member.context,'/lfg/applications/mine')).items.find((item:any)=>item.announcement_id===id);
+  await b.page.goto(url);await b.page.getByRole('button',{name:'Отозвать отклик',exact:true}).click();
+  await b.page.getByRole('button',{name:'Подтвердить',exact:true}).click();
+  await expect(b.page.getByRole('region',{name:'Твой отклик'})).toContainText('Обмен контактами прекращён');
+  await expect(b.page.getByRole('link',{name:'Игровые контакты',exact:true})).toHaveCount(0);
+  await b.page.goto('/lfg/applications/'+app.id+'/contacts');
+  await expect(b.page.getByRole('heading',{name:'Не удалось открыть страницу'})).toBeVisible();
+  expect((await api(member.context,'/me/profile')).visibility).toBe('hidden');
+  expect((await api(rejected.context,'/lfg/applications/mine')).items.find((item:any)=>item.id===second.id).state).toBe('rejected');
+  expect([...a.errors,...b.errors]).toEqual([]);
+ }finally{await a.context.close();await b.context.close();await owner.context.dispose();await member.context.dispose();await rejected.context.dispose();}
 });

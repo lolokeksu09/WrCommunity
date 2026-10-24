@@ -34,15 +34,19 @@ export function SearchPreferences({profile}:{profile:Profile|null}){
  const own=profile?preferences(profile):{server:'',roles:[]};
  const current=canonicalRole(params.get('role')??'');
  const [role,setRole]=useState(own.roles.includes(current)?current:own.roles[0]??'');
+ const applied=Boolean((own.server||own.roles.length)&&(params.get('server')??'')===own.server&&(!current||own.roles.includes(current))&&(params.has('server')||params.has('role')));
+ const [expanded,setExpanded]=useState(!applied);
  const id=useId();if(!profile)return null;
  function apply(){const next=new URLSearchParams(params);next.delete('cursor');if(own.server)next.set('server',own.server);else next.delete('server');if(role)next.set('role',role);else next.delete('role');navigate({search:next.toString()});}
  return <section className="search-preferences" aria-label="Свои настройки поиска">
-  <div className="search-preferences-title"><Gamepad2 size={19} aria-hidden="true"/><h2>Из твоей игровой карточки</h2></div>
+  <div className="search-preferences-heading"><div><div className="search-preferences-title"><Gamepad2 size={19} aria-hidden="true"/><h2>Из твоей игровой карточки</h2></div>{!expanded&&<p>{[own.server,current?roleLabel(current):'Все роли'].filter(Boolean).join(' · ')}</p>}</div>{(own.server||own.roles.length>0)&&<button type="button" className="icon-button" aria-label={expanded?'Свернуть мои настройки':'Изменить мои настройки'} aria-expanded={expanded} aria-controls={id+'-fields'} onClick={()=>setExpanded(value=>!value)}>{expanded?<ChevronUp size={19}/>:<ChevronDown size={19}/>}</button>}</div>
+  <div id={id+'-fields'} hidden={!expanded}>
   {own.server||own.roles.length?<>
    <p>{own.server?'Сервер: '+own.server:'Сервер не указан'}{!own.roles.length?' · Роли не указаны':''}</p>
    {own.roles.length>0&&<label className="preference-role" htmlFor={id}><span>Роль из моей карточки</span><select className="field" id={id} value={role} onChange={e=>setRole(e.target.value)}><option value="">Все роли</option>{own.roles.map(value=><option key={value} value={value}>{roleLabel(value)}</option>)}</select></label>}
    <div className="journey-actions"><button type="button" className="secondary" onClick={apply}>Использовать мои настройки</button><Link className="text-control" to="/me/game">Изменить карточку</Link></div>
    <p className="fine-print">Применятся сервер и одна выбранная роль. Остальные фильтры сохранятся. Видимость профиля не изменится.</p>
   </>:<p>Добавь сервер и роли, чтобы применять их в поиске. <Link className="text-control" to="/me/game">Заполнить игровую карточку<ArrowRight size={14}/></Link></p>}
+  </div>
  </section>;
 }

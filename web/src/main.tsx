@@ -1,3 +1,4 @@
+import {LfgContacts} from './lfg-contacts';
 import {resetCommunityState} from './community-state';
 import React,{useEffect} from 'react';
 import {createRoot} from 'react-dom/client';
@@ -7,7 +8,7 @@ import {api,collection,query,session,type Collection,type Post,type Profile,type
 import {AccountSettings,AuthPage,DeleteAccount,MyProfile,ProfileEditor,SessionsPage,useSession} from './auth';
 import {ClubAbout,ClubAudit,ClubCatalog,ClubCreate,ClubDetail,ClubIdentity,ClubManage,ClubMembers,ClubModeration,ClubOwnPosts,ClubRequests,ClubReports,ClubSettings,ClubTransfer,TransferAccept,type Club,type ClubMember,type Revision} from './clubs';
 import {Home,PeopleList,PostDetail,PostEditor,PostsPage,PublicProfile,resetPostDrafts} from './social';
-import {Discovery,EventDetail,EventEditor,EventParticipants,LfgApplications,LfgCatalog,LfgContacts,LfgCreate,LfgDetail,MyLfg,type Application,type ClubEvent,type Lfg} from './lfg-events';
+import {Discovery,EventDetail,EventEditor,EventParticipants,LfgApplications,LfgCatalog,LfgCreate,LfgDetail,MyLfg,type Application,type ClubEvent,type Lfg} from './lfg-events';
 import {ModerationAudit,ModerationReport,ModerationReports,MyReports,MySanctions,NotificationSettings,Notifications,ReportPage,Sanctions,type Notification} from './notifications';
 import {Empty,ErrorView,PageHeading,Skeleton,resetFormDrafts} from './ui';
 import './styles.css';
@@ -34,9 +35,9 @@ const routes=[
  {path:'users/:userId',loader:async(a:LoaderFunctionArgs)=>{const [profile,posts,current]=await Promise.all([read<Profile>('/profiles/'+a.params.userId,a.request),list<Post>('/posts?authorId='+a.params.userId,a.request),session()]);let following=false;if(current.user){const result=await collection<Profile>('/profiles/'+current.user.id+'/following');following=result.items.some(p=>p.id===a.params.userId);}return {profile,posts,following};},element:<PublicProfile/>},
  {path:'discover',loader:async({request}:LoaderFunctionArgs)=>{const url=new URL(request.url),recommended=url.searchParams.get('mode')==='recommended';const current=await session();if(recommended&&!current.user)return {players:{items:[]},profile:null};url.searchParams.delete('mode');const [players,profile]=await Promise.all([list((recommended?'/players/recommendations':'/players/search')+'?'+url.searchParams,request),current.user?read<Profile>('/me/profile',request):null]);return {players,profile};},element:<Discovery/>},
  {path:'discover/content',loader:({request}:LoaderFunctionArgs)=>list<Post>('/feed?'+new URL(request.url).searchParams,request),element:<PostsPage kind="content"/>},
- {path:'discover/lfg',loader:async({request}:LoaderFunctionArgs)=>{const current=await session();const [catalog,profile]=await Promise.all([list<Lfg>('/lfg?'+new URL(request.url).searchParams,request),current.user?read<Profile>('/me/profile',request):null]);return {catalog,profile};},element:<LfgCatalog/>},{path:'lfg/new',element:<LfgCreate/>},
+ {path:'discover/lfg',loader:async({request}:LoaderFunctionArgs)=>{const current=await session();const [catalog,profile]=await Promise.all([list<Lfg>('/lfg?'+new URL(request.url).searchParams,request),current.user?read<Profile>('/me/profile',request):null]);return {catalog,profile};},element:<LfgCatalog/>},{path:'lfg/new',loader:(a:LoaderFunctionArgs)=>privateLoad(a,async()=>({profile:await read<Profile>('/me/profile',a.request)})),element:<LfgCreate/>},
  {path:'lfg/:lfgId',loader:async({request,params}:LoaderFunctionArgs)=>{const [lfg,current]=await Promise.all([read<Lfg>('/lfg/'+params.lfgId,request),session()]);return {lfg,applications:current.user?await list<Application>('/lfg/applications/mine',request):{items:[]}};},element:<LfgDetail/>},
- {path:'lfg/:lfgId/edit',loader:(a:LoaderFunctionArgs)=>privateLoad(a,()=>read('/lfg/'+a.params.lfgId,a.request)),element:<LfgCreate edit/>},{path:'lfg/:lfgId/applications',loader:async(a:LoaderFunctionArgs)=>privateLoad(a,async()=>({lfg:await read('/lfg/'+a.params.lfgId,a.request),applications:await list('/lfg/'+a.params.lfgId+'/applications',a.request)})),element:<LfgApplications/>},
+ {path:'lfg/:lfgId/edit',loader:(a:LoaderFunctionArgs)=>privateLoad(a,async()=>({lfg:await read<Lfg>('/lfg/'+a.params.lfgId,a.request)})),element:<LfgCreate edit/>},{path:'lfg/:lfgId/applications',loader:async(a:LoaderFunctionArgs)=>privateLoad(a,async()=>({lfg:await read('/lfg/'+a.params.lfgId,a.request),applications:await list('/lfg/'+a.params.lfgId+'/applications',a.request)})),element:<LfgApplications/>},
  {path:'lfg/applications/:applicationId/contacts',loader:(a:LoaderFunctionArgs)=>privateLoad(a,()=>read('/lfg/applications/'+a.params.applicationId+'/contacts',a.request)),element:<LfgContacts/>},
  {path:'me/lfg',loader:(a:LoaderFunctionArgs)=>privateLoad(a,async()=>({applications:await list('/lfg/applications/mine',a.request),announcements:await list('/lfg/mine',a.request)})),element:<MyLfg/>},
  {path:'clubs',loader:({request}:LoaderFunctionArgs)=>list('/clubs?'+new URL(request.url).searchParams,request),element:<ClubCatalog/>},
