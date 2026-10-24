@@ -2,7 +2,7 @@
 
 Русскоязычное mobile-first сообщество игроков Wild Rift: профили, публикации, поиск напарников, клубы и мероприятия. Самостоятельный проект; старый `wild-rift-community` не используется.
 
-В репозитории реализовано приложение с PostgreSQL и серверной проверкой прав. Пилотный сайт развёрнут на VDS, его работа подтверждена [GitHub Actions 24.10.2026](https://github.com/lolokeksu09/WrCommunity/actions/runs/40067080290), версия `27e2423`. Это технический пилот, а не подтверждение готовности к открытому запуску: внешние правовые, почтовые и модерационные требования остаются. Статус: [STATUS](docs/implementation/STATUS.md).
+В репозитории реализовано приложение с PostgreSQL и серверной проверкой прав. **Контрольный релиз 24.10.2026:** [Application CI №40112266831](https://github.com/lolokeksu09/WrCommunity/actions/runs/40112266831) успешно проверил и развернул коммит `3644cba` после [PR #23](https://github.com/lolokeksu09/WrCommunity/pull/23); VDS подтвердил точный SHA, `ready: true` и публичный HTTPS. Это исторически проверенная точка, **а не утверждение о неизменности текущего HEAD/VDS**: актуальный релиз сверяйте по [последним запускам `main`](https://github.com/lolokeksu09/WrCommunity/actions/workflows/ci.yml). Это технический пилот, не готовый открытый запуск: внешние правовые, почтовые и модерационные условия остаются. Подробности: [STATUS](docs/implementation/STATUS.md).
 
 ## Локальный запуск целиком в Docker
 
@@ -70,11 +70,11 @@ npm run backup:verify
 npm run smoke:docker
 ```
 
-CI запускает PostgreSQL integration tests, браузерные сценарии, проверку восстановления и независимый Docker smoke. Результаты фактического запуска, скриншоты и известные ограничения перечислены в [отчёте](docs/implementation/STATUS.md), а не выводятся из наличия тестовых файлов.
+**Текущий CI:** на Ready PR и в `main` параллельно работают `api-tests`, два независимых `browser-project` (`desktop-chromium`/`mobile-chromium`, отдельные PostgreSQL/Mailpit) и `docker-smoke`. Fail-closed задания `browser-tests` и `integration` требуют успеха всех частей; на Ready PR дополнительно обязателен `quality-gate`. После FULL на `main` возможны `deploy`, публичная проверка HTTPS и `vds-status`. Полный набор по контрольному релизу: **56/56 API**, **42 успешных E2E и 4 штатных пропуска**. Результаты и ограничения — в [отчёте](docs/implementation/STATUS.md) и [стратегии тестирования](docs/implementation/TESTING-STRATEGY.md), не выводятся из наличия тестовых файлов.
 
 ## Production
 
-[Управление текущим VDS через GitHub Actions](docs/implementation/VDS-DEPLOYMENT.md): ограниченный SSH-доступ, проверенный SHA, локальная копия перед обновлением и браузерная проверка. На 24.10.2026 доступ настроен, автоматический деплой с `main` активен; последний подтверждённый релиз — `27e2423` ([CI + deploy + VDS status](https://github.com/lolokeksu09/WrCommunity/actions/runs/40067080290)). При последующих обновлениях проверяйте текущие результаты GitHub Actions, а не только сведения в README.
+[Управление VDS через GitHub Actions](docs/implementation/VDS-DEPLOYMENT.md): ограниченный SSH-доступ, проверенный SHA, резервная копия перед обновлением и браузерная проверка. Автоматический деплой после FULL в `main` включён. [Подтверждённый релиз PR #23 от 24.10.2026](https://github.com/lolokeksu09/WrCommunity/actions/runs/40112266831) опубликовал `3644cba9ca1e35becaf781badfa71a8fa37e0f9a` (публичный HTTPS и `vds-status`: success). Для **текущего** SHA всегда проверяйте [новейший RELEASE в GitHub Actions](https://github.com/lolokeksu09/WrCommunity/actions/workflows/ci.yml) и активную ревизию на VDS; документация фиксирует момент проверки, а не заменяет live-status.
 
 [Эксплуатация, конфигурация, миграции и резервные копии](docs/implementation/OPERATIONS.md). `compose.yml` публикует только Caddy 80/443; PostgreSQL/API закрыты внутренней сетью. Нужны настоящий домен, внешняя SMTP-доставка и собственные секреты. Обновление пилотного VDS выполняется автоматически после успешных обязательных заданий CI для push в `main`, пока активен `WRC_DEPLOY_ENABLED`.
 
