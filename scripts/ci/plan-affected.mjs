@@ -10,7 +10,21 @@ const catalog=JSON.parse(readFileSync(path.join(root,'scripts/ci/e2e-levels.json
 const allAreas=[...new Set(catalog.scenarios.map(s=>s.area))].sort();
 const args=process.argv.slice(2);
 const json=args.includes('--json');
-const remaining=args.filter(x=>x!=='--json');
+const execute=args.includes('--execute');
+const dryRun=args.includes('--dry-run');
+const projectFlags=args.filter(x=>x.startsWith('--project='));
+const allowedProjects=['--project=mobile-chromium','--project=desktop-chromium'];
+if(args.filter(x=>x==='--execute').length>1 ||
+   args.filter(x=>x==='--dry-run').length>1 ||
+   args.filter(x=>x==='--json').length>1 ||
+   projectFlags.length>1 ||
+   projectFlags.some(x=>!allowedProjects.includes(x)) ||
+   (dryRun&&!execute) || (json&&execute) ||
+   (projectFlags.length&&!execute)){
+  console.error('Invalid options: --execute enables real tests; --dry-run/--project require --execute, and --json cannot combine with it.');
+  process.exit(2);
+}
+const remaining=args.filter(x=>!['--json','--execute','--dry-run',...projectFlags].includes(x));
 const baseArgs=remaining.filter(x=>x.startsWith('--base='));
 const fileIndex=remaining.indexOf('--files');
 if(baseArgs.length>1 || (baseArgs.length>0 && fileIndex!==-1) ||
@@ -117,6 +131,53 @@ else{
   for(const row of plan.reasons)console.log(' - '+row.file+' => '+row.classification+' ('+row.reason+')');
   console.log('L2: '+counts.L2+' declarations; L3: '+counts.L3+' declarations');
   if(plan.securitySensitive)console.log('SECURITY: run relevant API/negative access tests in addition to browser checks.');
+  if(!execute){
+    for(const command of recommendations)console.log('   '+command);
+    console.log(plan.note);
+  }
+}
+if(execute){
+  if(plan.mode==='documentation-only'){
+    console.log('documentation-only: no E2E scenarios selected. FULL CI remains mandatory before merging.');
+    process.exit(0);
+  }
+  const escapeRegex=string=>string.replace(/[.*+?^${}()|[\]\\]/g,'\\if(json)console.log(JSON.stringify(plan));
+else{
+  console.log('Affected test plan: '+plan.mode+'; areas: '+(areas.join(', ')||'none'));
+  for(const row of plan.reasons)console.log(' - '+row.file+' => '+row.classification+' ('+row.reason+')');
+  console.log('L2: '+counts.L2+' declarations; L3: '+counts.L3+' declarations');
+  if(plan.securitySensitive)console.log('SECURITY: run relevant API/negative access tests in addition to browser checks.');
   for(const command of recommendations)console.log('   '+command);
   console.log(plan.note);
+}');
+  const selected=catalog.scenarios.filter(row=>areas.includes(row.area));
+  if(!selected.length){
+    console.error('Non-documentation changes without classified E2E scenarios. Refusing empty execution.');
+    process.exit(2);
+  }
+  const commands=[];
+  if(plan.securitySensitive)commands.push({label:'API TESTS',argv:['test']});
+  if(plan.mode==='expanded'){
+    commands.push({label:'PLAYWRIGHT',argv:['run','test:e2e',...(projectFlags.length?['--',projectFlags[0]]:[])]});
+  }else{
+    const grep=selected.map(row=>escapeRegex(row.name)).join('|');
+    commands.push({label:'PLAYWRIGHT',argv:['run','test:e2e','--','--grep',grep,...projectFlags]});
+  }
+  for(const command of commands){
+    console.log(command.label+': npm '+command.argv.join(' '));
+    if(dryRun)continue;
+    const result=spawnSync(process.platform==='win32'?'npm.cmd':'npm',command.argv,{
+      cwd:root,stdio:'inherit',env:process.env,
+    });
+    if(result.error){
+      console.error(command.label+' failed to start: '+result.error.message);
+      process.exit(2);
+    }
+    if(result.status!==0){
+      console.error(command.label+' failed with exit code '+String(result.status));
+      process.exit(result.status||1);
+    }
+  }
+  if(dryRun)console.log('dry-run only; no tests were executed.');
+  else console.log('Affected checks passed. FULL/RELEASE remain separately required.');
 }
