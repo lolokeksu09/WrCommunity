@@ -92,7 +92,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Browser acceptance checks
         env:
-          WRC_E2E_WORKERS: '3'
+          WRC_E2E_WORKERS: '4'
         run: |
           npm run start:worker > /tmp/wrc-worker.log 2>&1 &
           npm run test:e2e
