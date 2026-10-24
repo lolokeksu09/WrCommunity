@@ -68,8 +68,8 @@ export async function buildApp(options:{logger?:boolean}={}):Promise<FastifyInst
  app.get('/api/v1/openapi.json',async()=>app.swagger());
  const webRoot=resolve(process.env.WEB_ROOT??'dist/web');
  if(existsSync(webRoot)){
-  await app.register(fastifyStatic,{root:webRoot,wildcard:false,setHeaders:(response,path)=>{if(path.includes('/assets/'))response.header('Cache-Control','public, max-age=31536000, immutable');else response.header('Cache-Control','no-store');}});
-  app.setNotFoundHandler((request,reply)=>{if(request.url.startsWith('/api/')||request.url.startsWith('/health/'))return reply.code(404).send({error:{code:'not_found',message:'Страница не найдена.',requestId:request.id}});if(request.method!=='GET')return reply.code(404).send({error:{code:'not_found',message:'Страница не найдена.',requestId:request.id}});return reply.sendFile('index.html');});
+  await app.register(fastifyStatic,{root:webRoot,wildcard:true,setHeaders:(response,path)=>{if(path.includes('/assets/'))response.header('Cache-Control','public, max-age=31536000, immutable');else response.header('Cache-Control','no-store');}});
+  app.setNotFoundHandler((request,reply)=>{if(request.url.startsWith('/api/')||request.url.startsWith('/health/')||request.url.startsWith('/assets/'))return reply.code(404).send({error:{code:'not_found',message:'Страница не найдена.',requestId:request.id}});if(request.method!=='GET')return reply.code(404).send({error:{code:'not_found',message:'Страница не найдена.',requestId:request.id}});return reply.sendFile('index.html');});
  }
  return app;
 }

@@ -16,7 +16,8 @@ let announcement;
 try {
   ({ rows: [fixture] } = await pool.query(`SELECT u.id,u.email,c.id AS club_id FROM clubs c JOIN users u ON u.id=c.owner_id
     WHERE c.state='active' AND u.status='active' AND u.email LIKE 'e2e-%@example.com' ORDER BY c.created_at DESC LIMIT 1`));
-  ({ rows: [announcement] } = await pool.query(`SELECT id FROM lfg_announcements WHERE state='open' ORDER BY created_at DESC LIMIT 1`));
+  ({ rows: [announcement] } = await pool.query(`SELECT l.id FROM lfg_announcements l JOIN users u ON u.id=l.author_id
+    WHERE l.state='open' AND u.status='active' AND u.email LIKE 'e2e-%@example.com' ORDER BY l.created_at DESC LIMIT 1`));
 } finally { await pool.end(); }
 if (!fixture || !announcement) throw new Error('Run the browser acceptance suite first to create its club and LFG fixtures');
 

@@ -9,7 +9,7 @@
 Нужны Docker Engine с Compose v2 и Node.js 24 для генерации локальных секретов.
 
 ```bash
-git clone --branch feat/wrcommunity-1.0 https://github.com/lolokeksu09/WrCommunity.git
+git clone --branch main https://github.com/lolokeksu09/WrCommunity.git
 cd WrCommunity
 node scripts/setup-local.mjs
 docker compose -f compose.local.yml up -d --build

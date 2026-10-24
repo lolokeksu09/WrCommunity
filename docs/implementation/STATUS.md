@@ -1,11 +1,65 @@
-# WrCommunity 1.0 implementation status
+# WrCommunity 1.0 — результат реализации
 
-Implementation branch. Not a production release. Evidence and final feature matrix will be updated after integration testing.
+**Обновлено 24 октября 2026; проверки выполнены 23 октября. Статус:** работающий кандидат 1.0 для локальной/тестовой эксплуатации. Все обязательные продуктовые модули интегрированы с реальными API и PostgreSQL. Публичного production-развёртывания нет; правовые и эксплуатационные условия открытого запуска ещё не приняты.
 
-## Requirement precedence
+Репозиторий: [lolokeksu09/WrCommunity](https://github.com/lolokeksu09/WrCommunity). [PR #2](https://github.com/lolokeksu09/WrCommunity/pull/2). Исходный `main`: `28a2a84`. Старый `wild-rift-community` не использован. Прототип `prototypes/home/v6/index.html` не изменён.
 
-User's implementation instruction explicitly approves using the architecture and engineering details. Earlier documentation statements “implementation not started” describe the baseline, not current code. Social Core's approved §15 is the extension contract. The separate PROPOSAL is explanatory and does not independently authorize privacy expansion. Polls/reposts, chat, native apps, Riot verification and fake data are excluded.
+## Проверки с фактическим исполнением
 
-## Verification constraints
+| Проверка | Результат | Свидетельство |
+|---|---|---|
+| Установка зависимостей и lockfile | Выполнено; CI использует `npm ci` | package-lock.json, CI |
+| TypeScript strict | Успешно для сервера, тестов и web | [typecheck.log](../evidence/typecheck.log) |
+| Frontend + backend build | Успешно | [build.log](../evidence/build.log) |
+| Миграции с пустой PostgreSQL 18.6 | Успешно; повторное выполнение безопасно, checksum контроль | [migrate.log](../evidence/migrate.log) |
+| Реальные PostgreSQL/API integration tests | **56/56, 0 failures** | [integration-tests.log](../evidence/integration-tests.log) |
+| Независимые проверки исправлений | Включены в общий прогон; проверялись реальными блокировками строк | [REVIEW](REVIEW.md), [до](../evidence/regression-review-before.log), [после](../evidence/regression-review-after.log) |
+| Chromium desktop + mobile E2E | **22/22**, реальные API/БД/SMTP/worker, без подмен ответов | [e2e-tests.log](../evidence/e2e-tests.log), [WEB](WEB.md) |
+| Адаптивность | 360/390/430/1440 CSS px, отсутствие горизонтального overflow, клавиатура, loading/empty/404 | [скриншоты](../evidence/screens/README.md) |
+| Резервное копирование/восстановление | Logical dump восстановлен в отдельной БД, 30 таблиц; SHA-256 приватных файлов совпадают | [backup-restore.log](../evidence/backup-restore.log) |
+| Секреты и зависимости | Сканер секретов проходит; `npm audit` сообщил 0 уязвимостей | [check-secrets.log](../evidence/check-secrets.log), [npm-audit.log](../evidence/npm-audit-production.json) |
+| Compose production/dev/local | Конфигурации валидны; генератор сохраняет существующий `.env` и ставит 0600 | [compose-validation.log](../evidence/compose-validation.log), [local-setup.log](../evidence/local-setup.log) |
+| Docker build/start | Успешно в GitHub Actions: миграции, built SPA, API readiness, heartbeat worker, отказ приватной выдачи | [проверенный CI run](https://github.com/lolokeksu09/WrCommunity/actions/runs/40000076867) |
 
-Sandbox launches each command in a separate network namespace, so real PostgreSQL and verification must execute within one persistent process namespace. PostgreSQL 18.6 installed from PGDG; the scratch-only UID guard shim is never part of source/build/deployment. Docker daemon cannot create its Unix socket in this sandbox; the repository's GitHub CI includes independent container build/start smoke checks. Do not mark Docker execution passed until that job succeeds.
+Последний head PR проходит отдельный CI перед слиянием. В локальной песочнице Docker-сокеты недоступны; результат Docker подтверждён исполнением в GitHub Actions, а не только проверкой YAML. Локальная PostgreSQL запускалась из официальных PGDG-бинарников; ограничение UID в песочнице обходилось временным локальным shim, который не входит в исходники, образ или запуск пользователя.
+
+## Функциональная матрица
+
+| Функция | Статус | Проверенное поведение |
+|---|---|---|
+| Регистрация, подтверждение, вход/выход, сброс | Реализовано | Argon2id, хеши одноразовых токенов, SMTP outbox, безопасные ответы |
+| Сессии, настройки, экспорт, удаление | Реализовано | Отзыв и ротация; повторная проверка после блокировок; обезличивание истории |
+| Профили и приватность | Реализовано | Hidden по умолчанию, явное открытие, отдельные публичные игровые поля, online opt-in на сайте |
+| Ленты и публикации | Реализовано | Все/подписки, черновики/редакции, 5000 символов, 4 изображения до 10 МиБ, пагинация |
+| Комментарии/ответы/реакции/закладки | Реализовано | Ветки, сворачивание, собственное редактирование, текущая ACL |
+| Подписки и блокировки | Реализовано | Два направления запрета, атомарная очистка реакций/подписок, исторические комментарии для разрешённых третьих лиц |
+| Темы и упоминания | Реализовано | Серверные теги и @handle с фильтрацией приватности/блокировок |
+| Поиск игроков и рекомендации | Реализовано | Сервер/роль, дополнительные публичные поля, объяснение совпадений; ручные данные не выданы за Riot-верификацию |
+| LFG | Реализовано | Произвольное будущее окончание, lazy DB-time expiry и worker, политика pending, адресное согласие hidden |
+| Игровые контакты LFG | Реализовано | Только принятая пара, отдельные взаимные согласия, AES-GCM, отзыв; без чата |
+| Клубы и роли | Реализовано | Четыре роли, явные режимы, лимит трёх, антиспам-пороги, ownership lock, двухсторонняя передача |
+| Клубная личность/согласия | Реализовано | Выбор до заявки, уникальный псевдоним/аватар/роли; отзыв прекращает членство и будущие регистрации |
+| Клубная лента | Реализовано | Премодерация, старый approved до новой проверки, одна закреплённая, события в общей ленте |
+| История и модерация клуба | Реализовано | Закрытый архив не открывается, историческая подпись сохраняется до удаления аккаунта; постмодерация комментариев/жалобы/аудит |
+| Закрытие клуба | Реализовано | Подтверждение паролем, soft-delete, отмена будущих регистраций/передач, прекращение доступа |
+| Мероприятия | Реализовано | Члены клуба, роли организаторов, даты/лимит/отмена/уведомления; гонка за последнее место проверена |
+| Внутренние уведомления | Реализовано | Категории, outbox/dedupe, чтение, актуальная ACL; скрытые подписчики не раскрываются |
+| Модерация платформы | Реализовано | Жалобы/статусы, ограничения, санкции, аудит; отдельная от клубов иерархия; операторская CLI для первого admin |
+| Приватные медиа | Реализовано | Сигнатура/размер/пиксели, перекодирование без EXIF, ACL каждого чтения, контекстная выдача проверяющим |
+| Mobile/desktop интерфейс | Реализовано | Data router, загрузки/ошибки/пустые состояния, сохранение прокрутки и незавершённого ввода между маршрутами, очистка при смене аккаунта |
+| Опросы и репосты | Не реализовано — отложено спецификацией | Темы/упоминания идут первыми; затем опросы, потом репосты |
+| Полноценные чаты/нативные клиенты/Riot API | Не реализовано — вне версии 1.0 | Не представлены работающими кнопками |
+| Публичный запуск и внешняя SMTP-доставка | Частично | Локальный SMTP реально проверен Mailpit; production домен/провайдер не предоставлены и не придуманы |
+
+## M0–M12
+
+M0: workspace/CI/health/migrations; M1: auth/sessions; M2: profiles/privacy; M3: graph/blocks; M4: posts/media; M5: discovery; M6: LFG; M7: clubs/consents/roles; M8: club-content/reviews; M9: events/concurrency; M10: notifications/outbox; M11: reports/sanctions/audit — реализованы и проверены в составе приложения. M12: техническая приёмка выполнена; внешние условия открытого запуска остаются отдельным gate.
+
+## Границы и оставшиеся условия
+
+- Production не развёрнут и существующие production-данные не затрагивались. Запуск: [README](../../README.md), [OPERATIONS](OPERATIONS.md).
+- До посторонних пользователей нужны утверждённые правовые документы, возрастные/региональные условия, retention и сроки резервного хранения, правила UGC/takedown, действующие операторы модерации и внешний SMTP. Эти решения намеренно не выдуманы.
+- Скриншоты показывают изолированную тестовую БД и явно тестовые учётные записи; установочный сценарий не создаёт демонстрационных пользователей, фальшивых достижений или активности.
+- API/браузерные тесты проверяют ключевые согласованные пути и негативные/конкурентные случаи. Это не нагрузочный тест и не утверждение об отсутствии любых возможных дефектов.
+
+Приоритет требований: прямые решения пользователя и утверждённый Social Core §15. PROPOSAL сам по себе не вводит новые права. Исходные документы со статусом «реализация не начата» описывают исторический baseline; этот отчёт описывает код и результаты его исполнения.
