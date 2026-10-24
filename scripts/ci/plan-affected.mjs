@@ -35,7 +35,7 @@ if(fileIndex!==-1){
     process.exit(2);
   }
   const sha=baseArgs[0].slice('--base='.length);
-  const result=spawnSync('git',['diff','--name-only','-z','--diff-filter=ACMRTUXB',sha,'HEAD','--'],{
+  const result=spawnSync('git',['diff','--name-only','-z','--diff-filter=ACDMRTUXB',sha,'HEAD','--'],{
     cwd:root,encoding:'utf8',maxBuffer:4*1024*1024
   });
   if(result.error || result.status!==0){
