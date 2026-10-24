@@ -15,7 +15,7 @@ def job(name: str) -> str:
 
 class ParallelFullContract(unittest.TestCase):
     def test_api_and_browser_jobs_run_for_ready_pr_and_main(self):
-        for name in ("api-tests", "browser-tests"):
+        for name in ("api-tests", "browser-project"):
             body = job(name)
             self.assertIn("github.event.pull_request.draft == false", body)
             self.assertIn("github.event_name == 'push'", body)
@@ -23,7 +23,7 @@ class ParallelFullContract(unittest.TestCase):
 
     def test_isolated_test_services_and_unchanged_coverage(self):
         api = job("api-tests")
-        browser = job("browser-tests")
+        browser = job("browser-project")
         for body in (api, browser):
             self.assertIn("services:", body)
             self.assertIn("postgres:", body)
@@ -35,6 +35,27 @@ class ParallelFullContract(unittest.TestCase):
         self.assertIn("npm run build", browser)
         self.assertIn("npm run test:e2e", browser)
         self.assertIn("WRC_E2E_WORKERS: '3'", browser)
+
+    def test_desktop_and_mobile_projects_run_on_isolated_runners(self):
+        runner = job("browser-project")
+        self.assertIn("fail-fast: false", runner)
+        self.assertIn("project: [desktop-chromium, mobile-chromium]", runner)
+        self.assertIn("services:", runner)
+        self.assertIn("postgres:", runner)
+        self.assertIn("mailpit:", runner)
+        self.assertIn("npm run migrate", runner)
+        self.assertIn("npm run test:e2e -- --project=", runner)
+        self.assertIn("matrix.project", runner)
+        self.assertIn("WRC_E2E_WORKERS: '3'", runner)
+        self.assertIn("browser-evidence-${{ matrix.project }}", runner)
+        gate = job("browser-tests")
+        self.assertIn("if: always()", gate)
+        self.assertIn("needs: [browser-project]", gate)
+        self.assertIn("needs.browser-project.result", gate)
+        self.assertIn('!= "success"', gate)
+        self.assertIn("exit 1", gate)
+        self.assertIn("needs: [api-tests, browser-tests]", job("integration"))
+        self.assertIn("needs: [integration, docker-smoke]", job("deploy"))
 
     def test_integration_gate_rejects_either_failure_and_blocks_deploy(self):
         gate = job("integration")

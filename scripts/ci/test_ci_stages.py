@@ -33,7 +33,7 @@ class StagedWorkflowContract(unittest.TestCase):
         self.assertIn("github.event.pull_request.draft == false", integration)
         self.assertIn("if: always()", integration)
         self.assertIn("needs: [api-tests, browser-tests]", integration)
-        self.assertIn("npm run test:e2e", section("browser-tests"))
+        self.assertIn("npm run test:e2e", section("browser-project"))
         self.assertIn("sh scripts/docker-smoke.sh", section("docker-smoke"))
 
     def test_required_quality_gate_cannot_skip_failures(self):
