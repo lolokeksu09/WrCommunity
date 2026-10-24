@@ -21,6 +21,7 @@
     "test:l1": "python3 -m unittest discover -s scripts/ci -p 'test_*.py' -v",
     "test:l2": "node scripts/ci/select-e2e.mjs L2",
     "test:l3": "node scripts/ci/select-e2e.mjs L3",
+    "test:affected": "node scripts/ci/plan-affected.mjs",
     "migrate": "node --env-file-if-exists=.env --import tsx server/db/migrate.ts",
     "start": "node --env-file-if-exists=.env dist/server/index.js",
     "start:worker": "node --env-file-if-exists=.env dist/server/worker.js",
