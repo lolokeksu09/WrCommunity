@@ -12,8 +12,9 @@ test('возврат сохраняет страницы и прокрутку, 
   await p.goto('/me/posts');await p.getByRole('button',{name:'Показать ещё',exact:true}).click();
   await expect(p.locator('.post-list>.post')).toHaveCount(21);
   const oldest=p.locator('.post').filter({hasText:'Возврат 1 '+owner.handle});
-  await oldest.locator('.post-content-link').evaluate(el=>el.scrollIntoView({block:'center'}));const scroll=await p.evaluate(()=>window.scrollY);
+  await oldest.locator('.post-content-link').evaluate(el=>{el.scrollIntoView({block:'center'});el.addEventListener('click',()=>sessionStorage.setItem('e2e:departure-scroll',String(window.scrollY)),{once:true,capture:true});});
   await oldest.locator('.post-content-link').click();await expect(p).toHaveURL(/\/posts\/[a-f0-9-]+$/);
+  const scroll=Number(await p.evaluate(()=>sessionStorage.getItem('e2e:departure-scroll')));
   await p.goBack();await expect(p.getByRole('heading',{name:'Мои публикации',exact:true})).toBeVisible();
   await expect(p.locator('.post-list>.post')).toHaveCount(21);
   await expect.poll(async()=>Math.abs(await p.evaluate(()=>window.scrollY)-scroll)).toBeLessThan(120);
@@ -30,12 +31,12 @@ test('возврат сохраняет страницы и прокрутку, 
   await expect(p.getByLabel('Твой комментарий',{exact:true})).toHaveValue('');
   await p.getByLabel('Твой комментарий',{exact:true}).fill('Очистить после выхода');
   await p.locator('.bottom-nav a[href="/me"]:visible,.sidebar nav a[href="/me"]:visible').click();
-  await p.locator('main').getByRole('link',{name:'Настройки',exact:true}).click();
+  await p.locator('main a[href="/me/settings"]').click();
   await p.getByRole('button',{name:'Выйти',exact:true}).click();await expect(p).toHaveURL('/');
   await p.locator('.mobile-header:visible,.sidebar:visible').getByRole('link',{name:isMobile?'Войти':'Войти в сообщество',exact:true}).click();
   await p.getByLabel('Электронная почта',{exact:true}).fill(owner.email);await p.getByLabel('Пароль',{exact:true}).fill(password);
   await p.getByRole('button',{name:'Войти',exact:true}).click();await expect(p).toHaveURL('/me');
-  await p.getByRole('link',{name:'Публичный профиль',exact:true}).click();
+  await p.getByRole('link',{name:'Мои публикации',exact:true}).click();
   await p.locator('.post').filter({hasText:post.body}).locator('.post-content-link').click();
   await expect(p).toHaveURL('/posts/'+post.id);await expect(p.getByLabel('Твой комментарий',{exact:true})).toHaveValue('');
   await noOverflow(p);expect(ui.errors).toEqual([]);
@@ -54,6 +55,9 @@ test('меню закрывается, реакции обновляют тол�
   await trigger.click();await expect(card.getByRole('group',{name:'Действия публикации',exact:true})).toBeVisible();
   await p.keyboard.press('Escape');await expect(trigger).toHaveAttribute('aria-expanded','false');await expect(trigger).toBeFocused();
   await trigger.click();await p.getByRole('heading',{name:'Профиль игрока',exact:true}).click();await expect(trigger).toHaveAttribute('aria-expanded','false');
+  await p.route('**/api/v1/posts/'+post.id+'/like',route=>route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({error:{code:'verification_required',message:'Подтверди почту'}})}));
+  await card.getByRole('button',{name:'Нравится',exact:true}).click();await expect(card.getByRole('alert')).toContainText('Подтверди почту');await expect(card).toBeVisible();
+  await expect(card.getByRole('button',{name:'Нравится',exact:true})).toHaveAttribute('aria-pressed','false');await p.unroute('**/api/v1/posts/'+post.id+'/like');
   const requests:string[]=[];const collect=(request:import('@playwright/test').Request)=>{if(request.url().includes('/api/v1/'))requests.push(request.method()+' '+new URL(request.url()).pathname);};
   p.on('request',collect);await card.getByRole('button',{name:'Нравится',exact:true}).click();
   await expect(card.getByRole('button',{name:'Убрать отметку нравится',exact:true})).toHaveAttribute('aria-pressed','true');await p.waitForLoadState('networkidle');p.off('request',collect);

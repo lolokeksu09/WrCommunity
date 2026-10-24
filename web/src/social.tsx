@@ -18,6 +18,7 @@ export function usePagedCollection<T extends {id:string}>(initial:Collection<T>,
  const scope=(user?.id??'guest')+':'+path+':'+location.key;
  const remembered=navigationType==='POP'?readPageState(scope):undefined;
  const restoreY=useRef<number|null>(remembered?.scrollY??null);
+ const lastScrollY=useRef(window.scrollY);
  const [items,setItems]=useState(initial.items);
  const [cursor,setCursor]=useState(initial.nextCursor);
  const [busy,setBusy]=useState(Boolean(remembered&&remembered.pages>1));
@@ -78,10 +79,17 @@ export function usePagedCollection<T extends {id:string}>(initial:Collection<T>,
   let frame=requestAnimationFrame(()=>{frame=requestAnimationFrame(()=>{window.scrollTo(0,top);restoreY.current=null;});});
   return()=>cancelAnimationFrame(frame);
  },[items,busy,scope]);
- useLayoutEffect(()=>()=>{
-  // Capture before the next route's ScrollRestoration changes the document.
-  writePageState(scope,{pages:pages.current,scrollY:window.scrollY});
-  loadController.current?.abort();
+ useLayoutEffect(()=>{
+  const capture=()=>{lastScrollY.current=window.scrollY;};
+  window.addEventListener('scroll',capture,{passive:true});
+  window.addEventListener('popstate',capture);
+  document.addEventListener('click',capture,true);
+  return()=>{
+   window.removeEventListener('scroll',capture);window.removeEventListener('popstate',capture);document.removeEventListener('click',capture,true);
+   // Removing the old DOM can already clamp window.scrollY before cleanup runs.
+   writePageState(scope,{pages:pages.current,scrollY:lastScrollY.current});
+   loadController.current?.abort();
+  };
  },[scope]);
  async function loadMore(){
   if(busy||!cursor)return;
@@ -130,9 +138,10 @@ export function PostCard({post:loadedPost,detail=false,editable=false,canModerat
  async function react(kind:'like'|'bookmark',active:boolean){
   if(!user){navigate('/login?returnTo='+encodeURIComponent(location.pathname+location.search));return;}
   await task.run(async()=>{
+   await api('/posts/'+post.id+'/'+kind,active?'DELETE':'PUT',{});
+   if(detail)return;
    try{
-    await api('/posts/'+post.id+'/'+kind,active?'DELETE':'PUT',{});
-    if(!detail){const fresh=await api<Post>('/posts/'+post.id);setSnapshot({source:loadedPost,value:fresh});onUpdate?.(fresh);}
+    const fresh=await api<Post>('/posts/'+post.id);setSnapshot({source:loadedPost,value:fresh});onUpdate?.(fresh);
    }catch(error){if(error instanceof ApiError&&[403,404].includes(error.status)){setHiddenSource(loadedPost);onUnavailable?.();}throw error;}
   });
  }
@@ -149,7 +158,7 @@ function Comments({post,initial,canModerate=false}:{post:Post;initial:Collection
  const {items,cursor,busy,error,loadMore}=usePagedCollection(initial,'/posts/'+post.id+'/comments');
  const reply=items.find(comment=>comment.id===replyId)??null;
  const task=useTask();
- const ref=useRef<HTMLTextAreaElement>(null);
+ const ref=useRef<HTMLTextAreaElement>(null),inputId=useId();
  useLayoutEffect(()=>{writeCommentDraft(draftKey,body);writeReplyTarget(draftScope,replyId);},[draftKey,draftScope,body,replyId]);
  function changeReply(id:string|null){writeCommentDraft(draftKey,body);writeReplyTarget(draftScope,id);setReplyId(id);setBody(readCommentDraft(draftScope+':'+(id??'root')));ref.current?.focus();}
  async function submit(event:FormEvent<HTMLFormElement>){
@@ -161,7 +170,7 @@ function Comments({post,initial,canModerate=false}:{post:Post;initial:Collection
  function branch(comment:Comment,depth=0):React.ReactNode{
   return <CommentNode key={comment.id} comment={comment} depth={depth} replyCount={replyCount(comment.id)} canModerate={canModerate} onReply={c=>changeReply(c.id)}>{children(comment.id).map(c=>branch(c,depth+1))}</CommentNode>;
  }
- return <section className="comments" id="comments"><h2 className="section-title">Обсуждение</h2>{items.length?children(null).map(c=>branch(c)):<p className="muted">Пока тихо. Начни обсуждение.</p>}{cursor&&<button className="secondary" onClick={loadMore} disabled={busy}>{busy?'Загружается…':'Загрузить комментарии'}</button>}{error&&<div className="feedback error" role="alert">{error}</div>}{user?<form className="comment-form stack" onSubmit={submit}>{replyId&&!reply&&<div className="info-note"><p>Исходный комментарий пока недоступен. Загрузи ветку или <button type="button" className="text-control" onClick={()=>changeReply(null)}>Вернуться к комментарию</button>.</p></div>}{reply&&<div className="reply-context"><div className="reply-context-copy"><span>Ответ {reply.author.display_name??reply.author.nickname??reply.author.handle}</span><p>{reply.body.length>140?reply.body.slice(0,140)+'…':reply.body}</p><a href={'#comment-'+reply.id}>К комментарию</a></div><button className="icon-button" type="button" aria-label="Отменить ответ" onClick={()=>changeReply(null)}><X size={16}/></button></div>}<label className="formrow"><span>{replyId?'Ответить':'Твой комментарий'}</span><textarea className="field" ref={ref} value={body} onChange={event=>setBody(event.target.value)} name="body" required maxLength={5000} rows={3} placeholder="Поделись мыслями…"/></label><Feedback task={task}/><Submit busy={task.busy} disabled={Boolean(replyId&&!reply)}>Отправить<Send size={16}/></Submit></form>:<Empty title="Присоединяйся к разговору" to={'/login?returnTo='+encodeURIComponent('/posts/'+post.id)} action="Войти">Войди, чтобы оставить комментарий.</Empty>}</section>;
+ return <section className="comments" id="comments"><h2 className="section-title">Обсуждение</h2>{items.length?children(null).map(c=>branch(c)):<p className="muted">Пока тихо. Начни обсуждение.</p>}{cursor&&<button className="secondary" onClick={loadMore} disabled={busy}>{busy?'Загружается…':'Загрузить комментарии'}</button>}{error&&<div className="feedback error" role="alert">{error}</div>}{user?<form className="comment-form stack" onSubmit={submit}>{replyId&&!reply&&<div className="info-note"><p>Исходный комментарий пока недоступен. Загрузи ветку или <button type="button" className="text-control" onClick={()=>changeReply(null)}>Вернуться к комментарию</button>.</p></div>}{reply&&<div className="reply-context"><div className="reply-context-copy"><span>Ответ {reply.author.display_name??reply.author.nickname??reply.author.handle}</span><p>{reply.body.length>140?reply.body.slice(0,140)+'…':reply.body}</p><a href={'#comment-'+reply.id}>К комментарию</a></div><button className="icon-button" type="button" aria-label="Отменить ответ" onClick={()=>changeReply(null)}><X size={16}/></button></div>}<label className="formrow" htmlFor={inputId}><span id={inputId+'-label'}>{replyId?'Ответить':'Твой комментарий'}</span><textarea className="field" id={inputId} aria-labelledby={inputId+'-label'} ref={ref} value={body} onChange={event=>setBody(event.target.value)} name="body" required maxLength={5000} rows={3} placeholder="Поделись мыслями…"/></label><Feedback task={task}/><Submit busy={task.busy} disabled={Boolean(replyId&&!reply)}>Отправить<Send size={16}/></Submit></form>:<Empty title="Присоединяйся к разговору" to={'/login?returnTo='+encodeURIComponent('/posts/'+post.id)} action="Войти">Войди, чтобы оставить комментарий.</Empty>}</section>;
 }
 function CommentNode({comment,depth,replyCount,children,onReply,canModerate=false}:{comment:Comment;depth:number;replyCount:number;children:React.ReactNode;onReply:(comment:Comment)=>void;canModerate?:boolean}){const {user}=useSession();const task=useTask();const [collapsed,setCollapsed]=useState(false),[edit,setEdit]=useState(false);const own=comment.author.id===user?.id||comment.can_edit;async function save(e:FormEvent<HTMLFormElement>){const data=formValues(e);await task.run(()=>api('/comments/'+comment.id,'PATCH',{body:textValue(data,'body')}),()=>setEdit(false));}return <article id={'comment-'+comment.id} className={'comment depth-'+Math.min(depth,3)}><div className="comment-heading"><AuthorName author={comment.author}/><time>{date(comment.created_at)}</time></div>{edit?<form className="stack" onSubmit={save}><Field name="body" label="Изменить комментарий" type="textarea" defaultValue={comment.body} maxLength={5000} required/><Submit busy={task.busy}>Сохранить</Submit><button type="button" className="text-control" onClick={()=>setEdit(false)}>Отмена</button></form>:<p className="copy">{comment.body}</p>}<div className="comment-controls">{user?<button className="text-control" onClick={()=>onReply(comment)}>Ответить</button>:<Link className="text-control" to={'/login?returnTo='+encodeURIComponent('/posts/'+comment.post_id)}>Ответить</Link>}{own&&<><button className="text-control" onClick={()=>setEdit(!edit)}>Изменить</button><ConfirmButton className="text-control" warning="Удалить комментарий?" perform={()=>api('/comments/'+comment.id,'DELETE')}>Удалить</ConfirmButton></>}{!own&&(canModerate||comment.can_moderate)&&<ClubCommentRemoval id={comment.id}/>}{comment.can_block&&<ConfirmButton className="text-control" warning="Заблокировать автора комментария? Взаимные подписки и реакции будут прекращены, дальнейшее прямое взаимодействие станет недоступно." perform={()=>api('/comments/'+comment.id+'/block-author','PUT',{})}>Заблокировать автора</ConfirmButton>}<ReportLink type="comment" id={comment.id}/>{replyCount>0&&<button className="text-control" aria-controls={'comment-replies-'+comment.id} aria-expanded={!collapsed} onClick={()=>setCollapsed(!collapsed)}>{collapsed?'Показать':'Скрыть'} {replyCount} {replyCount%10===1&&replyCount%100!==11?'ответ':replyCount%10>=2&&replyCount%10<=4&&(replyCount%100<12||replyCount%100>14)?'ответа':'ответов'}</button>}</div><Feedback task={task}/>{!collapsed&&<div className="comment-children" id={'comment-replies-'+comment.id}>{children}</div>}</article>;}
 
