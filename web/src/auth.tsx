@@ -1,3 +1,4 @@
+import {FirstSteps} from './player-journey';
 import {canonicalRoles,roleLabel} from '../../shared/game-roles';
 import {RolePicker} from './game-roles';
 import {useEffect,useState,type FormEvent} from 'react';
@@ -18,6 +19,7 @@ export function MyProfile(){
   <h2 className="profile-name">{profile.display_name}</h2><p className="muted handle">@{profile.handle}</p>{profile.biography&&<p className="body-copy">{profile.biography}</p>}
   {user&&!user.verified&&<div className="info-note"><ShieldCheck size={20}/><p>Подтверди почту, чтобы участвовать в сообществе. <Link to="/account/verify-email">Открыть подтверждение</Link></p></div>}
   <div className="profile-actions"><Link className="primary" to="/posts/new">Написать пост</Link><Link className="secondary" to="/me/privacy"><Eye size={17}/> Приватность</Link></div>
+  <FirstSteps key={profile.id} profile={profile} verified={user?.verified??false}/>
   <ProfileGamePreview profile={profile}/>
   <section className="profile-menu-group"><h2 className="section-title">Твоя активность</h2><nav className="settings-menu" aria-label="Твоя активность"><MenuLink to="/me/posts">Мои публикации</MenuLink><MenuLink to="/me/drafts">Черновики</MenuLink><MenuLink to="/me/bookmarks">Закладки</MenuLink><MenuLink to="/me/following">Подписки</MenuLink><MenuLink to="/me/followers">Подписчики</MenuLink></nav></section>
   <section className="profile-menu-group"><h2 className="section-title">Твоя компания</h2><nav className="settings-menu" aria-label="Твоя компания"><MenuLink to="/me/clubs">Мои клубы</MenuLink><MenuLink to="/me/lfg">Мои отклики LFG</MenuLink></nav></section>
