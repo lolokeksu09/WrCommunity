@@ -67,6 +67,57 @@ class AffectedSelectionContract(unittest.TestCase):
         self.assertIn("npm run test:e2e", workflow)
         self.assertIn("needs: [integration, docker-smoke]", workflow)
 
+    def execute_dry_run(self, *args):
+        return subprocess.run(
+            ["node", "scripts/ci/plan-affected.mjs", "--execute", "--dry-run", *args],
+            cwd=ROOT, text=True, capture_output=True, timeout=15)
+
+    def test_execute_targeted_runs_selected_areas_in_one_browser_invocation(self):
+        result = self.execute_dry_run(
+            "--files", "web/src/notifications.tsx", "web/src/post-gallery.tsx")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.count("PLAYWRIGHT:"), 1)
+        self.assertIn("новое уведомление", result.stdout)
+        self.assertIn("вложения публикации", result.stdout)
+        self.assertNotIn("API TESTS:", result.stdout)
+
+    def test_execute_expanded_uses_full_browser_suite(self):
+        result = self.execute_dry_run("--files", "web/src/styles.css")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("PLAYWRIGHT: npm run test:e2e", result.stdout)
+        self.assertEqual(result.stdout.count("PLAYWRIGHT:"), 1)
+
+    def test_execute_sensitive_runs_api_before_full_browser(self):
+        result = self.execute_dry_run("--files", "server/modules/auth/routes.ts")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertLess(result.stdout.index("API TESTS: npm test"),
+                        result.stdout.index("PLAYWRIGHT: npm run test:e2e"))
+
+    def test_execute_docs_only_is_explicit_no_e2e(self):
+        result = self.execute_dry_run("--files", "AGENTS.md")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("documentation-only", result.stdout)
+        self.assertNotIn("PLAYWRIGHT:", result.stdout)
+
+    def test_execute_rejects_incompatible_and_unsafe_flags(self):
+        for args in (
+            ("--execute", "--json", "--files", "web/src/social.tsx"),
+            ("--dry-run", "--files", "web/src/social.tsx"),
+            ("--execute", "--project=unknown", "--files", "web/src/social.tsx"),
+        ):
+            with self.subTest(args=args):
+                result = subprocess.run(
+                    ["node", "scripts/ci/plan-affected.mjs", *args],
+                    cwd=ROOT, text=True, capture_output=True, timeout=15)
+                self.assertNotEqual(result.returncode, 0)
+
+    def test_execute_runner_command_is_documented(self):
+        docs = (ROOT / "docs/implementation/TESTING-STRATEGY.md").read_text(encoding="utf-8")
+        agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("test:affected -- --execute", docs)
+        self.assertIn("--execute", agents)
+
+
 
 if __name__ == "__main__":
     unittest.main()
