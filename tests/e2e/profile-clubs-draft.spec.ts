@@ -1,0 +1,50 @@
+import {test,expect} from '@playwright/test';
+import {randomUUID} from 'node:crypto';
+import sharp from 'sharp';
+import {account,api,browserPerson,noOverflow,password} from './helpers.js';
+
+test('черновик переживает обновление, профиль показывает игровые данные, каталог открывает мои клубы',async({browser,isMobile},testInfo)=>{
+ test.setTimeout(90000);
+ const owner=await account(),other=await account();const key=randomUUID().slice(0,8),body='Несохранённый текст '+key,privateRank='Личный ранг '+key;
+ const profile=await api(owner.context,'/me/profile');
+ await api(owner.context,'/me/profile','PATCH',{version:profile.version,game:{server:{value:'EU',public:true},roles:{value:['mid'],public:true},rank:{value:privateRank,public:false}}});
+ const club=await api(owner.context,'/clubs','POST',{name:'Проверка клуба '+key,description:'Собственная обложка и условия вступления',rules:'Уважать участников',join_mode:'approval',feed_visibility:'members_only'});
+ const image=await sharp({create:{width:160,height:80,channels:3,background:'#526b88'}}).png().toBuffer();
+ const auth=await(await owner.context.get('/api/v1/auth/session')).json();
+ const upload=await owner.context.post('/api/v1/media',{headers:{Origin:process.env.E2E_BASE_URL||'http://localhost:3000','X-CSRF-Token':auth.csrfToken},multipart:{file:{name:'cover.png',mimeType:'image/png',buffer:image}}});
+ expect(upload.ok(),await upload.text()).toBeTruthy();
+ const media=await upload.json();await api(owner.context,'/clubs/'+club.id,'PATCH',{cover_id:media.id});
+ const ui=await browserPerson(browser,owner),visitor=await browserPerson(browser,other);
+ try{
+  await ui.page.setViewportSize({width:isMobile?360:1440,height:844});
+  ui.page.on('dialog',dialog=>dialog.accept());
+  await ui.page.goto('/posts/new');await ui.page.getByLabel('Текст публикации').fill(body);
+  await ui.page.getByLabel('Темы').fill('тактика');
+  await ui.page.reload();
+  await expect(ui.page.getByLabel('Текст публикации')).toHaveValue(body);
+  await expect(ui.page.getByLabel('Темы')).toHaveValue('тактика');
+  await ui.page.getByRole('button',{name:'Сохранить черновик',exact:true}).click();
+  await expect(ui.page.getByRole('status').filter({hasText:'Черновик сохранён'})).toBeVisible();
+  await ui.page.reload();await ui.page.getByRole('button',{name:'Сохранить черновик',exact:true}).click();
+  await expect(ui.page.getByRole('status').filter({hasText:'Черновик сохранён'})).toBeVisible();
+  expect((await api(owner.context,'/posts?authorId='+owner.id+'&state=draft')).items).toHaveLength(1);
+  await ui.page.getByRole('button',{name:'Опубликовать',exact:true}).click();
+  await expect(ui.page).toHaveURL(/\/posts\/[a-f0-9-]+$/);
+  await ui.page.goto('/posts/new');await expect(ui.page.getByLabel('Текст публикации')).toHaveValue('');
+  await ui.page.goto('/me');
+  const game=ui.page.getByRole('region',{name:'Игровая карточка',exact:true});
+  await expect(game).toContainText('EU');await expect(game).toContainText('Мид');await expect(game).toContainText(privateRank);await expect(game).toContainText('Только тебе');
+  await noOverflow(ui.page);await ui.page.screenshot({path:testInfo.outputPath('profile.png'),fullPage:true});
+  await visitor.page.goto('/users/'+owner.id);await expect(visitor.page.getByText(privateRank,{exact:true})).toHaveCount(0);
+  await ui.page.goto('/clubs');const card=ui.page.locator('.club-card').filter({hasText:club.name});
+  await expect(card.locator('.club-card-cover img')).toHaveAttribute('src','/api/v1/media/'+media.id);
+  await expect(card).toContainText('По заявке');await expect(card).toContainText('Для участников');
+  await noOverflow(ui.page);await ui.page.screenshot({path:testInfo.outputPath('clubs.png'),fullPage:true});
+  await ui.page.getByRole('link',{name:'Мои клубы',exact:true}).click();await expect(ui.page).toHaveURL(/\/me\/clubs$/);await expect(ui.page.locator('.club-card').filter({hasText:club.name})).toBeVisible();
+  await ui.page.goto('/posts/new');await ui.page.getByLabel('Текст публикации').fill('Буфер первого аккаунта '+key);
+  await api(ui.page.request,'/auth/logout','POST',{});
+  await api(ui.page.request,'/auth/login','POST',{email:other.email,password});
+  await ui.page.goto('/posts/new');await expect(ui.page.getByLabel('Текст публикации')).toHaveValue('');
+  expect(ui.errors).toEqual([]);
+ }finally{await ui.context.close();await visitor.context.close();await owner.context.dispose();await other.context.dispose();}
+});
