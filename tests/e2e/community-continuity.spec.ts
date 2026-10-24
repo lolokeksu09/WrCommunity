@@ -12,7 +12,7 @@ test('возврат сохраняет страницы и прокрутку, 
   await p.goto('/me/posts');await p.getByRole('button',{name:'Показать ещё',exact:true}).click();
   await expect(p.locator('.post-list>.post')).toHaveCount(21);
   const oldest=p.locator('.post').filter({hasText:'Возврат 1 '+owner.handle});
-  await oldest.scrollIntoViewIfNeeded();const scroll=await p.evaluate(()=>window.scrollY);
+  await oldest.locator('.post-content-link').evaluate(el=>el.scrollIntoView({block:'center'}));const scroll=await p.evaluate(()=>window.scrollY);
   await oldest.locator('.post-content-link').click();await expect(p).toHaveURL(/\/posts\/[a-f0-9-]+$/);
   await p.goBack();await expect(p.getByRole('heading',{name:'Мои публикации',exact:true})).toBeVisible();
   await expect(p.locator('.post-list>.post')).toHaveCount(21);
@@ -41,3 +41,4 @@ test('возврат сохраняет страницы и прокрутку, 
   await noOverflow(p);expect(ui.errors).toEqual([]);
  }finally{await ui.context.close();await owner.context.dispose();}
 });
+

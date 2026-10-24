@@ -2,10 +2,10 @@ import {readPageState,writePageState,readCommentDraft,writeCommentDraft,readRepl
 import {readPostDraft,writePostDraft,removePostDraft,postSnapshot} from './post-drafts';
 export {resetPostDrafts} from './post-drafts';
 import {roleLabel} from '../../shared/game-roles';
-import {useEffect,useLayoutEffect,useRef,useState,type FormEvent} from 'react';
+import {useEffect,useId,useLayoutEffect,useRef,useState,type FormEvent} from 'react';
 import {Link,useLoaderData,useLocation,useNavigationType,useNavigate,useParams,useSearchParams} from 'react-router-dom';
 import {ArrowRight,Bookmark,ChevronDown,ChevronLeft,ChevronRight,ChevronUp,Heart,ImagePlus,MessageCircle,MoreHorizontal,Plus,Search,Send,Trash2,X} from 'lucide-react';
-import {api,collection,mediaUrl,message,query,type Author,type Collection,type Comment,type ImageAsset,type Post,type Profile} from './api';
+import {ApiError,api,collection,mediaUrl,message,query,type Author,type Collection,type Comment,type ImageAsset,type Post,type Profile} from './api';
 import {Gate,useSession} from './auth';
 import {ApiButton,AuthorName,Avatar,CheckField,ConfirmButton,Empty,Feedback,Field,PageHeading,ReportLink,Select,Submit,date,formValues,isChecked,splitValues,textValue,useTask} from './ui';
 import {PostGallery} from './post-gallery';
@@ -18,7 +18,6 @@ export function usePagedCollection<T extends {id:string}>(initial:Collection<T>,
  const scope=(user?.id??'guest')+':'+path+':'+location.key;
  const remembered=navigationType==='POP'?readPageState(scope):undefined;
  const restoreY=useRef<number|null>(remembered?.scrollY??null);
- const scrollY=useRef(window.scrollY);
  const [items,setItems]=useState(initial.items);
  const [cursor,setCursor]=useState(initial.nextCursor);
  const [busy,setBusy]=useState(Boolean(remembered&&remembered.pages>1));
@@ -73,12 +72,12 @@ export function usePagedCollection<T extends {id:string}>(initial:Collection<T>,
   return ()=>controller.abort();
  },[initial,scope]);
  useLayoutEffect(()=>{
-  if(!busy&&restoreY.current!==null){window.scrollTo(0,restoreY.current);scrollY.current=restoreY.current;restoreY.current=null;}
+  if(!busy&&restoreY.current!==null){window.scrollTo(0,restoreY.current);restoreY.current=null;}
  },[items,busy,scope]);
- useEffect(()=>{
-  const remember=()=>{scrollY.current=window.scrollY;writePageState(scope,{pages:pages.current,scrollY:scrollY.current});};
-  window.addEventListener('scroll',remember,{passive:true});
-  return()=>{window.removeEventListener('scroll',remember);writePageState(scope,{pages:pages.current,scrollY:scrollY.current});loadController.current?.abort();};
+ useLayoutEffect(()=>()=>{
+  // Capture before the next route's ScrollRestoration changes the document.
+  writePageState(scope,{pages:pages.current,scrollY:window.scrollY});
+  loadController.current?.abort();
  },[scope]);
  async function loadMore(){
   if(busy||!cursor)return;
@@ -100,13 +99,41 @@ export function usePagedCollection<T extends {id:string}>(initial:Collection<T>,
    if(!controller.signal.aborted&&version===requestVersion.current)setBusy(false);
   }
  }
- return {items,cursor,busy,error,loadMore};
+ const updateItem=(value:T)=>setItems(current=>current.map(item=>item.id===value.id?value:item));
+ const removeItem=(id:string)=>setItems(current=>current.filter(item=>item.id!==id));
+ return {items,cursor,busy,error,loadMore,updateItem,removeItem};
 }
 export function PostList({data,path,emptyTitle='Пока нет публикаций',emptyText='Новые записи появятся здесь.',editable=false}:{data:Collection<Post>;path:string;emptyTitle?:string;emptyText?:string;editable?:boolean}){
- const {items,cursor,busy,error,loadMore}=usePagedCollection(data,path);
- return <><div className="post-list">{items.length?items.map(post=><PostCard post={post} key={post.id} editable={editable}/>):<Empty title={emptyTitle} to="/posts/new" action="Написать пост">{emptyText}</Empty>}</div>{cursor&&<button className="secondary load-more" disabled={busy} onClick={loadMore}>{busy?'Загружается…':'Показать ещё'}</button>}{error&&<div className="feedback error" role="alert">{error}</div>}</>;
+ const {items,cursor,busy,error,loadMore,updateItem,removeItem}=usePagedCollection(data,path);
+ return <><div className="post-list">{items.length?items.map(post=><PostCard post={post} key={post.id} editable={editable} onUpdate={fresh=>{if(path.startsWith('/bookmarks')&&!fresh.bookmarked)removeItem(fresh.id);else updateItem(fresh);}} onUnavailable={()=>removeItem(post.id)}/>):<Empty title={emptyTitle} to="/posts/new" action="Написать пост">{emptyText}</Empty>}</div>{cursor&&<button className="secondary load-more" disabled={busy} onClick={loadMore}>{busy?'Загружается…':'Показать ещё'}</button>}{error&&<div className="feedback error" role="alert">{error}</div>}</>;
 }
-export function PostCard({post,detail=false,editable=false,canModerate=false}:{post:Post;detail?:boolean;editable?:boolean;canModerate?:boolean}){const {user}=useSession(),navigate=useNavigate();const task=useTask();const [menu,setMenu]=useState(false);const own=post.author_id===user?.id||editable;async function react(kind:'like'|'bookmark',active:boolean){if(!user){navigate('/login?returnTo='+encodeURIComponent(location.pathname+location.search));return;}await task.run(()=>api('/posts/'+post.id+'/'+kind,active?'DELETE':'PUT',{}));}return <article className={'post'+(detail?' detail':'')}><div className="post-top"><Avatar author={post.author}/><div className="identity"><AuthorName author={post.author}/><span className="byline">{post.author.handle?'@'+post.author.handle+' · ':''}<time dateTime={post.created_at}>{date(post.created_at)}</time>{post.state!=='published'&&<span className="state-label">{post.state==='draft'?'Черновик':post.state==='pending'?'На проверке':post.state==='rejected'?'Отклонено':post.state}</span>}</span></div><button type="button" className="icon-button" aria-label="Действия с публикацией" aria-expanded={menu} onClick={()=>setMenu(!menu)}><MoreHorizontal size={21}/></button></div>{menu&&<div className="context-menu">{own&&<Link to={post.club_id?`/clubs/${post.club_id}/posts/${post.id}/edit`:`/posts/${post.id}/edit`}>Редактировать</Link>}{(own||canModerate)&&<ConfirmButton className="text-control danger-text" warning="Удалить публикацию? Она станет недоступна читателям." perform={()=>api(post.club_id?'/clubs/posts/'+post.id:'/posts/'+post.id,'DELETE')}>Удалить</ConfirmButton>}<ReportLink type="post" id={post.id}/></div>}{post.club_id&&<Link className="post-topic" to={'/clubs/'+post.club_id}>Публикация клуба<ChevronRight size={13}/></Link>}{post.tags?.length>0&&<div className="post-tags">{post.tags.map(tag=><Link key={tag} to={'/discover/content?tag='+encodeURIComponent(tag)}>#{tag}</Link>)}</div>}<PostText key={post.body} body={post.body} postId={post.id} detail={detail}/>{post.images?.length>0&&<PostGallery images={post.images}/>}<div className="post-actions"><button className={'react'+(post.liked?' active':'')} aria-label={post.liked?'Убрать отметку нравится':'Нравится'} aria-pressed={post.liked} disabled={task.busy} onClick={()=>react('like',post.liked)}><Heart size={20} fill={post.liked?'currentColor':'none'}/><span>{post.like_count||'Нравится'}</span></button><Link className="react" to={'/posts/'+post.id+'#comments'} aria-label="Комментарии"><MessageCircle size={20}/><span>{post.comment_count||'Ответить'}</span></Link><button className={'react push'+(post.bookmarked?' saved':'')} aria-label={post.bookmarked?'Убрать закладку':'Сохранить в закладки'} aria-pressed={post.bookmarked} disabled={task.busy} onClick={()=>react('bookmark',post.bookmarked)}><Bookmark size={20} fill={post.bookmarked?'currentColor':'none'}/></button></div><Feedback task={task}/></article>;}
+export function PostCard({post:loadedPost,detail=false,editable=false,canModerate=false,onUpdate,onUnavailable}:{post:Post;detail?:boolean;editable?:boolean;canModerate?:boolean;onUpdate?:(post:Post)=>void;onUnavailable?:()=>void}){
+ const {user}=useSession(),navigate=useNavigate();
+ const task=useTask({revalidate:detail});
+ const [snapshot,setSnapshot]=useState<{source:Post;value:Post}|null>(null);
+ const [hiddenSource,setHiddenSource]=useState<Post|null>(null);
+ const post=snapshot?.source===loadedPost?snapshot.value:loadedPost;
+ const [menu,setMenu]=useState(false);
+ const trigger=useRef<HTMLButtonElement>(null),panel=useRef<HTMLDivElement>(null),menuId=useId();
+ const own=post.author_id===user?.id||editable;
+ useEffect(()=>{
+  if(!menu)return;
+  const outside=(event:PointerEvent)=>{if(event.target instanceof Node&&!trigger.current?.contains(event.target)&&!panel.current?.contains(event.target))setMenu(false);};
+  const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();setMenu(false);trigger.current?.focus();}};
+  document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape);
+  return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);};
+ },[menu]);
+ async function react(kind:'like'|'bookmark',active:boolean){
+  if(!user){navigate('/login?returnTo='+encodeURIComponent(location.pathname+location.search));return;}
+  await task.run(async()=>{
+   try{
+    await api('/posts/'+post.id+'/'+kind,active?'DELETE':'PUT',{});
+    if(!detail){const fresh=await api<Post>('/posts/'+post.id);setSnapshot({source:loadedPost,value:fresh});onUpdate?.(fresh);}
+   }catch(error){if(error instanceof ApiError&&[403,404].includes(error.status)){setHiddenSource(loadedPost);onUnavailable?.();}throw error;}
+  });
+ }
+ if(hiddenSource===loadedPost)return <article className="post"><p className="muted">Публикация больше недоступна.</p><Feedback task={task}/></article>;
+ return <article className={'post'+(detail?' detail':'')}><div className="post-top"><Avatar author={post.author}/><div className="identity"><AuthorName author={post.author}/><span className="byline">{post.author.handle?'@'+post.author.handle+' · ':''}<time dateTime={post.created_at}>{date(post.created_at)}</time>{post.state!=='published'&&<span className="state-label">{post.state==='draft'?'Черновик':post.state==='pending'?'На проверке':post.state==='rejected'?'Отклонено':post.state}</span>}</span></div><button type="button" className="icon-button" ref={trigger} aria-label="Действия с публикацией" aria-expanded={menu} aria-controls={menuId} onClick={()=>setMenu(!menu)}><MoreHorizontal size={21}/></button></div>{menu&&<div className="context-menu" ref={panel} id={menuId} role="group" aria-label="Действия публикации" onClick={event=>{if(event.target instanceof Element&&event.target.closest('a'))setMenu(false);}}>{own&&<Link to={post.club_id?`/clubs/${post.club_id}/posts/${post.id}/edit`:`/posts/${post.id}/edit`}>Редактировать</Link>}{(own||canModerate)&&<ConfirmButton className="text-control danger-text" warning="Удалить публикацию? Она станет недоступна читателям." perform={()=>api(post.club_id?'/clubs/posts/'+post.id:'/posts/'+post.id,'DELETE')}>Удалить</ConfirmButton>}<ReportLink type="post" id={post.id}/></div>}{post.club_id&&<Link className="post-topic" to={'/clubs/'+post.club_id}>Публикация клуба<ChevronRight size={13}/></Link>}{post.tags?.length>0&&<div className="post-tags">{post.tags.map(tag=><Link key={tag} to={'/discover/content?tag='+encodeURIComponent(tag)}>#{tag}</Link>)}</div>}<PostText key={post.body} body={post.body} postId={post.id} detail={detail}/>{post.images?.length>0&&<PostGallery images={post.images}/>}<div className="post-actions"><button className={'react'+(post.liked?' active':'')} aria-label={post.liked?'Убрать отметку нравится':'Нравится'} aria-pressed={post.liked} disabled={task.busy} onClick={()=>react('like',post.liked)}><Heart size={20} fill={post.liked?'currentColor':'none'}/><span>{post.like_count||'Нравится'}</span></button><Link className="react" to={'/posts/'+post.id+'#comments'} aria-label="Комментарии"><MessageCircle size={20}/><span>{post.comment_count||'Ответить'}</span></Link><button className={'react push'+(post.bookmarked?' saved':'')} aria-label={post.bookmarked?'Убрать закладку':'Сохранить в закладки'} aria-pressed={post.bookmarked} disabled={task.busy} onClick={()=>react('bookmark',post.bookmarked)}><Bookmark size={20} fill={post.bookmarked?'currentColor':'none'}/></button></div><Feedback task={task}/></article>;}
 export function PostsPage({kind}:{kind:'bookmarks'|'drafts'|'mine'|'mentions'|'content'}){const data=useLoaderData() as Collection<Post>;const {user}=useSession();const titles={bookmarks:'Закладки',drafts:'Черновики',mine:'Мои публикации',mentions:'Упоминания',content:'Темы и публикации'};return <><PageHeading title={titles[kind]} back={kind==='content'?'/discover':'/me'} action={kind==='drafts'||kind==='mine'?<Link className="icon-button" to="/posts/new" aria-label="Написать пост"><Plus size={21}/></Link>:undefined}/>{kind==='content'&&<form className="search-form" method="get"><Field name="tag" label="Тема" defaultValue={new URLSearchParams(location.search).get('tag')??''}/><button className="secondary">Найти</button></form>}<PostList data={data} path={kind==='bookmarks'?'/bookmarks':kind==='mentions'?'/mentions':kind==='content'?'/feed'+location.search:'/posts'+query({authorId:user?.id,state:kind==='drafts'?'draft':'published'})} editable={kind==='drafts'||kind==='mine'}/></>;}
 export function PostDetail(){const {user}=useSession();const {post,comments,canModerate}=useLoaderData() as {post:Post;comments:Collection<Comment>;canModerate?:boolean};return <><PageHeading title="Публикация" back={post.club_id?'/clubs/'+post.club_id:'/'}/><PostCard post={post} detail canModerate={canModerate}/><Comments key={(user?.id??'guest')+':'+post.id} post={post} initial={comments} canModerate={canModerate}/></>;}
 function Comments({post,initial,canModerate=false}:{post:Post;initial:Collection<Comment>;canModerate?:boolean}){
