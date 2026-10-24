@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import {test,expect} from '@playwright/test';
-import {account,api,noOverflow} from './helpers.js';
+import {account,api,browserPerson,noOverflow} from './helpers.js';
 
 test('свёрнутая карусель остаётся свёрнутой при переходах внутри сайта',async({page,isMobile})=>{
  test.skip(!isMobile,'Проверка компактной мобильной главной');
@@ -56,4 +56,47 @@ test('первая публичная публикация читаема и в�
   expect(rect!.y).toBeLessThan(560);
   await noOverflow(page);
  }finally{await player.context.dispose();}
+});
+
+test('длинный и многострочный пост разворачивается в ленте без потери реакций',async({browser,isMobile})=>{
+ const player=await account();
+ const ui=await browserPerson(browser,player);
+ try{
+  const longBody=('Текст для чтения в ленте. '.repeat(100))+'Конец длинной публикации';
+  const multiBody=Array.from({length:10},(_,i)=>'Строка '+(i+1)).join('\n');
+  const long=await api(player.context,'/posts','POST',{body:longBody});
+  await api(player.context,'/posts','POST',{body:multiBody});
+  await api(player.context,'/posts','POST',{body:'Короткая публикация'});
+  await ui.page.setViewportSize({width:isMobile?360:1440,height:900});
+  await ui.page.goto('/users/'+player.id);
+  const card=ui.page.locator('.post').filter({hasText:'Конец длинной публикации'});
+  const toggle=card.getByRole('button',{name:'Читать полностью',exact:true});
+  await expect(toggle).toHaveAttribute('aria-expanded','false');
+  const previewHeight=await card.locator('.copy').evaluate(el=>el.clientHeight);
+  const url=ui.page.url();
+  await toggle.focus();
+  await ui.page.keyboard.press('Enter');
+  const collapse=card.getByRole('button',{name:'Свернуть текст',exact:true});
+  await expect(collapse).toHaveAttribute('aria-expanded','true');
+  await expect(collapse).toBeFocused();
+  await expect.poll(()=>card.locator('.copy').evaluate(el=>el.clientHeight)).toBeGreaterThan(previewHeight);
+  expect(ui.page.url()).toBe(url);
+  await card.getByRole('button',{name:'Нравится',exact:true}).click();
+  await expect(card.getByRole('button',{name:'Убрать отметку нравится',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(collapse).toHaveAttribute('aria-expanded','true');
+  await collapse.click();
+  await expect(card.getByRole('button',{name:'Читать полностью',exact:true})).toHaveAttribute('aria-expanded','false');
+  await expect.poll(()=>card.locator('.copy').evaluate(el=>el.clientHeight)).toBe(previewHeight);
+  const short=ui.page.locator('.post').filter({hasText:'Короткая публикация'});
+  await expect(short.getByRole('button',{name:'Читать полностью',exact:true})).toHaveCount(0);
+  const multi=ui.page.locator('.post').filter({hasText:'Строка 10'});
+  await multi.getByRole('button',{name:'Читать полностью',exact:true}).click();
+  await expect(multi.getByRole('button',{name:'Свернуть текст',exact:true})).toHaveAttribute('aria-expanded','true');
+  await noOverflow(ui.page);
+  await card.getByRole('link',{name:'Открыть публикацию',exact:true}).click();
+  await expect(ui.page).toHaveURL('/posts/'+long.id);
+  await expect(ui.page.locator('.post.detail .copy')).toHaveText(longBody);
+  await expect(ui.page.getByRole('button',{name:'Читать полностью',exact:true})).toHaveCount(0);
+  expect(ui.errors).toEqual([]);
+ }finally{await ui.context.close();await player.context.dispose();}
 });
