@@ -4,6 +4,10 @@
 
 В репозитории реализовано приложение с PostgreSQL и серверной проверкой прав. **Контрольный релиз 24.10.2026:** [Application CI №40112266831](https://github.com/lolokeksu09/WrCommunity/actions/runs/40112266831) успешно проверил и развернул коммит `3644cba` после [PR #23](https://github.com/lolokeksu09/WrCommunity/pull/23); VDS подтвердил точный SHA, `ready: true` и публичный HTTPS. Это исторически проверенная точка, **а не утверждение о неизменности текущего HEAD/VDS**: актуальный релиз сверяйте по [последним запускам `main`](https://github.com/lolokeksu09/WrCommunity/actions/workflows/ci.yml). Это технический пилот, не готовый открытый запуск: внешние правовые, почтовые и модерационные условия остаются. Подробности: [STATUS](docs/implementation/STATUS.md).
 
+## Текущий патч и продолжение работы
+
+[План «От регистрации до первой совместной игры»](docs/superpowers/plans/2026-10-25-player-journey.md) содержит согласованный объём, чеклист, выполненные проверки и инструкцию для продолжения в другом чате. Работа ведётся в [PR #30](https://github.com/lolokeksu09/WrCommunity/pull/30), ветка `feat/player-journey`. До завершения FULL/RELEASE это разработка, а не опубликованный релиз.
+
 ## Локальный запуск целиком в Docker
 
 Нужны Docker Engine с Compose v2 и Node.js 24 для генерации локальных секретов.
