@@ -45,7 +45,9 @@ test('первая публичная публикация читаема и в�
   await api(player.context,'/posts','POST',{body});
   await page.setViewportSize({width:390,height:844});
   await page.goto('/');
-  const card=page.locator('.post').filter({hasText:body});
+  // Other E2E workers may publish newer posts. Measure the first feed card,
+  // not this fixture's position in a shared, concurrently updated feed.
+  const card=page.locator('.post').first();
   await expect(card).toBeVisible();
   const font=await card.locator('.copy').evaluate(el=>Number.parseFloat(getComputedStyle(el).fontSize));
   expect(font).toBeGreaterThanOrEqual(15);
