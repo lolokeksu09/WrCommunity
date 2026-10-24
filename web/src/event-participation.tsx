@@ -10,6 +10,7 @@ export function EventParticipation({event,club}:{event:ClubEvent;club:Club}){
  const {user}=useSession(),task=useTask();
  const active=event.my_registration===true||event.my_registration==='active'||(typeof event.my_registration==='object'&&event.my_registration?.state==='active');
  const member=club.membership?.state==='active',pending=club.membership?.state==='pending';
+ const confirmed=active&&event.state==='open'&&club.state==='active';
  const open=['open','available'].includes(event.registration_status);
  const beforeStart=new Date(event.starts_at).valueOf()>Date.now();
  let title:string,description:string,action:React.ReactNode;
@@ -36,8 +37,8 @@ export function EventParticipation({event,club}:{event:ClubEvent;club:Club}){
   title='Запись открыта';description='Ты состоишь в клубе и можешь присоединиться к встрече.';
   action=<button className="primary" type="button" disabled={task.busy} onClick={()=>task.run(()=>api('/events/'+event.id+'/registration','POST',{}),undefined,'Ты зарегистрирован на встречу')}>Участвовать</button>;
  }
- return <section className={'event-participation'+(active&&event.state==='open'?' confirmed':'')} aria-label="Участие во встрече">
-  <div className="event-participation-heading">{active&&event.state==='open'?<Check size={22}/>:member?<ShieldCheck size={22}/>:<Users size={22}/>}<h2>{title}</h2></div>
+ return <section className={'event-participation'+(confirmed?' confirmed':'')} aria-label="Участие во встрече">
+  <div className="event-participation-heading">{confirmed?<Check size={22}/>:member?<ShieldCheck size={22}/>:<Users size={22}/>}<h2>{title}</h2></div>
   <p>{description}</p><Feedback task={task}/>{action&&<div className="actions">{action}</div>}
  </section>;
 }

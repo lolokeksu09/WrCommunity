@@ -14,7 +14,7 @@ test('встреча объясняет вступление и запись, к
   await p.setViewportSize({width:isMobile?390:1440,height:844});await p.goto('/events/'+event.id);
   await expect(p.getByRole('heading',{name:'Сначала вступи в клуб',exact:true})).toBeVisible();
   await p.getByRole('link',{name:'Подать заявку в клуб',exact:true}).click();
-  await p.getByLabel('Клубный псевдоним',{exact:true}).fill('Напарник встречи');
+  await p.getByLabel('Клубный псевдоним').fill('Напарник встречи');
   await p.getByRole('group',{name:'Игровые роли',exact:true}).getByRole('checkbox',{name:'Мид',exact:true}).check();
   await p.getByRole('checkbox',{name:'Разрешаю раскрыть эти данные в контексте этого клуба.',exact:true}).check();
   await p.getByRole('checkbox',{name:'Я понимаю правило сохранения исторических подписей.',exact:true}).check();
@@ -26,6 +26,7 @@ test('встреча объясняет вступление и запись, к
   await api(owner.context,'/clubs/'+club.id+'/identity','PATCH',identity('Организатор',['Мид','Тактик']));
   await manager.page.setViewportSize({width:isMobile?390:1440,height:844});await manager.page.goto('/clubs/'+club.id+'/identity');
   const roles=manager.page.getByRole('group',{name:'Игровые роли',exact:true});await expect(roles.getByRole('checkbox',{name:'Мид',exact:true})).toBeChecked();await expect(roles.getByRole('checkbox',{name:'Тактик',exact:true})).toBeChecked();await roles.getByRole('checkbox',{name:'Лес',exact:true}).check();
+  await manager.page.getByRole('checkbox',{name:'Разрешаю раскрыть эти данные в контексте этого клуба.',exact:true}).check();await manager.page.getByRole('checkbox',{name:'Я понимаю правило сохранения исторических подписей.',exact:true}).check();
   await manager.page.getByRole('button',{name:'Сохранить клубную личность',exact:true}).click();await expect(manager.page).toHaveURL('/clubs/'+club.id);
   expect((await api(owner.context,'/clubs/'+club.id)).membership.roles).toEqual(['jungle','mid','Тактик']);
   await api(owner.context,'/events/'+event.id+'/registration','POST',{});
