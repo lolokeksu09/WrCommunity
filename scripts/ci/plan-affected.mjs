@@ -141,15 +141,7 @@ if(execute){
     console.log('documentation-only: no E2E scenarios selected. FULL CI remains mandatory before merging.');
     process.exit(0);
   }
-  const escapeRegex=string=>string.replace(/[.*+?^${}()|[\]\\]/g,'\\if(json)console.log(JSON.stringify(plan));
-else{
-  console.log('Affected test plan: '+plan.mode+'; areas: '+(areas.join(', ')||'none'));
-  for(const row of plan.reasons)console.log(' - '+row.file+' => '+row.classification+' ('+row.reason+')');
-  console.log('L2: '+counts.L2+' declarations; L3: '+counts.L3+' declarations');
-  if(plan.securitySensitive)console.log('SECURITY: run relevant API/negative access tests in addition to browser checks.');
-  for(const command of recommendations)console.log('   '+command);
-  console.log(plan.note);
-}');
+  const escapeRegex=string=>string.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
   const selected=catalog.scenarios.filter(row=>areas.includes(row.area));
   if(!selected.length){
     console.error('Non-documentation changes without classified E2E scenarios. Refusing empty execution.');
