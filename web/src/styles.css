@@ -46,3 +46,12 @@
 .post-reading-controls{display:flex;align-items:center;flex-wrap:wrap;column-gap:18px;row-gap:2px}
 .post-reading-controls button.read-more{background:transparent;border:0;padding:0;min-height:44px;text-align:left}
 .post-reading-controls .quiet-link{min-height:44px}
+
+/* Keep selected search conditions visible while freeing room for mobile results. */
+.filter-panel-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px}
+.filter-panel-toolbar:empty{display:none}
+.filter-toggle{display:none}
+.filter-panel-toolbar .quiet-link{min-height:44px}
+.active-filters{display:flex;flex-wrap:wrap;gap:7px;list-style:none;margin:8px 0 4px;padding:0}
+.active-filters li{max-width:100%;overflow-wrap:anywhere;padding:5px 9px;border:1px solid var(--edge);border-radius:8px;color:var(--muted);font-size:12px}
+@media(max-width:759px){.filter-toggle{display:inline-flex}.filter-panel.collapsed .filter-panel-fields{display:none}.filter-panel.collapsed{padding-bottom:16px;border-bottom:1px solid var(--edge)}}

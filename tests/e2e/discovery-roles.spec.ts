@@ -27,6 +27,7 @@ test('поиск игроков и LFG догружает результаты �
    await ui.page.getByRole('button',{name:'Показать ещё',exact:true}).click();
    await expect(ui.page.locator('.person')).toHaveCount(23);
    await expect(ui.page.getByRole('button',{name:'Показать ещё',exact:true})).toHaveCount(0);
+   const filters=ui.page.getByRole('button',{name:'Фильтры',exact:true});if(await filters.isVisible())await filters.click();
    await ui.page.getByLabel('Игровая роль').selectOption('support');
    await ui.page.getByRole('button',{name:'Найти игроков',exact:true}).click();
    await expect(ui.page.locator('.person')).toHaveCount(0);
