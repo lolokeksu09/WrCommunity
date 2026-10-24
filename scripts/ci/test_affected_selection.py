@@ -1,5 +1,7 @@
 """Regression tests for safe affected-area E2E plans, no database required."""
 import json
+import os
+import tempfile
 import subprocess
 import unittest
 from pathlib import Path
@@ -116,6 +118,41 @@ class AffectedSelectionContract(unittest.TestCase):
         agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
         self.assertIn("test:affected -- --execute", docs)
         self.assertIn("--execute", agents)
+
+
+    def execute_with_fake_npm(self, files, fail_api=False):
+        with tempfile.TemporaryDirectory() as td:
+            npm = Path(td) / "npm"
+            log = Path(td) / "calls.log"
+            npm.write_text(
+                '#!/bin/sh\\nprintf "%s\\\\n" "$*" >> "$WRC_TEST_CALL_LOG"\\n'
+                'if [ "$1" = "test" ] && [ "$WRC_TEST_FAIL_API" = "1" ]; then exit 9; fi\\n'
+                'exit 0\\n', encoding="utf-8")
+            npm.chmod(0o755)
+            env = dict(os.environ)
+            env["PATH"] = td + os.pathsep + env["PATH"]
+            env["WRC_TEST_CALL_LOG"] = str(log)
+            env["WRC_TEST_FAIL_API"] = "1" if fail_api else "0"
+            result = subprocess.run(
+                ["node", "scripts/ci/plan-affected.mjs", "--execute", "--files", *files],
+                cwd=ROOT, text=True, capture_output=True, timeout=15, env=env)
+            calls = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
+            return result, calls
+
+    def test_actual_execute_invokes_one_browser_process_for_two_areas(self):
+        result, calls = self.execute_with_fake_npm(
+            ["web/src/post-gallery.tsx", "web/src/notifications.tsx"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(calls), 1)
+        self.assertIn("run test:e2e -- --grep", calls[0])
+        self.assertIn("вложения публикации", calls[0])
+        self.assertIn("новое уведомление", calls[0])
+
+    def test_api_failure_blocks_browser_execution(self):
+        result, calls = self.execute_with_fake_npm(
+            ["server/modules/auth/routes.ts"], fail_api=True)
+        self.assertEqual(result.returncode, 9)
+        self.assertEqual(calls, ["test"])
 
 
 
