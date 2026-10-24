@@ -25,11 +25,15 @@ class StagedWorkflowContract(unittest.TestCase):
         self.assertIn("github.event.pull_request.draft == true", fast)
         self.assertIn("npm run typecheck", fast)
         self.assertIn("npm run build", fast)
-        for name in ("integration", "docker-smoke"):
+        for name in ("api-tests", "browser-tests", "docker-smoke"):
             full = section(name)
             self.assertIn("github.event.pull_request.draft == false", full)
             self.assertIn("github.event_name == 'push'", full)
-        self.assertIn("npm run test:e2e", section("integration"))
+        integration = section("integration")
+        self.assertIn("github.event.pull_request.draft == false", integration)
+        self.assertIn("if: always()", integration)
+        self.assertIn("needs: [api-tests, browser-tests]", integration)
+        self.assertIn("npm run test:e2e", section("browser-tests"))
         self.assertIn("sh scripts/docker-smoke.sh", section("docker-smoke"))
 
     def test_required_quality_gate_cannot_skip_failures(self):
