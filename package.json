@@ -1,0 +1,59 @@
+{
+  "name": "wrcommunity",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.19.0 <25",
+    "npm": ">=11 <12"
+  },
+  "packageManager": "npm@11.9.0",
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --import tsx --watch server/index.ts",
+    "dev:web": "vite --config web/vite.config.ts --host 127.0.0.1",
+    "dev:worker": "node --env-file-if-exists=.env --import tsx --watch server/worker.ts",
+    "build": "npm run build:web && npm run build:server",
+    "build:web": "vite build --config web/vite.config.ts",
+    "build:server": "tsc -p tsconfig.server.json && node scripts/copy-migrations.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p web/tsconfig.json",
+    "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
+    "test:e2e": "playwright test --config scripts/playwright.config.ts",
+    "migrate": "node --env-file-if-exists=.env --import tsx server/db/migrate.ts",
+    "start": "node --env-file-if-exists=.env dist/server/index.js",
+    "start:worker": "node --env-file-if-exists=.env dist/server/worker.js",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "smoke:docker": "sh scripts/docker-smoke.sh",
+    "backup:verify": "node scripts/backup-restore.mjs"
+  },
+  "dependencies": {
+    "fastify": "5.12.7",
+    "@fastify/cookie": "11.1.3",
+    "@fastify/helmet": "13.2.0",
+    "@fastify/rate-limit": "11.2.1",
+    "@fastify/swagger": "9.9.2",
+    "@fastify/swagger-ui": "6.1.2",
+    "@fastify/static": "10.1.7",
+    "@fastify/multipart": "10.1.6",
+    "zod": "4.6.7",
+    "argon2": "0.45.1",
+    "pg": "8.23.1",
+    "sharp": "0.35.5",
+    "nodemailer": "10.2.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-router-dom": "7.18.4",
+    "lucide-react": "1.61.0"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "tsx": "4.23.15",
+    "@types/pg": "8.23.1",
+    "@types/nodemailer": "8.0.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/node": "24.19.2",
+    "vite": "8.3.5",
+    "@vitejs/plugin-react": "6.1.2",
+    "@playwright/test": "1.64.1"
+  }
+}

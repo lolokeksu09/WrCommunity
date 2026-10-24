@@ -1,0 +1,114 @@
+{
+  "capturedAt": "2026-10-23T18:07:15.891Z",
+  "browserVersion": "156.0.8078.47",
+  "screens": [
+    {
+      "file": "home-390.png",
+      "width": 390,
+      "height": 844,
+      "heading": "Лента WrCommunity",
+      "scrollWidth": 390,
+      "viewportWidth": 390,
+      "pageErrors": []
+    },
+    {
+      "file": "empty-390.png",
+      "width": 390,
+      "height": 844,
+      "heading": "Найти своих",
+      "scrollWidth": 390,
+      "viewportWidth": 390,
+      "pageErrors": []
+    },
+    {
+      "file": "login-390.png",
+      "width": 390,
+      "height": 844,
+      "heading": "С возвращением",
+      "scrollWidth": 390,
+      "viewportWidth": 390,
+      "pageErrors": []
+    },
+    {
+      "file": "profile-390.png",
+      "width": 390,
+      "height": 844,
+      "heading": "Профиль игрока",
+      "scrollWidth": 390,
+      "viewportWidth": 390,
+      "pageErrors": []
+    },
+    {
+      "file": "club-390.png",
+      "width": 390,
+      "height": 844,
+      "heading": "Клуб e2e_8091bbf2e5fb49ffa4",
+      "scrollWidth": 390,
+      "viewportWidth": 390,
+      "pageErrors": []
+    },
+    {
+      "file": "lfg-390.png",
+      "width": 390,
+      "height": 844,
+      "heading": "Поиск команды",
+      "scrollWidth": 390,
+      "viewportWidth": 390,
+      "pageErrors": []
+    },
+    {
+      "file": "home-1440.png",
+      "width": 1440,
+      "height": 1000,
+      "heading": "Лента WrCommunity",
+      "scrollWidth": 1440,
+      "viewportWidth": 1440,
+      "pageErrors": []
+    },
+    {
+      "file": "empty-1440.png",
+      "width": 1440,
+      "height": 1000,
+      "heading": "Найти своих",
+      "scrollWidth": 1440,
+      "viewportWidth": 1440,
+      "pageErrors": []
+    },
+    {
+      "file": "login-1440.png",
+      "width": 1440,
+      "height": 1000,
+      "heading": "С возвращением",
+      "scrollWidth": 1440,
+      "viewportWidth": 1440,
+      "pageErrors": []
+    },
+    {
+      "file": "profile-1440.png",
+      "width": 1440,
+      "height": 1000,
+      "heading": "Профиль игрока",
+      "scrollWidth": 1440,
+      "viewportWidth": 1440,
+      "pageErrors": []
+    },
+    {
+      "file": "club-1440.png",
+      "width": 1440,
+      "height": 1000,
+      "heading": "Клуб e2e_8091bbf2e5fb49ffa4",
+      "scrollWidth": 1440,
+      "viewportWidth": 1440,
+      "pageErrors": []
+    },
+    {
+      "file": "lfg-1440.png",
+      "width": 1440,
+      "height": 1000,
+      "heading": "Поиск команды",
+      "scrollWidth": 1440,
+      "viewportWidth": 1440,
+      "pageErrors": []
+    }
+  ]
+}

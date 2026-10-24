@@ -1,0 +1,14 @@
+✔ club reviewers can inspect pending revision media while outsiders cannot (1097.501473ms)
+✔ a club owner cannot reactivate a club archived by platform moderation (891.28007ms)
+✔ club leadership can postmoderate another member club comment (937.001789ms)
+✔ club report management is scoped to current club leadership and omits reporter identity (1239.805728ms)
+✔ event registration rechecks verified status after waiting for an account change (700.026601ms)
+✔ LFG decisions recheck verified status after waiting for an account change (620.91968ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6111.513448
