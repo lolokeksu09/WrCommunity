@@ -17,7 +17,7 @@ class PlaywrightWorkerReserve(unittest.TestCase):
 
     def test_bounded_worker_override_only_for_browser_acceptance(self):
         browser = WORKFLOW.split("      - name: Browser acceptance checks", 1)[1]
-        self.assertRegex(browser, r"WRC_E2E_WORKERS: \'(?:2|3)\'")
+        self.assertRegex(browser, r"WRC_E2E_WORKERS: \'(?:2|3|4)\'")
         self.assertEqual(WORKFLOW.count("WRC_E2E_WORKERS:"), 1)
         self.assertIn("npm run test:e2e", browser)
         self.assertIn("npm run test:e2e", WORKFLOW)
