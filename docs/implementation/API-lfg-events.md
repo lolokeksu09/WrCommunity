@@ -1,17 +1,21 @@
 # Discovery, LFG and club events API
 
-All URLs below use `/api/v1`; writes require the authenticated session and CSRF token. Lists return `{items:[]}`. All date fields use ISO timestamps with an explicit UTC offset. Social writes require verified active accounts. Errors are structured `{error:{code,message,requestId}}`.
+All URLs below use `/api/v1`; writes require the authenticated session and CSRF token. Player search/recommendation and public LFG lists return `{items:[],nextCursor:string|null}`; other lists retain `{items:[]}`. All date fields use ISO timestamps with an explicit UTC offset. Social writes require verified active accounts. Errors are structured `{error:{code,message,requestId}}`.
 
 ## Players
 
-`GET /players/search` (also `/players`) accepts `q`, `server`, `role`, `rank`, `language`, `champion`, `schedule`, `limit` (1–50). Only active public profiles and individually public game fields participate in filtering or output. Hidden/blocked players are omitted. Cards are `{id,handle,display_name,game}`; `game` retains the public `{value,public:true}` entries.
+`GET /players/search` (also `/players`) accepts `q`, `server`, `role`, `rank`, `language`, `champion`, `schedule`, `limit` (1–50, default 20), and `cursor` (max 300 characters). Only active public profiles and individually public game fields participate in filtering or output. Hidden/blocked players are omitted. Cards are `{id,handle,display_name,game}`; `game` retains the public `{value,public:true}` entries.
 
 `GET /players/recommendations` requires login. Accepts the same filters. Explicit `server`/`role` or the viewer's own saved values produce explainable scoring. Cards include `reasons:string[]` (same server, matching role, language or schedule); no ML or invented players.
+
+Pass the returned opaque `nextCursor` with the same filters and account to load the next page; null means the end. Sorting remains newest first with ascending UUID as tie-breaker; recommendations first sort by their public match score. Cursors preserve timestamp microseconds. Reset pagination when filters or account change. The server rechecks current visibility, public game fields and both block directions on every page; invalid cursors return 422 `invalid_cursor`. Results are live, not a frozen snapshot: changes to profiles/preferences may change recommendation ordering.
+
+Game roles share identifiers `baron`, `jungle`, `mid`, `dragon`, `support` and Russian labels Барон, Лес, Мид, Дракон, Поддержка. Profile/LFG writes canonicalize known identifiers/labels case-insensitively and remove duplicate roles. Existing rows are not migrated; search/scoring also recognize their trimmed Russian labels. Unknown stored/custom role strings remain supported and are displayed unchanged; unknown filters still use exact case-insensitive role matching. Candidate private role fields never affect matching or scoring.
 
 ## LFG
 
 - `GET /lfg/mine`: authenticated author's own announcements, including closed/expired history (excluding deleted).
-- `GET /lfg?server=&role=&limit=`: currently open public announcements.
+- `GET /lfg?server=&role=&limit=&cursor=`: currently open public announcements.
 - `POST /lfg`: `{server,roles:string[],description,expires_at,pending_policy:'keep'|'reject'}`; author must currently be public. No maximum future expiry.
 - `GET /lfg/:id`: announcement `{id,server,roles,description,expires_at,pending_policy,state,created_at,author:{id,handle,display_name}}`.
 - `PATCH /lfg/:id`: author may edit `{description?,expires_at?,pending_policy?}` while still open and before expiry; expiry remains future with no maximum.

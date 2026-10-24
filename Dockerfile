@@ -5,6 +5,7 @@ RUN npm ci
 COPY tsconfig*.json ./
 COPY web ./web
 COPY server ./server
+COPY shared ./shared
 COPY scripts/copy-migrations.mjs ./scripts/copy-migrations.mjs
 RUN npm run build && npm prune --omit=dev && npm cache clean --force
 

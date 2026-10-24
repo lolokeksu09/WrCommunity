@@ -1,3 +1,5 @@
+import {canonicalRoles,roleAliases} from '../../../shared/game-roles.js';
+import {decodeListingCursor,encodeListingCursor} from '../../listing-cursor.js';
 import type { FastifyInstance } from 'fastify';
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
@@ -6,9 +8,9 @@ import { assertCurrentActor, fail, idParam, notify, parse, requireUser } from '.
 import { blocked } from '../policy/service.js';
 import { type Announcement,type Application,announcementDTO,announcementRow,applicationDTO,applyPendingPolicy,decryptContact,encryptContact,expireAnnouncement,expireLfg,refreshAnnouncement } from './service.js';
 
-const createSchema=z.object({server:z.string().trim().min(1).max(80),roles:z.array(z.string().trim().min(1).max(40)).min(1).max(5),description:z.string().trim().min(1).max(2000),expires_at:z.string().datetime({offset:true}),pending_policy:z.enum(['keep','reject'])}).strict();
+const createSchema=z.object({server:z.string().trim().min(1).max(80),roles:z.array(z.string().trim().min(1).max(40)).min(1).max(5).transform(canonicalRoles),description:z.string().trim().min(1).max(2000),expires_at:z.string().datetime({offset:true}),pending_policy:z.enum(['keep','reject'])}).strict();
 const updateSchema=z.object({description:createSchema.shape.description,expires_at:createSchema.shape.expires_at,pending_policy:createSchema.shape.pending_policy}).partial().strict().refine(value=>Object.keys(value).length>0,'Укажите изменения');
-const listSchema=z.object({server:z.string().max(80).optional(),role:z.string().max(40).optional(),limit:z.coerce.number().int().min(1).max(50).default(20)});
+const listSchema=z.object({server:z.string().max(80).optional(),role:z.string().max(40).optional(),limit:z.coerce.number().int().min(1).max(50).default(20),cursor:z.string().max(300).optional()});
 const applySchema=z.object({message:z.string().trim().min(1).max(500),disclosure_consent:z.boolean().default(false)}).strict();
 const decisionSchema=z.object({decision:z.enum(['accepted','rejected'])}).strict();
 const contactSchema=z.object({game_contact:z.string().trim().min(1).max(120).refine(value=>!value.includes('@')&&!/^\+?[\d\s().-]{7,}$/.test(value),'Укажите игровой идентификатор, без email и телефона'),consent:z.literal(true)}).strict();
@@ -33,13 +35,14 @@ async function pairApplication(id:string,viewerId:string,tx:PoolClient,verified=
 }
 export async function registerLfg(app:FastifyInstance):Promise<void> {
   app.get('/api/v1/lfg',async request=>{
-    const input=parse(listSchema,request.query);await expireLfg();
+    const input=parse(listSchema,request.query),cursor=decodeListingCursor(input.cursor);await expireLfg();
     const params:unknown[]=[request.viewer?.id??null];const predicates=["a.state='open'","a.expires_at>clock_timestamp()","u.status='active'","u.visibility='public'",'NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$1 AND b.blocked_id=u.id) OR (b.blocker_id=u.id AND b.blocked_id=$1))'];
     if(input.server){params.push(input.server);predicates.push(`a.server=$${params.length}`);}
-    if(input.role){params.push(input.role);predicates.push(`a.roles @> to_jsonb(ARRAY[$${params.length}::text])`);}
-    params.push(input.limit);
-    const rows=await query<Announcement>(`SELECT a.*,u.handle,u.display_name FROM lfg_announcements a JOIN users u ON u.id=a.author_id WHERE ${predicates.join(' AND ')} ORDER BY a.created_at DESC,a.id LIMIT $${params.length}`,params);
-    return {items:rows.map(announcementDTO)};
+    if(input.role){params.push(roleAliases(input.role));predicates.push(`EXISTS (SELECT 1 FROM jsonb_array_elements_text(a.roles) AS role(value) WHERE lower(btrim(role.value))=ANY($${params.length}::text[]))`);}
+    if(cursor){params.push(cursor.at,cursor.id);const at='$'+(params.length-1),id='$'+params.length;predicates.push(`(a.created_at<${at}::timestamptz OR (a.created_at=${at}::timestamptz AND a.id>${id}::uuid))`);}
+    params.push(input.limit+1);
+    const rows=await query<Announcement&{cursor_at:string}>(`SELECT a.*,u.handle,u.display_name,to_char(a.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at FROM lfg_announcements a JOIN users u ON u.id=a.author_id WHERE ${predicates.join(' AND ')} ORDER BY a.created_at DESC,a.id LIMIT $${params.length}`,params);
+    const page=rows.slice(0,input.limit);return {items:page.map(announcementDTO),nextCursor:rows.length>input.limit?encodeListingCursor(page.at(-1)!):null};
   });
   app.post('/api/v1/lfg',async(request,reply)=>{
     const viewer=requireUser(request);const input=parse(createSchema,request.body);
