@@ -32,6 +32,12 @@ jobs:
       - run: npm ci
       - run: npm run test:l2 -- --list
       - run: npm run test:l3 -- --list
+      - name: Plan affected E2E areas from the complete PR diff
+        env:
+          WRC_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$WRC_BASE_SHA"
+          npm run test:affected -- --base="$WRC_BASE_SHA"
       - run: npm run check:secrets
       - run: npm run typecheck
       - run: npm run build
