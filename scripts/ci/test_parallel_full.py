@@ -15,7 +15,7 @@ def job(name: str) -> str:
 
 class ParallelFullContract(unittest.TestCase):
     def test_api_and_browser_jobs_run_for_ready_pr_and_main(self):
-        for name in ("api-tests", "browser-tests"):
+        for name in ("api-tests", "browser-project"):
             body = job(name)
             self.assertIn("github.event.pull_request.draft == false", body)
             self.assertIn("github.event_name == 'push'", body)
@@ -23,7 +23,7 @@ class ParallelFullContract(unittest.TestCase):
 
     def test_isolated_test_services_and_unchanged_coverage(self):
         api = job("api-tests")
-        browser = job("browser-tests")
+        browser = job("browser-project")
         for body in (api, browser):
             self.assertIn("services:", body)
             self.assertIn("postgres:", body)
