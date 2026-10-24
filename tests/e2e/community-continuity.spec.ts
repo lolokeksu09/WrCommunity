@@ -42,3 +42,36 @@ test('возврат сохраняет страницы и прокрутку, 
  }finally{await ui.context.close();await owner.context.dispose();}
 });
 
+test('меню закрывается, реакции обновляют только карточку, фильтры и пустые экраны предлагают нужный переход',async({browser,isMobile},testInfo)=>{
+ test.setTimeout(90000);
+ const owner=await account();const ui=await browserPerson(browser,owner);const p=ui.page;
+ try{
+  const post=await api(owner.context,'/posts','POST',{body:'Адресное обновление '+owner.handle});
+  await api(owner.context,'/lfg','POST',{server:'EU',roles:['mid'],description:'Напарник для проверки поиска',expires_at:new Date(Date.now()+86400000).toISOString(),pending_policy:'keep'});
+  await api(owner.context,'/clubs','POST',{name:'Клуб '+owner.handle,description:'Проверка поиска',rules:'Уважать участников',join_mode:'open',feed_visibility:'public'});
+  await p.setViewportSize({width:isMobile?390:1440,height:844});await p.goto('/users/'+owner.id);
+  const card=p.locator('.post').filter({hasText:post.body}),trigger=card.getByRole('button',{name:'Действия с публикацией',exact:true});
+  await trigger.click();await expect(card.getByRole('group',{name:'Действия публикации',exact:true})).toBeVisible();
+  await p.keyboard.press('Escape');await expect(trigger).toHaveAttribute('aria-expanded','false');await expect(trigger).toBeFocused();
+  await trigger.click();await p.getByRole('heading',{name:'Профиль игрока',exact:true}).click();await expect(trigger).toHaveAttribute('aria-expanded','false');
+  const requests:string[]=[];const collect=(request:import('@playwright/test').Request)=>{if(request.url().includes('/api/v1/'))requests.push(request.method()+' '+new URL(request.url()).pathname);};
+  p.on('request',collect);await card.getByRole('button',{name:'Нравится',exact:true}).click();
+  await expect(card.getByRole('button',{name:'Убрать отметку нравится',exact:true})).toHaveAttribute('aria-pressed','true');await p.waitForLoadState('networkidle');p.off('request',collect);
+  expect(requests).toEqual(['PUT /api/v1/posts/'+post.id+'/like','GET /api/v1/posts/'+post.id]);
+  await p.route('**/api/v1/posts/'+post.id+'/bookmark',route=>route.abort());await card.getByRole('button',{name:'Сохранить в закладки',exact:true}).click();
+  await expect(card.getByRole('alert')).toBeVisible();await expect(card.getByRole('button',{name:'Сохранить в закладки',exact:true})).toHaveAttribute('aria-pressed','false');
+  await p.unroute('**/api/v1/posts/'+post.id+'/bookmark');await card.getByRole('button',{name:'Сохранить в закладки',exact:true}).click();await expect(card.getByRole('button',{name:'Убрать закладку',exact:true})).toHaveAttribute('aria-pressed','true');
+  await p.goto('/me/bookmarks');await p.getByRole('button',{name:'Убрать закладку',exact:true}).click();await expect(p.locator('.post-list>.post')).toHaveCount(0);
+  await p.goto('/?mode=following');await expect(p.locator('.empty').getByRole('link',{name:'Найти авторов',exact:true})).toHaveAttribute('href','/discover');
+  await p.goto('/discover?server=no-match-'+owner.handle);await expect(p.getByRole('heading',{name:'Пока нет совпадений',exact:true})).toBeVisible();
+  await expect(p.getByRole('list',{name:'Выбранные фильтры',exact:true})).toContainText('Сервер: no-match-');
+  if(isMobile){await expect(p.getByLabel('Сервер',{exact:true})).not.toBeVisible();await p.getByRole('button',{name:'Фильтры',exact:true}).click();}
+  await expect(p.getByLabel('Сервер',{exact:true})).toBeVisible();await p.getByRole('link',{name:'Сбросить фильтры',exact:true}).click();await expect(p).toHaveURL('/discover');await expect(p.getByLabel('Сервер',{exact:true})).toHaveValue('');
+  await p.goto('/discover/lfg?server=no-match-'+owner.handle);await expect(p.getByRole('heading',{name:'Команды не найдены',exact:true})).toBeVisible();await expect(p.getByRole('link',{name:'Показать все команды',exact:true})).toHaveAttribute('href','/discover/lfg');
+  await noOverflow(p);await p.screenshot({path:testInfo.outputPath('compact-filters.png'),fullPage:true});
+  await p.goto('/clubs?search=no-match-'+owner.handle);await expect(p.getByRole('heading',{name:'Клубы не найдены',exact:true})).toBeVisible();await expect(p.getByRole('link',{name:'Показать все клубы',exact:true})).toHaveAttribute('href','/clubs');
+  await p.goto('/users/'+owner.id);await p.route('**/api/v1/posts/'+post.id,route=>route.fulfill({status:404,contentType:'application/json',body:JSON.stringify({error:{code:'not_found',message:'Публикация недоступна'}})}));
+  await p.locator('.post').getByRole('button',{name:'Убрать отметку нравится',exact:true}).click();await expect(p.locator('.post-list>.post')).toHaveCount(0);
+  expect(ui.errors).toEqual([]);
+ }finally{await ui.context.close();await owner.context.dispose();}
+});
