@@ -31,3 +31,5 @@
 
 /* Shared game roles use native form controls and full touch targets. */
 .role-picker{border:0;padding:0;margin:0;min-width:0}.role-picker legend{font-size:13px;font-weight:600;padding:0;margin-bottom:9px;color:var(--text)}.role-options{display:flex;flex-wrap:wrap;gap:8px}.role-options label{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 12px;border:1px solid #3e4c64;border-radius:8px;background:#151d2b;cursor:pointer;font-size:13px}.role-options label:has(:checked){border-color:#96b4dc;background:#1d2b40}.role-options input{accent-color:#b9ccea}.role-options label:focus-within{outline:2px solid #b6cdf3;outline-offset:3px}.role-picker .fine-print{margin:8px 0 0}
+
+.role-options label{max-width:100%;min-width:0}.role-options input{flex-shrink:0}.role-options span{min-width:0;overflow-wrap:anywhere}

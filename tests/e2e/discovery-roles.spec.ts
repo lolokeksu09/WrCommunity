@@ -7,7 +7,10 @@ test('поиск игроков и LFG догружает результаты �
  test.setTimeout(90000);
  const owner=await account(),viewer=await account();const key=randomUUID().replaceAll('-','').slice(0,12),server='roles-'+key;
  const pool=new pg.Pool({connectionString:process.env.DATABASE_URL});
+ const customRole='СохранённаяРоль'.repeat(5).slice(0,60);
  try{
+  const initial=await api(viewer.context,'/me/profile');
+  await api(viewer.context,'/me/profile','PATCH',{version:initial.version,game:{roles:{value:[customRole],public:false}}});
   for(let i=0;i<23;i++){
    await pool.query("INSERT INTO users(email,password_hash,handle,display_name,visibility,game) SELECT $1,password_hash,$2,$3,'public',$4::jsonb FROM users WHERE id=$5",[`${key}${i}@example.com`,`role_${key}_${i}`,`Игрок ${key} ${i}`,JSON.stringify({server:{value:server,public:true},roles:{value:['Мид'],public:true}}),owner.id]);
    await pool.query("INSERT INTO lfg_announcements(author_id,server,roles,description,expires_at,pending_policy) VALUES($1,$2,'[\"Мид\"]'::jsonb,$3,now()+interval '1 day','keep')",[owner.id,server,`Объявление ${key} ${i}`]);
@@ -34,10 +37,13 @@ test('поиск игроков и LFG догружает результаты �
    await ui.page.getByRole('button',{name:'Показать ещё',exact:true}).click();
    await expect(ui.page.locator('.lfg-card')).toHaveCount(23);
    await ui.page.goto('/me/game');
+   await expect(ui.page.getByRole('group',{name:'Роли',exact:true}).getByRole('checkbox',{name:customRole,exact:true})).toBeChecked();
+   await noOverflow(ui.page);
    await ui.page.getByRole('group',{name:'Роли',exact:true}).getByRole('checkbox',{name:'Мид',exact:true}).check();
    await ui.page.getByRole('button',{name:'Сохранить изменения',exact:true}).click();
    await expect(ui.page.getByRole('heading',{name:'Мой профиль',exact:true})).toBeVisible();
-   expect((await api(viewer.context,'/me/profile')).game.roles.value).toEqual(['mid']);
+   const saved=await api(viewer.context,'/me/profile');
+   expect(saved.game.roles.value).toEqual(['mid',customRole]);expect(saved.game.roles.public).toBe(false);
    await ui.page.goto('/lfg/new');
    await ui.page.getByRole('group',{name:'Кого ищешь',exact:true}).getByRole('checkbox',{name:'Поддержка',exact:true}).check();
    await ui.page.getByLabel('Сервер',{exact:true}).fill(server);
