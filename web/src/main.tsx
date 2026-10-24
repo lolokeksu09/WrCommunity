@@ -55,7 +55,7 @@ const routes=[
  {path:'clubs/:clubId/posts/new',loader:async(a:LoaderFunctionArgs)=>({club:await club(a)}),element:<PostEditorRoute club/>},
  {path:'clubs/:clubId/posts/:postId/edit',loader:async(a:LoaderFunctionArgs)=>({club:await club(a),post:await read('/clubs/posts/'+a.params.postId+'/edit',a.request)}),element:<PostEditorRoute club/>},
  {path:'clubs/:clubId/events/new',loader:async(a:LoaderFunctionArgs)=>({club:await club(a)}),element:<EventEditor/>},
- {path:'events/:eventId',loader:(a:LoaderFunctionArgs)=>read('/events/'+a.params.eventId,a.request),element:<EventDetail/>},
+ {path:'events/:eventId',loader:async(a:LoaderFunctionArgs)=>{const event=await read<ClubEvent>('/events/'+a.params.eventId,a.request);return {event,club:await read<Club>('/clubs/'+event.club_id,a.request)};},element:<EventDetail/>},
  {path:'events/:eventId/edit',loader:async(a:LoaderFunctionArgs)=>({event:await read('/events/'+a.params.eventId,a.request)}),element:<EventEditor/>},
  {path:'events/:eventId/participants',loader:async(a:LoaderFunctionArgs)=>({event:await read('/events/'+a.params.eventId,a.request),participants:await list('/events/'+a.params.eventId+'/registrations',a.request)}),element:<EventParticipants/>},
  {path:'notifications',loader:(a:LoaderFunctionArgs)=>privateLoad(a,()=>list('/me/notifications',a.request)),element:<Notifications/>},
