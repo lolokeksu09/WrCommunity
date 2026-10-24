@@ -130,7 +130,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run migrate
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps --only-shell chromium
       - name: Browser acceptance checks
         env:
           WRC_E2E_WORKERS: '3'
@@ -249,7 +249,7 @@ jobs:
           node-version: 24.22.1
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps --only-shell chromium
       - name: Verify the live site in a browser with strict TLS
         env:
           WRC_PUBLIC_ORIGIN: ${{ vars.WRC_PUBLIC_ORIGIN }}
