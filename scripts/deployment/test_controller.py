@@ -185,6 +185,11 @@ class ProvenanceTests(unittest.TestCase):
             self.assertNotIn(mock.call(controller.compose(config,"start","web-api","worker")),run.mock_calls)
             run.assert_any_call(controller.compose(controller.RELEASES/SHA,"stop","-t","30","web-api","worker"))
             self.assertFalse((controller.STATE/"active-release.json").exists())
+            self.assertTrue((controller.STATE/"recovery-required.json").exists())
+            before = run.call_count
+            with self.assertRaisesRegex(controller.Rejected,"operator recovery"):
+                controller.deploy(SHA,42)
+            self.assertEqual(run.call_count,before)
 
     def test_failed_post_apply_tls_check_stops_new_writers_and_keeps_old_revision_record(self):
         with self.deployment_fixture() as (config,run,backup,process), mock.patch.object(controller,"public_ready",return_value=False):

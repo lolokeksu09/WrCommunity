@@ -126,6 +126,11 @@ def atomic_json(path: Path, value: dict) -> None:
         stream.flush()
         os.fsync(stream.fileno())
     os.replace(filename, path)
+    directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
 
 
 def compose(directory: Path, *arguments: str) -> list[str]:
@@ -175,7 +180,7 @@ def status() -> None:
         protected_file(active, secret=True)
         revision = json.loads(active.read_text()).get("sha")
     disk = shutil.disk_usage("/opt")
-    print(json.dumps({"origin": ORIGIN, "ready": public_ready(), "active_revision": revision, "disk_free_bytes": disk.free, "containers": containers}, sort_keys=True))
+    print(json.dumps({"origin": ORIGIN, "ready": public_ready(), "active_revision": revision, "recovery_required": (STATE / "recovery-required.json").exists(), "disk_free_bytes": disk.free, "containers": containers}, sort_keys=True))
 
 
 def github(path: str) -> dict:
@@ -247,6 +252,8 @@ def deploy(sha: str, run_id: int) -> None:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as error:
             raise Rejected("Another deployment is running") from error
+        if (STATE / "recovery-required.json").exists():
+            raise Rejected("A prior deployment requires operator recovery; automatic writes are blocked")
         protected_directory(CONFIG)
         for filename in HOST_FILES + ("compose.local.yml",):
             protected_file(CONFIG / filename, secret=filename == ".env")
@@ -299,6 +306,7 @@ def deploy(sha: str, run_id: int) -> None:
             run(compose(old, "stop", "-t", "30", "web-api", "worker"))
             backup(old, snapshot)
             print(f"Consistent database/media backup verified: {snapshot}", flush=True)
+            atomic_json(STATE / "recovery-required.json", {"sha":sha,"backup":str(snapshot),"ci_run":run_id})
             migration_started = True
             apply_log = STATE / f"apply-{sha}.log"
             with apply_log.open("wb") as stream:
@@ -311,6 +319,7 @@ def deploy(sha: str, run_id: int) -> None:
                 if response.status != 200 or response.geturl() != ORIGIN + "/" or b'<div id="root"></div>' not in response.read(2 * 1024 * 1024):
                     raise Rejected("Built site verification failed")
             atomic_json(STATE / "active-release.json", {"sha": sha, "ci_run": run_id, "deployed_at": dt.datetime.now(dt.timezone.utc).isoformat()})
+            (STATE / "recovery-required.json").unlink()
             stopped = False
             status()
         except Exception:
