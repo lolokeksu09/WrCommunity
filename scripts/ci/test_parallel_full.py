@@ -36,6 +36,17 @@ class ParallelFullContract(unittest.TestCase):
         self.assertIn("npm run test:e2e", browser)
         self.assertIn("WRC_E2E_WORKERS: '3'", browser)
 
+    def test_headless_shell_only_browser_install_preserves_system_dependencies(self):
+        for name in ("browser-tests", "deploy"):
+            body = job(name)
+            self.assertIn("npx playwright install --with-deps --only-shell chromium", body)
+            self.assertNotIn("npx playwright install --with-deps chromium", body)
+        browser = job("browser-tests")
+        self.assertIn("npm run test:e2e", browser)
+        self.assertIn("WRC_E2E_WORKERS: '3'", browser)
+        deploy = job("deploy")
+        self.assertIn("node scripts/live-site-check.mjs", deploy)
+
     def test_integration_gate_rejects_either_failure_and_blocks_deploy(self):
         gate = job("integration")
         self.assertIn("needs: [api-tests, browser-tests]", gate)
