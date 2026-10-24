@@ -2,7 +2,7 @@
 
 **Обновлено 24 октября 2026. Статус:** работающий кандидат 1.0, развёрнутый на пилотном VDS. Все обязательные продуктовые модули интегрированы с реальными API и PostgreSQL. **Техническое развёртывание подтверждено**, но правовые, внешние почтовые и эксплуатационные условия открытого запуска ещё не приняты. Не следует трактовать наличие общедоступного HTTPS-адреса как готовность к массовой эксплуатации.
 
-Репозиторий: [lolokeksu09/WrCommunity](https://github.com/lolokeksu09/WrCommunity). [PR #2](https://github.com/lolokeksu09/WrCommunity/pull/2). Исходный `main`: `28a2a84`. Старый `wild-rift-community` не использован. Прототип `prototypes/home/v6/index.html` не изменён.
+Репозиторий: [lolokeksu09/WrCommunity](https://github.com/lolokeksu09/WrCommunity), рабочая ветка — `main`. Исходная реализация: [PR #2](https://github.com/lolokeksu09/WrCommunity/pull/2), исторический SHA `28a2a84`; актуальные оптимизации CI — [PR #21](https://github.com/lolokeksu09/WrCommunity/pull/21) и [PR #23](https://github.com/lolokeksu09/WrCommunity/pull/23). Старый `wild-rift-community` не используется; исходный прототип `prototypes/home/v6/index.html` сохранён.
 
 ## Проверки с фактическим исполнением
 
@@ -12,16 +12,23 @@
 | TypeScript strict | Успешно для сервера, тестов и web | [typecheck.log](../evidence/typecheck.log) |
 | Frontend + backend build | Успешно | [build.log](../evidence/build.log) |
 | Миграции с пустой PostgreSQL 18.6 | Успешно; повторное выполнение безопасно, checksum контроль | [migrate.log](../evidence/migrate.log) |
-| Реальные PostgreSQL/API integration tests | **56/56, 0 failures** | [integration-tests.log](../evidence/integration-tests.log) |
+| Реальные PostgreSQL/API integration tests | **56/56, 0 failures** на контрольном релизе | [RELEASE №40112266831](https://github.com/lolokeksu09/WrCommunity/actions/runs/40112266831), [первичный лог](../evidence/integration-tests.log) |
 | Независимые проверки исправлений | Включены в общий прогон; проверялись реальными блокировками строк | [REVIEW](REVIEW.md), [до](../evidence/regression-review-before.log), [после](../evidence/regression-review-after.log) |
-| Chromium desktop + mobile E2E | **28/28** на 24.10.2026, включая 6 регрессионных тестов пагинации; 22/22 — предыдущая приёмка 23.10.2026 | [актуальный CI](https://github.com/lolokeksu09/WrCommunity/actions/runs/40066726505), [старый лог](../evidence/e2e-tests.log), [WEB](WEB.md) |
+| Chromium desktop + mobile E2E | **42 passed, 4 штатных skipped** на контрольном релизе: desktop 19 passed + 4 skipped, mobile 23 passed. Историческая приёмка до расширения покрытия: 28/28. | [RELEASE №40112266831](https://github.com/lolokeksu09/WrCommunity/actions/runs/40112266831), [старый CI](https://github.com/lolokeksu09/WrCommunity/actions/runs/40066726505), [WEB](WEB.md) |
 | Адаптивность | 360/390/430/1440 CSS px, отсутствие горизонтального overflow, клавиатура, loading/empty/404 | [скриншоты](../evidence/screens/README.md) |
 | Резервное копирование/восстановление | Logical dump восстановлен в отдельной БД, 30 таблиц; SHA-256 приватных файлов совпадают | [backup-restore.log](../evidence/backup-restore.log) |
 | Секреты и зависимости | Сканер секретов проходит; `npm audit` сообщил 0 уязвимостей | [check-secrets.log](../evidence/check-secrets.log), [npm-audit.log](../evidence/npm-audit-production.json) |
 | Compose production/dev/local | Конфигурации валидны; генератор сохраняет существующий `.env` и ставит 0600 | [compose-validation.log](../evidence/compose-validation.log), [local-setup.log](../evidence/local-setup.log) |
 | Docker build/start | Успешно в GitHub Actions: миграции, built SPA, API readiness, heartbeat worker, отказ приватной выдачи | [проверенный CI run](https://github.com/lolokeksu09/WrCommunity/actions/runs/40000076867) |
 
-На 24.10.2026 PR #4 проверен до merge и повторно после merge в main: [прошедший CI, deployment и VDS status](https://github.com/lolokeksu09/WrCommunity/actions/runs/40067080290). В локальной песочнице Docker-сокеты недоступны; результат Docker подтверждён исполнением в GitHub Actions, а не только проверкой YAML. Локальная PostgreSQL запускалась из официальных PGDG-бинарников; ограничение UID в песочнице обходилось временным локальным shim, который не входит в исходники, образ или запуск пользователя.
+Исторический этап PR #4: [CI + deployment + VDS status](https://github.com/lolokeksu09/WrCommunity/actions/runs/40067080290). **Более поздний контрольный релиз** — [PR #23 / main RELEASE №40112266831](https://github.com/lolokeksu09/WrCommunity/actions/runs/40112266831): все FULL-проверки, деплой, строгий публичный HTTPS и VDS status прошли успешно. Результат Docker подтверждён исполнением в GitHub Actions, а не только проверкой YAML; локальные логи/скриншоты выше отражают первоначальную приёмку и сохраняются как исторические свидетельства.
+
+## Актуальная схема проверки релиза (24.10.2026)
+
+- [PR #21](https://github.com/lolokeksu09/WrCommunity/pull/21): API и браузерная проверка разведены по параллельным GitHub Actions runners, с отдельными PostgreSQL/Mailpit. В исторических замерах критический путь FULL уменьшился с 215–228 до 171–183 с.
+- [PR #23](https://github.com/lolokeksu09/WrCommunity/pull/23): desktop и mobile Playwright выполняются на отдельных runners с собственными PostgreSQL/Mailpit/Worker; у каждого по три file-level workers. Два FULL-прогона Ready PR: [153 с](https://github.com/lolokeksu09/WrCommunity/actions/runs/40108469782) и [142 с](https://github.com/lolokeksu09/WrCommunity/actions/runs/40108711972) на критическом пути. Контрольный [RELEASE в main](https://github.com/lolokeksu09/WrCommunity/actions/runs/40112266831) — 159 с до успешного `integration` и успешные `deploy`/`vds-status`.
+- Измерения не гарантируют ту же скорость на каждом запуске. Разделение требует больше суммарных runner-минут. `quality-gate`, `docker-smoke`, проверки SHA, TLS и VDS не ослаблены.
+- **Ограничение GitHub:** по API ветка `main` на момент аудита **не защищена** (`protected: false`). Правила `AGENTS.md` требуют вручную проверять FULL/RELEASE перед merge; наличие зелёного `quality-gate` не заменяет настройки Branch protection / Rulesets администратором.
 
 ## Функциональная матрица
 
@@ -57,8 +64,8 @@ M0: workspace/CI/health/migrations; M1: auth/sessions; M2: profiles/privacy; M3:
 
 ## Границы и оставшиеся условия
 
-- Пилотный сервер доступен по `https://139.100.205.135`; на 24.10.2026 активный SHA `27e2423` — это подтверждает read-only [VDS status](https://github.com/lolokeksu09/WrCommunity/actions/runs/40067080290). Контейнеры API/worker/PostgreSQL здоровы, `ready: true`; публичная проверка HTTPS и страниц главной/входа на 390 и 1440 px прошла. Постоянный домен и публичный SMTP не настроены. Операционные сведения: [VDS-DEPLOYMENT](VDS-DEPLOYMENT.md), [README](../../README.md).
-- Пилотный деплой автоматически выполняется после успешного push-CI в `main`, если включён `WRC_DEPLOY_ENABLED`; любые следующие релизы требуют новой проверки результатов. Никаких миграций базы для PR #4 не добавлено.
+- **Контрольный опубликованный релиз:** на 24.10.2026 [main RELEASE №40112266831](https://github.com/lolokeksu09/WrCommunity/actions/runs/40112266831) подтвердил на VDS активный SHA `3644cba9ca1e35becaf781badfa71a8fa37e0f9a`, `ready: true`, `recovery_required: false`, здоровые web-api, worker и PostgreSQL. Публичная проверка HTTPS (`https://139.100.205.135`), главной страницы и формы входа на 390 и 1440 px прошла. Это **точка проверки**, а не постоянная ссылка на текущее состояние: при каждом следующем слиянии перепроверять последний [run `main`](https://github.com/lolokeksu09/WrCommunity/actions/workflows/ci.yml) и SHA VDS. Постоянный домен и публичный SMTP не настроены. Операционные сведения: [VDS-DEPLOYMENT](VDS-DEPLOYMENT.md), [README](../../README.md).
+- Пилотный деплой автоматически выполняется после успешного push-CI в `main`, если включён `WRC_DEPLOY_ENABLED`; любые следующие релизы требуют новой проверки результатов. В текущем CI Ready PR и `main` запускают `api-tests`, два изолированных `browser-project` и `docker-smoke`; `browser-tests` и `integration` являются обязательными агрегирующими проверками, а `quality-gate` — обязательный контроль Ready PR. Исторически PR #4 не добавлял миграций.
 - До посторонних пользователей нужны утверждённые правовые документы, возрастные/региональные условия, retention и сроки резервного хранения, правила UGC/takedown, действующие операторы модерации и внешний SMTP. Эти решения намеренно не выдуманы.
 - Скриншоты показывают изолированную тестовую БД и явно тестовые учётные записи; установочный сценарий не создаёт демонстрационных пользователей, фальшивых достижений или активности.
 - API/браузерные тесты проверяют ключевые согласованные пути и негативные/конкурентные случаи. Это не нагрузочный тест и не утверждение об отсутствии любых возможных дефектов.
