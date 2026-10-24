@@ -1,3 +1,4 @@
+import {canonicalRoles} from '../../../shared/game-roles.js';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { execute, one, transaction } from '../../db/index.js';
@@ -10,7 +11,7 @@ const gameText = (length: number) => z.object({ value: text(length), public: z.b
 const gameList = z.object({ value: z.array(z.string().trim().min(1).max(60)).max(20), public: z.boolean().default(false) }).strict().nullable().optional();
 const timezone = z.string().max(80).refine(value => { try { new Intl.DateTimeFormat('en', { timeZone: value }); return true; } catch { return false; } }, 'Укажите часовой пояс IANA');
 const gameSchema = z.object({
-  server: gameText(60), roles: gameList, rank: gameText(60), champions: gameList,
+  server: gameText(60), roles: gameList.transform(field=>field?{...field,value:canonicalRoles(field.value)}:field), rank: gameText(60), champions: gameList,
   schedule: gameText(500), timezone: z.object({ value: timezone, public: z.boolean().default(false) }).strict().nullable().optional(), languages: gameList,
 }).strict();
 const profileSchema = z.object({

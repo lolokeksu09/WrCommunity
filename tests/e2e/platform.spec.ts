@@ -142,7 +142,7 @@ test('LFG: скрытый отклик, принятие и двусторонн
   const a=await browserPerson(browser,owner),b=await browserPerson(browser,member);
   await a.page.goto('/lfg/new');
   await a.page.getByLabel('Сервер',{exact:true}).fill('EU');
-  await a.page.getByLabel('Кого ищешь').fill('support');
+  await a.page.getByRole('group',{name:'Кого ищешь',exact:true}).getByRole('checkbox',{name:'Поддержка',exact:true}).check();
   await a.page.getByLabel('Описание',{exact:true}).fill('Ищем спокойного напарника на вечер');
   await a.page.getByLabel('Принимать отклики до').fill(await future(240));
   await a.page.getByLabel('Что делать с нерассмотренными заявками после завершения').selectOption('keep');
