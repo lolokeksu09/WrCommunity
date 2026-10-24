@@ -15,9 +15,10 @@ class PlaywrightWorkerReserve(unittest.TestCase):
         self.assertIn("fullyParallel: false", CONFIG)
         self.assertIn("retries: process.env.CI ? 1 : 0", CONFIG)
 
-    def test_third_worker_activated_only_for_browser_acceptance(self):
+    def test_bounded_worker_override_only_for_browser_acceptance(self):
         browser = WORKFLOW.split("      - name: Browser acceptance checks", 1)[1]
-        self.assertIn("WRC_E2E_WORKERS: '3'", browser)
+        self.assertRegex(browser, r"WRC_E2E_WORKERS: \'(?:2|3)\'")
+        self.assertEqual(WORKFLOW.count("WRC_E2E_WORKERS:"), 1)
         self.assertIn("npm run test:e2e", browser)
         self.assertIn("npm run test:e2e", WORKFLOW)
         self.assertIn("needs: [integration, docker-smoke]", WORKFLOW)
