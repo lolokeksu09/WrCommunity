@@ -125,9 +125,9 @@ class AffectedSelectionContract(unittest.TestCase):
             npm = Path(td) / "npm"
             log = Path(td) / "calls.log"
             npm.write_text(
-                '#!/bin/sh\\nprintf "%s\\\\n" "$*" >> "$WRC_TEST_CALL_LOG"\\n'
-                'if [ "$1" = "test" ] && [ "$WRC_TEST_FAIL_API" = "1" ]; then exit 9; fi\\n'
-                'exit 0\\n', encoding="utf-8")
+                '#!/bin/sh\nprintf "%s\\n" "$*" >> "$WRC_TEST_CALL_LOG"\n'
+                'if [ "$1" = "test" ] && [ "$WRC_TEST_FAIL_API" = "1" ]; then exit 9; fi\n'
+                'exit 0\n', encoding="utf-8")
             npm.chmod(0o755)
             env = dict(os.environ)
             env["PATH"] = td + os.pathsep + env["PATH"]
