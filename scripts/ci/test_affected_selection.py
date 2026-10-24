@@ -1,5 +1,7 @@
 """Regression tests for safe affected-area E2E plans, no database required."""
 import json
+import os
+import tempfile
 import subprocess
 import unittest
 from pathlib import Path
@@ -66,6 +68,92 @@ class AffectedSelectionContract(unittest.TestCase):
         self.assertIn("npm run test:affected", workflow)
         self.assertIn("npm run test:e2e", workflow)
         self.assertIn("needs: [integration, docker-smoke]", workflow)
+
+    def execute_dry_run(self, *args):
+        return subprocess.run(
+            ["node", "scripts/ci/plan-affected.mjs", "--execute", "--dry-run", *args],
+            cwd=ROOT, text=True, capture_output=True, timeout=15)
+
+    def test_execute_targeted_runs_selected_areas_in_one_browser_invocation(self):
+        result = self.execute_dry_run(
+            "--files", "web/src/notifications.tsx", "web/src/post-gallery.tsx")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.count("PLAYWRIGHT:"), 1)
+        self.assertIn("новое уведомление", result.stdout)
+        self.assertIn("вложения публикации", result.stdout)
+        self.assertNotIn("API TESTS:", result.stdout)
+
+    def test_execute_expanded_uses_full_browser_suite(self):
+        result = self.execute_dry_run("--files", "web/src/styles.css")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("PLAYWRIGHT: npm run test:e2e", result.stdout)
+        self.assertEqual(result.stdout.count("PLAYWRIGHT:"), 1)
+
+    def test_execute_sensitive_runs_api_before_full_browser(self):
+        result = self.execute_dry_run("--files", "server/modules/auth/routes.ts")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertLess(result.stdout.index("API TESTS: npm test"),
+                        result.stdout.index("PLAYWRIGHT: npm run test:e2e"))
+
+    def test_execute_docs_only_is_explicit_no_e2e(self):
+        result = self.execute_dry_run("--files", "AGENTS.md")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("documentation-only", result.stdout)
+        self.assertNotIn("PLAYWRIGHT:", result.stdout)
+
+    def test_execute_rejects_incompatible_and_unsafe_flags(self):
+        for args in (
+            ("--execute", "--json", "--files", "web/src/social.tsx"),
+            ("--dry-run", "--files", "web/src/social.tsx"),
+            ("--execute", "--project=unknown", "--files", "web/src/social.tsx"),
+        ):
+            with self.subTest(args=args):
+                result = subprocess.run(
+                    ["node", "scripts/ci/plan-affected.mjs", *args],
+                    cwd=ROOT, text=True, capture_output=True, timeout=15)
+                self.assertNotEqual(result.returncode, 0)
+
+    def test_execute_runner_command_is_documented(self):
+        docs = (ROOT / "docs/implementation/TESTING-STRATEGY.md").read_text(encoding="utf-8")
+        agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("test:affected -- --execute", docs)
+        self.assertIn("--execute", agents)
+
+
+    def execute_with_fake_npm(self, files, fail_api=False):
+        with tempfile.TemporaryDirectory() as td:
+            npm = Path(td) / "npm"
+            log = Path(td) / "calls.log"
+            npm.write_text(
+                '#!/bin/sh\nprintf "%s\\n" "$*" >> "$WRC_TEST_CALL_LOG"\n'
+                'if [ "$1" = "test" ] && [ "$WRC_TEST_FAIL_API" = "1" ]; then exit 9; fi\n'
+                'exit 0\n', encoding="utf-8")
+            npm.chmod(0o755)
+            env = dict(os.environ)
+            env["PATH"] = td + os.pathsep + env["PATH"]
+            env["WRC_TEST_CALL_LOG"] = str(log)
+            env["WRC_TEST_FAIL_API"] = "1" if fail_api else "0"
+            result = subprocess.run(
+                ["node", "scripts/ci/plan-affected.mjs", "--execute", "--files", *files],
+                cwd=ROOT, text=True, capture_output=True, timeout=15, env=env)
+            calls = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
+            return result, calls
+
+    def test_actual_execute_invokes_one_browser_process_for_two_areas(self):
+        result, calls = self.execute_with_fake_npm(
+            ["web/src/post-gallery.tsx", "web/src/notifications.tsx"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(calls), 1)
+        self.assertIn("run test:e2e -- --grep", calls[0])
+        self.assertIn("вложения публикации", calls[0])
+        self.assertIn("новое уведомление", calls[0])
+
+    def test_api_failure_blocks_browser_execution(self):
+        result, calls = self.execute_with_fake_npm(
+            ["server/modules/auth/routes.ts"], fail_api=True)
+        self.assertEqual(result.returncode, 9)
+        self.assertEqual(calls, ["test"])
+
 
 
 if __name__ == "__main__":
