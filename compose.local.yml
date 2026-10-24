@@ -43,7 +43,7 @@ services:
   mailpit:
     image: axllent/mailpit:v1.31.5
     ports: ['127.0.0.1:8025:8025']
-    networks: [backend]
+    networks: [backend, edge]
   migrate:
     <<: *app
     command: [node, dist/server/db/migrate.js]
@@ -68,10 +68,11 @@ services:
     image: caddy:2.11.7-alpine
     ports: ['127.0.0.1:8080:80']
     volumes: ['./Caddyfile.local:/etc/caddy/Caddyfile:ro']
-    networks: [backend]
+    networks: [backend, edge]
     depends_on:
       web-api: {condition: service_healthy}
 networks:
+  edge: {}
   backend:
     internal: true
 volumes:

@@ -10,3 +10,11 @@ coverage/
 .worktrees/
 
 data/
+
+# VDS-specific settings and certificate configuration stay on the operator host.
+compose.vds.yml
+compose.ip.yml
+Caddyfile.ip
+__pycache__/
+*.pyc
+live-site-evidence/

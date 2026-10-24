@@ -1,0 +1,41 @@
+name: Live public site check
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/live-site-check.yml'
+      - 'scripts/live-site-check.mjs'
+permissions:
+  contents: read
+jobs:
+  public-browser:
+    if: github.repository == 'lolokeksu09/WrCommunity' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      WRC_PUBLIC_ORIGIN: https://139.100.205.135
+    steps:
+      - name: Validate public HTTPS before opening a browser
+        run: |
+          curl --fail --show-error --silent --connect-timeout 15 --max-time 30 "$WRC_PUBLIC_ORIGIN/health/ready"
+      - name: Public TLS diagnostic on failure
+        if: failure()
+        run: |
+          openssl s_client -connect 139.100.205.135:443 -servername 139.100.205.135 -verify_ip 139.100.205.135 -verify_return_error </dev/null 2>&1 | tail -n 30
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24.22.1
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/live-site-check.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: live-public-site
+          path: live-site-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
