@@ -6,7 +6,7 @@
 
 ## Последнее подтверждение поставки
 
-[PR #32](https://github.com/lolokeksu09/WrCommunity/pull/32) опубликован через [RELEASE №40162453790](https://github.com/lolokeksu09/WrCommunity/actions/runs/40162453790). Проверенный SHA main/VDS: `6a0f90c93a09bee9f647c129e749dd6add5ae7a0`. API 61/61, desktop28 passed + 4 штатных skipped, mobile32 passed; оба агрегатора, Docker, deploy и vds-status success. Строгий HTTPS, главная и вход проверены на390/1440px; production-аккаунты не создавались. VDS ready=true, recovery_required=false; API/worker/PostgreSQL/Mailpit healthy, Caddy running.
+[PR #32](https://github.com/lolokeksu09/WrCommunity/pull/32) опубликован через [RELEASE №40162453790](https://github.com/lolokeksu09/WrCommunity/actions/runs/40162453790). Проверенный SHA main/VDS: `6a0f90c93a09bee9f647c129e749dd6add5ae7a0`. API 61/61, desktop 28 passed + 4 штатных skipped, mobile 32 passed; оба агрегатора, Docker, deploy и vds-status success. Строгий HTTPS, главная и вход проверены на 390/1440 px; production-аккаунты не создавались. VDS ready=true, recovery_required=false; API/worker/PostgreSQL/Mailpit healthy, Caddy running.
 
 PR #30/#31/#32 завершены. Активная задача и продолжение — [CONTINUATION](CONTINUATION.md); исторические записи этапов ниже не являются текущим списком незавершённых задач. Полный SHA каждого следующего релиза проверяется заново, а не выводится из этой записи.
 
@@ -20,7 +20,7 @@ PR #30/#31/#32 завершены. Активная задача и продол
 | Миграции с пустой PostgreSQL 18.6 | Успешно; повторное выполнение безопасно, checksum контроль | [migrate.log](../evidence/migrate.log) |
 | Реальные PostgreSQL/API integration tests | **61/61, 0 failures** на RELEASE №40162453790 | [RELEASE №40162453790](https://github.com/lolokeksu09/WrCommunity/actions/runs/40162453790), [первичный лог](../evidence/integration-tests.log) |
 | Независимые проверки исправлений | Включены в общий прогон; проверялись реальными блокировками строк | [REVIEW](REVIEW.md), [до](../evidence/regression-review-before.log), [после](../evidence/regression-review-after.log) |
-| Chromium desktop + mobile E2E | **60 passed, 4 штатных skipped** на RELEASE №40162453790: desktop28 + 4 skipped, mobile32. | [RELEASE №40162453790](https://github.com/lolokeksu09/WrCommunity/actions/runs/40162453790), [старый CI](https://github.com/lolokeksu09/WrCommunity/actions/runs/40066726505), [WEB](WEB.md) |
+| Chromium desktop + mobile E2E | **60 passed, 4 штатных skipped** на RELEASE №40162453790: desktop 28 + 4 skipped, mobile 32. | [RELEASE №40162453790](https://github.com/lolokeksu09/WrCommunity/actions/runs/40162453790), [старый CI](https://github.com/lolokeksu09/WrCommunity/actions/runs/40066726505), [WEB](WEB.md) |
 | Адаптивность | 360/390/430/1440 CSS px, отсутствие горизонтального overflow, клавиатура, loading/empty/404 | [скриншоты](../evidence/screens/README.md) |
 | Резервное копирование/восстановление | Logical dump восстановлен в отдельной БД, 30 таблиц; SHA-256 приватных файлов совпадают | [backup-restore.log](../evidence/backup-restore.log) |
 | Секреты и зависимости | Историческая первичная приёмка: сканер прошёл, `npm audit` сообщил 0 уязвимостей | [check-secrets.log](../evidence/check-secrets.log), [npm-audit.log](../evidence/npm-audit-production.json) |
