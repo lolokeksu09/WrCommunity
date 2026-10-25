@@ -2,23 +2,9 @@
 
 Русскоязычное mobile-first сообщество игроков Wild Rift: профили, публикации, поиск напарников, клубы и мероприятия. Самостоятельный проект; старый `wild-rift-community` не используется.
 
-**Последний подтверждённый функциональный релиз — 25.10.2026:** [PR #32](https://github.com/lolokeksu09/WrCommunity/pull/32), [RELEASE №40162453790](https://github.com/lolokeksu09/WrCommunity/actions/runs/40162453790), SHA `6a0f90c93a09bee9f647c129e749dd6add5ae7a0`. API 61/61, браузеры 60 passed + 4 штатных skipped; deploy/HTTPS/vds-status success, VDS подтвердил этот SHA и ready=true. Это зафиксированная проверка; фактический HEAD и VDS сверяются по [последним RELEASE](https://github.com/lolokeksu09/WrCommunity/actions/workflows/ci.yml).
+Работающий технический пилот 1.0 использует реальные API и PostgreSQL. [STATUS](docs/implementation/STATUS.md) содержит единую запись подтверждённой поставки, покрытие и условия публичного запуска. Для текущего состояния сверяйте фактические main, RELEASE и VDS.
 
-Работающий технический пилот 1.0 использует реальные API и PostgreSQL. Внешние правовые, почтовые и модерационные условия открытого запуска остаются в [STATUS](docs/implementation/STATUS.md).
-
-## Работа и продолжение в новом чате
-
-[AGENTS.md](AGENTS.md) задаёт обязательный порядок: план крупного патча в GitHub до кода → чтение актуального кода и локальный просмотр изменяемого интерфейса → завершённые этапы/коммиты/документация → целевые проверки → FULL → RELEASE/HTTPS/VDS. [CONTINUATION](docs/implementation/CONTINUATION.md) содержит активную задачу, сохранённые этапы и одно следующее действие; его следует читать при смене чата. Запись плана или успешная сборка не являются доказательством просмотра сайта.
-
-## Последние завершённые поставки
-
-| PR | Изменение | Проверенный RELEASE |
-|---|---|---|
-| [#30](https://github.com/lolokeksu09/WrCommunity/pull/30) | Первые шаги, свои настройки поиска, понятный путь LFG и согласия контактов | [40139451780](https://github.com/lolokeksu09/WrCommunity/actions/runs/40139451780), `ce5a58a` |
-| [#31](https://github.com/lolokeksu09/WrCommunity/pull/31) | Сохранность ввода контакта и готовность карточки с нестандартной ролью | [40156947684](https://github.com/lolokeksu09/WrCommunity/actions/runs/40156947684), `cecfc19` |
-| [#32](https://github.com/lolokeksu09/WrCommunity/pull/32) | Полная клубная лента, закрепление, виды встреч, свои редакции и управление | [40162453790](https://github.com/lolokeksu09/WrCommunity/actions/runs/40162453790), `6a0f90c` |
-
-Планы [Player Journey](docs/superpowers/plans/2026-10-25-player-journey.md) и [клубов](docs/superpowers/plans/2026-10-25-club-daily-flow.md) завершены и сохранены как история.
+[AGENTS](AGENTS.md) задаёт порядок работы, [CONTINUATION](docs/implementation/CONTINUATION.md) — снимок задачи и ссылку на её окончательный результат в PR. [Навигация по документации](docs/README.md) разделяет инструкции, спецификации и архив.
 
 ## Локальный запуск целиком в Docker
 
@@ -41,18 +27,9 @@ docker compose -f compose.local.yml down
 
 Не используйте `down --volumes` для базы с нужными данными: эта команда удаляет volumes.
 
-## Разработка без контейнера приложения
+## Разработка и локальные проверки
 
-```bash
-node scripts/setup-local.mjs
-npm ci
-docker compose -f compose.dev.yml --profile mail up -d
-npm run migrate
-npm run build
-npm start
-```
-
-В другом терминале: `npm run start:worker`. Сайт работает на http://localhost:3000, Mailpit — http://localhost:8025. Для редактирования интерфейса: `npm run dev` и отдельно `npm run dev:web`; канонический `APP_ORIGIN` должен совпадать с адресом браузера.
+[LOCAL-DEVELOPMENT](docs/implementation/LOCAL-DEVELOPMENT.md) содержит запуск API/worker вне контейнера, ожидание готовности PostgreSQL, Vite, отдельную тестовую БД и порты, установку Chromium, целевые API/E2E и отчёт со снимками. Для проверки новой сборки используйте это руководство.
 
 ## Реализованные подсистемы
 
@@ -81,24 +58,11 @@ npm start
 
 ## Проверки
 
-Используйте отдельную тестовую PostgreSQL 18 и `NODE_ENV=test`; тестовые фикстуры не предназначены для production.
-
-```bash
-npm run typecheck
-npm run build
-npm run migrate
-npm test
-npm run test:e2e
-npm run check:secrets
-npm run backup:verify
-npm run smoke:docker
-```
-
-**Текущий CI:** на Ready PR и в `main` параллельно работают `api-tests`, два независимых `browser-project` (`desktop-chromium`/`mobile-chromium`, отдельные PostgreSQL/Mailpit) и `docker-smoke`. Fail-closed задания `browser-tests` и `integration` требуют успеха всех частей; на Ready PR дополнительно обязателен `quality-gate`. После FULL на `main` возможны `deploy`, публичная проверка HTTPS и `vds-status`. Полный набор на подтверждённом RELEASE №40162453790: **61/61 API**, **60 успешных E2E и 4 штатных пропуска**; актуальная классификация —29 объявлений в13 E2E-файлах. Результаты и ограничения — в [отчёте](docs/implementation/STATUS.md) и [стратегии тестирования](docs/implementation/TESTING-STRATEGY.md), не выводятся из наличия тестовых файлов.
+Выбирайте промежуточные проверки по [TESTING-STRATEGY](docs/implementation/TESTING-STRATEGY.md); подготовка переменных и БД — в [локальном руководстве](docs/implementation/LOCAL-DEVELOPMENT.md#изолированное-тестовое-окружение). Полный набор обязателен на Ready PR и повторно на main перед deploy/HTTPS/VDS. Фактические результаты приведены в [STATUS](docs/implementation/STATUS.md).
 
 ## Production
 
-[Управление VDS через GitHub Actions](docs/implementation/VDS-DEPLOYMENT.md): ограниченный SSH-доступ, проверенный SHA, резервная копия перед обновлением и браузерная проверка. Автоматический деплой после FULL в `main` включён. [Подтверждённый релиз PR #32 от 25.10.2026](https://github.com/lolokeksu09/WrCommunity/actions/runs/40162453790) опубликовал `6a0f90c93a09bee9f647c129e749dd6add5ae7a0` (публичный HTTPS и `vds-status`: success). Для **текущего** SHA всегда проверяйте [новейший RELEASE в GitHub Actions](https://github.com/lolokeksu09/WrCommunity/actions/workflows/ci.yml) и активную ревизию на VDS; документация фиксирует момент проверки, а не заменяет live-status.
+[Управление VDS через GitHub Actions](docs/implementation/VDS-DEPLOYMENT.md): ограниченный SSH-доступ, проверенный SHA, резервная копия перед обновлением и браузерная проверка. Автоматический деплой после FULL в main включён; подтверждение конкретной поставки — [STATUS](docs/implementation/STATUS.md). Текущую active_revision сверяйте с фактическим RELEASE.
 
 [Эксплуатация, конфигурация, миграции и резервные копии](docs/implementation/OPERATIONS.md). `compose.yml` публикует только Caddy 80/443; PostgreSQL/API закрыты внутренней сетью. Нужны настоящий домен, внешняя SMTP-доставка и собственные секреты. Обновление пилотного VDS выполняется автоматически после успешных обязательных заданий CI для push в `main`, пока активен `WRC_DEPLOY_ENABLED`.
 
