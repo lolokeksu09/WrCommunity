@@ -1,8 +1,14 @@
 # WrCommunity 1.0 — результат реализации
 
-**Обновлено 24 октября 2026. Статус:** работающий кандидат 1.0, развёрнутый на пилотном VDS. Все обязательные продуктовые модули интегрированы с реальными API и PostgreSQL. **Техническое развёртывание подтверждено**, но правовые, внешние почтовые и эксплуатационные условия открытого запуска ещё не приняты. Не следует трактовать наличие общедоступного HTTPS-адреса как готовность к массовой эксплуатации.
+**Обновлено 25 октября 2026. Статус:** работающий кандидат 1.0, развёрнутый на пилотном VDS. Все обязательные продуктовые модули интегрированы с реальными API и PostgreSQL. **Техническое развёртывание подтверждено**, но правовые, внешние почтовые и эксплуатационные условия открытого запуска ещё не приняты. Не следует трактовать наличие общедоступного HTTPS-адреса как готовность к массовой эксплуатации.
 
 Репозиторий: [lolokeksu09/WrCommunity](https://github.com/lolokeksu09/WrCommunity), рабочая ветка — `main`. Исходная реализация: [PR #2](https://github.com/lolokeksu09/WrCommunity/pull/2), исторический SHA `28a2a84`; актуальные оптимизации CI — [PR #21](https://github.com/lolokeksu09/WrCommunity/pull/21) и [PR #23](https://github.com/lolokeksu09/WrCommunity/pull/23). Старый `wild-rift-community` не используется; исходный прототип `prototypes/home/v6/index.html` сохранён.
+
+## Последнее подтверждение поставки
+
+[PR #32](https://github.com/lolokeksu09/WrCommunity/pull/32) опубликован через [RELEASE №40162453790](https://github.com/lolokeksu09/WrCommunity/actions/runs/40162453790). Проверенный SHA main/VDS: `6a0f90c93a09bee9f647c129e749dd6add5ae7a0`. API 61/61, desktop 28 passed + 4 штатных skipped, mobile 32 passed; оба агрегатора, Docker, deploy и vds-status success. Строгий HTTPS, главная и вход проверены на 390/1440 px; production-аккаунты не создавались. VDS ready=true, recovery_required=false; API/worker/PostgreSQL/Mailpit healthy, Caddy running.
+
+PR #30/#31/#32 завершены. Активная задача и продолжение — [CONTINUATION](CONTINUATION.md); исторические записи этапов ниже не являются текущим списком незавершённых задач. Полный SHA каждого следующего релиза проверяется заново, а не выводится из этой записи.
 
 ## Проверки с фактическим исполнением
 
@@ -12,23 +18,23 @@
 | TypeScript strict | Успешно для сервера, тестов и web | [typecheck.log](../evidence/typecheck.log) |
 | Frontend + backend build | Успешно | [build.log](../evidence/build.log) |
 | Миграции с пустой PostgreSQL 18.6 | Успешно; повторное выполнение безопасно, checksum контроль | [migrate.log](../evidence/migrate.log) |
-| Реальные PostgreSQL/API integration tests | **56/56, 0 failures** на контрольном релизе | [RELEASE №40112266831](https://github.com/lolokeksu09/WrCommunity/actions/runs/40112266831), [первичный лог](../evidence/integration-tests.log) |
+| Реальные PostgreSQL/API integration tests | **61/61, 0 failures** на RELEASE №40162453790 | [RELEASE №40162453790](https://github.com/lolokeksu09/WrCommunity/actions/runs/40162453790), [первичный лог](../evidence/integration-tests.log) |
 | Независимые проверки исправлений | Включены в общий прогон; проверялись реальными блокировками строк | [REVIEW](REVIEW.md), [до](../evidence/regression-review-before.log), [после](../evidence/regression-review-after.log) |
-| Chromium desktop + mobile E2E | **42 passed, 4 штатных skipped** на контрольном релизе: desktop 19 passed + 4 skipped, mobile 23 passed. Историческая приёмка до расширения покрытия: 28/28. | [RELEASE №40112266831](https://github.com/lolokeksu09/WrCommunity/actions/runs/40112266831), [старый CI](https://github.com/lolokeksu09/WrCommunity/actions/runs/40066726505), [WEB](WEB.md) |
+| Chromium desktop + mobile E2E | **60 passed, 4 штатных skipped** на RELEASE №40162453790: desktop 28 + 4 skipped, mobile 32. | [RELEASE №40162453790](https://github.com/lolokeksu09/WrCommunity/actions/runs/40162453790), [старый CI](https://github.com/lolokeksu09/WrCommunity/actions/runs/40066726505), [WEB](WEB.md) |
 | Адаптивность | 360/390/430/1440 CSS px, отсутствие горизонтального overflow, клавиатура, loading/empty/404 | [скриншоты](../evidence/screens/README.md) |
 | Резервное копирование/восстановление | Logical dump восстановлен в отдельной БД, 30 таблиц; SHA-256 приватных файлов совпадают | [backup-restore.log](../evidence/backup-restore.log) |
-| Секреты и зависимости | Сканер секретов проходит; `npm audit` сообщил 0 уязвимостей | [check-secrets.log](../evidence/check-secrets.log), [npm-audit.log](../evidence/npm-audit-production.json) |
+| Секреты и зависимости | Историческая первичная приёмка: сканер прошёл, `npm audit` сообщил 0 уязвимостей | [check-secrets.log](../evidence/check-secrets.log), [npm-audit.log](../evidence/npm-audit-production.json) |
 | Compose production/dev/local | Конфигурации валидны; генератор сохраняет существующий `.env` и ставит 0600 | [compose-validation.log](../evidence/compose-validation.log), [local-setup.log](../evidence/local-setup.log) |
 | Docker build/start | Успешно в GitHub Actions: миграции, built SPA, API readiness, heartbeat worker, отказ приватной выдачи | [проверенный CI run](https://github.com/lolokeksu09/WrCommunity/actions/runs/40000076867) |
 
-Исторический этап PR #4: [CI + deployment + VDS status](https://github.com/lolokeksu09/WrCommunity/actions/runs/40067080290). **Более поздний контрольный релиз** — [PR #23 / main RELEASE №40112266831](https://github.com/lolokeksu09/WrCommunity/actions/runs/40112266831): все FULL-проверки, деплой, строгий публичный HTTPS и VDS status прошли успешно. Результат Docker подтверждён исполнением в GitHub Actions, а не только проверкой YAML; локальные логи/скриншоты выше отражают первоначальную приёмку и сохраняются как исторические свидетельства.
+Прочие первичные логи и скриншоты в таблице — исторические свидетельства приёмки, а не повторное выполнение всех этих проверок в текущей задаче. Релизные результаты API/браузеров указаны для №40162453790.
 
-## Актуальная схема проверки релиза (24.10.2026)
+## Схема CI и история ускорения
 
 - [PR #21](https://github.com/lolokeksu09/WrCommunity/pull/21): API и браузерная проверка разведены по параллельным GitHub Actions runners, с отдельными PostgreSQL/Mailpit. В исторических замерах критический путь FULL уменьшился с 215–228 до 171–183 с.
 - [PR #23](https://github.com/lolokeksu09/WrCommunity/pull/23): desktop и mobile Playwright выполняются на отдельных runners с собственными PostgreSQL/Mailpit/Worker; у каждого по три file-level workers. Два FULL-прогона Ready PR: [153 с](https://github.com/lolokeksu09/WrCommunity/actions/runs/40108469782) и [142 с](https://github.com/lolokeksu09/WrCommunity/actions/runs/40108711972) на критическом пути. Контрольный [RELEASE в main](https://github.com/lolokeksu09/WrCommunity/actions/runs/40112266831) — 159 с до успешного `integration` и успешные `deploy`/`vds-status`.
 - Измерения не гарантируют ту же скорость на каждом запуске. Разделение требует больше суммарных runner-минут. `quality-gate`, `docker-smoke`, проверки SHA, TLS и VDS не ослаблены.
-- **Ограничение GitHub:** по API ветка `main` на момент аудита **не защищена** (`protected: false`). Правила `AGENTS.md` требуют вручную проверять FULL/RELEASE перед merge; наличие зелёного `quality-gate` не заменяет настройки Branch protection / Rulesets администратором.
+- **Защита GitHub проверена 25.10.2026:** main protected=true, [ruleset 25793011](https://github.com/lolokeksu09/WrCommunity/settings/rules/25793011) active: PR, required integration/docker-smoke/quality-gate, запрет force push и удаления. Полный фактический набор CI проверяется перед каждым merge по AGENTS. Исторический аудит protected=false от24.10 заменён этой более поздней проверкой.
 
 ## Функциональная матрица
 
@@ -64,13 +70,17 @@ M0: workspace/CI/health/migrations; M1: auth/sessions; M2: profiles/privacy; M3:
 
 ## Границы и оставшиеся условия
 
-- **Контрольный опубликованный релиз:** на 24.10.2026 [main RELEASE №40112266831](https://github.com/lolokeksu09/WrCommunity/actions/runs/40112266831) подтвердил на VDS активный SHA `3644cba9ca1e35becaf781badfa71a8fa37e0f9a`, `ready: true`, `recovery_required: false`, здоровые web-api, worker и PostgreSQL. Публичная проверка HTTPS (`https://139.100.205.135`), главной страницы и формы входа на 390 и 1440 px прошла. Это **точка проверки**, а не постоянная ссылка на текущее состояние: при каждом следующем слиянии перепроверять последний [run `main`](https://github.com/lolokeksu09/WrCommunity/actions/workflows/ci.yml) и SHA VDS. Постоянный домен и публичный SMTP не настроены. Операционные сведения: [VDS-DEPLOYMENT](VDS-DEPLOYMENT.md), [README](../../README.md).
+- **Проверенный опубликованный релиз:** [main RELEASE №40162453790](https://github.com/lolokeksu09/WrCommunity/actions/runs/40162453790) на25.10.2026 подтвердил SHA `6a0f90c93a09bee9f647c129e749dd6add5ae7a0`, ready=true и строгий публичный HTTPS. Это момент проверки, не постоянное состояние сервера. При следующем merge сверять новый RELEASE/VDS. Постоянный домен и внешняя SMTP-доставка остаются условиями запуска; операции — [VDS-DEPLOYMENT](VDS-DEPLOYMENT.md).
 - Пилотный деплой автоматически выполняется после успешного push-CI в `main`, если включён `WRC_DEPLOY_ENABLED`; любые следующие релизы требуют новой проверки результатов. В текущем CI Ready PR и `main` запускают `api-tests`, два изолированных `browser-project` и `docker-smoke`; `browser-tests` и `integration` являются обязательными агрегирующими проверками, а `quality-gate` — обязательный контроль Ready PR. Исторически PR #4 не добавлял миграций.
 - До посторонних пользователей нужны утверждённые правовые документы, возрастные/региональные условия, retention и сроки резервного хранения, правила UGC/takedown, действующие операторы модерации и внешний SMTP. Эти решения намеренно не выдуманы.
 - Скриншоты показывают изолированную тестовую БД и явно тестовые учётные записи; установочный сценарий не создаёт демонстрационных пользователей, фальшивых достижений или активности.
 - API/браузерные тесты проверяют ключевые согласованные пути и негативные/конкурентные случаи. Это не нагрузочный тест и не утверждение об отсутствии любых возможных дефектов.
 
 Приоритет требований: прямые решения пользователя и утверждённый Social Core §15. PROPOSAL сам по себе не вводит новые права. Исходные документы со статусом «реализация не начата» описывают исторический baseline; этот отчёт описывает код и результаты его исполнения.
+
+## История этапов реализации
+
+Следующие записи сохраняют локальные результаты и ограничения на момент разработки. Завершение PR #30–32 подтверждено выше; формулировки ожидания CI ниже относятся к прошлым этапам.
 
 ## Патч: роли и полнота поиска
 
@@ -128,7 +138,7 @@ M0: workspace/CI/health/migrations; M1: auth/sessions; M2: profiles/privacy; M3:
 
 Контакты вынесены в `web/src/lfg-contacts.tsx`. Два индикатора отражают отдельные согласия, доступны явное обновление и отзыв. Перед запросом прежний партнёрский контакт скрывается; при неудаче есть ошибка и повтор. Мутация завершается адресным GET, глобальная перепроверка маршрутов не нужна. После отзыва поле очищается и checkbox согласия выключен. История отзыва сервером не выдаётся и не выдумывается. ACL, шифрование, схема и серверные правила не менялись.
 
-После применения своих предпочтений поисковая панель сворачивается с кратким сервером/ролью и кнопкой изменения. Проверена позиция первой карточки на мобильном экране. Локальный итог: типы/сборка успешны, 31 L1, совместный целевой прогон 6/6 (два новых сценария и прежний LFG в обоих проектах, 29.5 с). PGlite — только промежуточная среда. FULL/RELEASE и публикация ещё должны быть подтверждены; актуальная точка продолжения хранится в плане PR #30.
+После применения своих предпочтений поисковая панель сворачивается с кратким сервером/ролью и кнопкой изменения. Проверена позиция первой карточки на мобильном экране. Локальный итог: типы/сборка успешны, 31 L1, совместный целевой прогон 6/6 (два новых сценария и прежний LFG в обоих проектах, 29.5 с). PGlite — только промежуточная среда. FULL/RELEASE и публикация впоследствии подтверждены в PR #30; план завершён, текущая задача — в CONTINUATION.
 
 
 ## Исправления после Player Journey — PR #31
@@ -142,11 +152,11 @@ M0: workspace/CI/health/migrations; M1: auth/sessions; M2: profiles/privacy; M3:
 
 ## Клубы — серверный этап PR #32
 
-Реализована курсорная смешанная лента и виды встреч по времени начала; старое закрепление не теряется за отсечкой100. Два API-теста прошли локально (PGlite):110 элементов/микросекунды/блокировки/приватность/членство, категории/согласия встреч. До реализации интерфейса и FULL/RELEASE это этап разработки, не новый опубликованный релиз. План: [клубы](../superpowers/plans/2026-10-25-club-daily-flow.md).
+Реализована курсорная смешанная лента и виды встреч по времени начала; старое закрепление не теряется за отсечкой100. Два API-теста прошли локально (PGlite):110 элементов/микросекунды/блокировки/приватность/членство, категории/согласия встреч. Это запись серверного этапа; интерфейс и FULL/RELEASE впоследствии завершены в PR #32. План: [клубы](../superpowers/plans/2026-10-25-club-daily-flow.md).
 
 
 ## Клубы — интерфейс и исправления ревью PR #32
 
 Добавлены курсорная лента с заметным закреплением и восстановлением глубины/прокрутки, отдельная вкладка встреч с видами по времени начала и собственным участием, доступные по роли разделы и очереди. В собственных публикациях показаны состояния редакций и причина отказа, сохранены редактирование/удаление и прежняя опубликованная версия; реакции к непрошедшей редакции не предлагаются. Детали/ограничения — WEB и API-clubs.
 
-Независимое статическое ревью обнаружило два P2 (ID закрытого pin в cursor, can_edit автора). Оба воспроизведены и исправлены, API GREEN2/2 (9.9с), TypeScript/build:server success. Интерфейс ранее прошёл новый+существующий закрытый клубный E2E desktop/mobile4/4 (58.6с), build:web success; роль курсора для клиента остаётся непрозрачной. Локально PGlite, новые данные только изолированных тестов. До успешных FULL/RELEASE новый релиз не заявляется.
+Независимое статическое ревью обнаружило два P2 (ID закрытого pin в cursor, can_edit автора). Оба воспроизведены и исправлены, API GREEN2/2 (9.9с), TypeScript/build:server success. Интерфейс ранее прошёл новый+существующий закрытый клубный E2E desktop/mobile4/4 (58.6с), build:web success; роль курсора для клиента остаётся непрозрачной. Локально PGlite, новые данные только изолированных тестов. PR #32 впоследствии опубликован; подтверждённый RELEASE указан в начале документа.

@@ -2,17 +2,23 @@
 
 Русскоязычное mobile-first сообщество игроков Wild Rift: профили, публикации, поиск напарников, клубы и мероприятия. Самостоятельный проект; старый `wild-rift-community` не используется.
 
-В репозитории реализовано приложение с PostgreSQL и серверной проверкой прав. **Контрольный релиз 24.10.2026:** [Application CI №40112266831](https://github.com/lolokeksu09/WrCommunity/actions/runs/40112266831) успешно проверил и развернул коммит `3644cba` после [PR #23](https://github.com/lolokeksu09/WrCommunity/pull/23); VDS подтвердил точный SHA, `ready: true` и публичный HTTPS. Это исторически проверенная точка, **а не утверждение о неизменности текущего HEAD/VDS**: актуальный релиз сверяйте по [последним запускам `main`](https://github.com/lolokeksu09/WrCommunity/actions/workflows/ci.yml). Это технический пилот, не готовый открытый запуск: внешние правовые, почтовые и модерационные условия остаются. Подробности: [STATUS](docs/implementation/STATUS.md).
+**Последний подтверждённый функциональный релиз — 25.10.2026:** [PR #32](https://github.com/lolokeksu09/WrCommunity/pull/32), [RELEASE №40162453790](https://github.com/lolokeksu09/WrCommunity/actions/runs/40162453790), SHA `6a0f90c93a09bee9f647c129e749dd6add5ae7a0`. API 61/61, браузеры 60 passed + 4 штатных skipped; deploy/HTTPS/vds-status success, VDS подтвердил этот SHA и ready=true. Это зафиксированная проверка; фактический HEAD и VDS сверяются по [последним RELEASE](https://github.com/lolokeksu09/WrCommunity/actions/workflows/ci.yml).
 
-## Текущий патч клубов
+Работающий технический пилот 1.0 использует реальные API и PostgreSQL. Внешние правовые, почтовые и модерационные условия открытого запуска остаются в [STATUS](docs/implementation/STATUS.md).
 
-[PR #32](https://github.com/lolokeksu09/WrCommunity/pull/32), ветка `feat/club-daily-flow`: догрузка истории, встречи по времени начала, состояния собственных редакций и навигация управления. [План и точка продолжения](docs/superpowers/plans/2026-10-25-club-daily-flow.md) сохранены до кода; опубликованность проверять по фактическим FULL/RELEASE/VDS.
+## Работа и продолжение в новом чате
 
-Клубная история догружается курсором, старое закрепление остаётся первым. Встречи доступны отдельной вкладкой по времени начала; собственные редакции показывают статус проверки и причину отказа. Управление сгруппировано по задачам и ролям.
+[AGENTS.md](AGENTS.md) задаёт обязательный порядок: план крупного патча в GitHub до кода → чтение актуального кода и локальный просмотр изменяемого интерфейса → завершённые этапы/коммиты/документация → целевые проверки → FULL → RELEASE/HTTPS/VDS. [CONTINUATION](docs/implementation/CONTINUATION.md) содержит активную задачу, сохранённые этапы и одно следующее действие; его следует читать при смене чата. Запись плана или успешная сборка не являются доказательством просмотра сайта.
 
-## Предыдущий патч Player Journey
+## Последние завершённые поставки
 
-[План «От регистрации до первой совместной игры»](docs/superpowers/plans/2026-10-25-player-journey.md) содержит объём, проверки и точку продолжения в другом чате. Основной патч [PR #30](https://github.com/lolokeksu09/WrCommunity/pull/30) опубликован через RELEASE №40139451780 на `ce5a58a811c92e459135e6437d5b0635631206ed`. Продолжение — [PR #31](https://github.com/lolokeksu09/WrCommunity/pull/31), `fix/player-journey-reliability`: сохранность собственного ввода контакта при ошибке/обновлении и корректная готовность карточки с длинной нестандартной ролью. Его публикацию сверять по последнему CI/статусу VDS; чеклист хранит текущий этап.
+| PR | Изменение | Проверенный RELEASE |
+|---|---|---|
+| [#30](https://github.com/lolokeksu09/WrCommunity/pull/30) | Первые шаги, свои настройки поиска, понятный путь LFG и согласия контактов | [40139451780](https://github.com/lolokeksu09/WrCommunity/actions/runs/40139451780), `ce5a58a` |
+| [#31](https://github.com/lolokeksu09/WrCommunity/pull/31) | Сохранность ввода контакта и готовность карточки с нестандартной ролью | [40156947684](https://github.com/lolokeksu09/WrCommunity/actions/runs/40156947684), `cecfc19` |
+| [#32](https://github.com/lolokeksu09/WrCommunity/pull/32) | Полная клубная лента, закрепление, виды встреч, свои редакции и управление | [40162453790](https://github.com/lolokeksu09/WrCommunity/actions/runs/40162453790), `6a0f90c` |
+
+Планы [Player Journey](docs/superpowers/plans/2026-10-25-player-journey.md) и [клубов](docs/superpowers/plans/2026-10-25-club-daily-flow.md) завершены и сохранены как история.
 
 ## Локальный запуск целиком в Docker
 
@@ -88,11 +94,11 @@ npm run backup:verify
 npm run smoke:docker
 ```
 
-**Текущий CI:** на Ready PR и в `main` параллельно работают `api-tests`, два независимых `browser-project` (`desktop-chromium`/`mobile-chromium`, отдельные PostgreSQL/Mailpit) и `docker-smoke`. Fail-closed задания `browser-tests` и `integration` требуют успеха всех частей; на Ready PR дополнительно обязателен `quality-gate`. После FULL на `main` возможны `deploy`, публичная проверка HTTPS и `vds-status`. Полный набор по контрольному релизу: **56/56 API**, **42 успешных E2E и 4 штатных пропуска**. Результаты и ограничения — в [отчёте](docs/implementation/STATUS.md) и [стратегии тестирования](docs/implementation/TESTING-STRATEGY.md), не выводятся из наличия тестовых файлов.
+**Текущий CI:** на Ready PR и в `main` параллельно работают `api-tests`, два независимых `browser-project` (`desktop-chromium`/`mobile-chromium`, отдельные PostgreSQL/Mailpit) и `docker-smoke`. Fail-closed задания `browser-tests` и `integration` требуют успеха всех частей; на Ready PR дополнительно обязателен `quality-gate`. После FULL на `main` возможны `deploy`, публичная проверка HTTPS и `vds-status`. Полный набор на подтверждённом RELEASE №40162453790: **61/61 API**, **60 успешных E2E и 4 штатных пропуска**; актуальная классификация —29 объявлений в13 E2E-файлах. Результаты и ограничения — в [отчёте](docs/implementation/STATUS.md) и [стратегии тестирования](docs/implementation/TESTING-STRATEGY.md), не выводятся из наличия тестовых файлов.
 
 ## Production
 
-[Управление VDS через GitHub Actions](docs/implementation/VDS-DEPLOYMENT.md): ограниченный SSH-доступ, проверенный SHA, резервная копия перед обновлением и браузерная проверка. Автоматический деплой после FULL в `main` включён. [Подтверждённый релиз PR #23 от 24.10.2026](https://github.com/lolokeksu09/WrCommunity/actions/runs/40112266831) опубликовал `3644cba9ca1e35becaf781badfa71a8fa37e0f9a` (публичный HTTPS и `vds-status`: success). Для **текущего** SHA всегда проверяйте [новейший RELEASE в GitHub Actions](https://github.com/lolokeksu09/WrCommunity/actions/workflows/ci.yml) и активную ревизию на VDS; документация фиксирует момент проверки, а не заменяет live-status.
+[Управление VDS через GitHub Actions](docs/implementation/VDS-DEPLOYMENT.md): ограниченный SSH-доступ, проверенный SHA, резервная копия перед обновлением и браузерная проверка. Автоматический деплой после FULL в `main` включён. [Подтверждённый релиз PR #32 от 25.10.2026](https://github.com/lolokeksu09/WrCommunity/actions/runs/40162453790) опубликовал `6a0f90c93a09bee9f647c129e749dd6add5ae7a0` (публичный HTTPS и `vds-status`: success). Для **текущего** SHA всегда проверяйте [новейший RELEASE в GitHub Actions](https://github.com/lolokeksu09/WrCommunity/actions/workflows/ci.yml) и активную ревизию на VDS; документация фиксирует момент проверки, а не заменяет live-status.
 
 [Эксплуатация, конфигурация, миграции и резервные копии](docs/implementation/OPERATIONS.md). `compose.yml` публикует только Caddy 80/443; PostgreSQL/API закрыты внутренней сетью. Нужны настоящий домен, внешняя SMTP-доставка и собственные секреты. Обновление пилотного VDS выполняется автоматически после успешных обязательных заданий CI для push в `main`, пока активен `WRC_DEPLOY_ENABLED`.
 
@@ -107,7 +113,7 @@ React 19, TypeScript strict, Vite, React Router Data mode; Node.js 24, Fastify 5
 - [API-контракты](docs/implementation/)
 - OpenAPI после запуска: `/api/v1/openapi.json`, UI: `/api/docs`
 - [Сохранённый прототип v6](prototypes/home/v6/index.html) — исходная визуальная точка, файл не изменяется
-- [Обязательные правила для AI-агентов: коммит, документация и проверенный деплой](AGENTS.md)
+- [Обязательные правила для AI-агентов: план, локальный просмотр, коммиты и доставка](AGENTS.md)
 - [Безопасность](SECURITY.md), [участие](CONTRIBUTING.md)
 
 WrCommunity — независимый фанатский проект, не связан с Riot Games. Оригинальные бренд-материалы хранятся в `assets/brand`; официальные изображения Riot не включены в новый интерфейс.
