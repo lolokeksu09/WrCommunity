@@ -55,6 +55,12 @@ test('первые шаги и собственные фильтры не рас
   await expect.poll(()=>new URL(ui.page.url()).searchParams.get('role')).toBe('support');
   const saved=await api(viewer.context,'/me/profile');
   expect(saved.visibility).toBe('hidden');expect(saved.game.server.public).toBe(false);expect(saved.game.roles.public).toBe(false);
+  await api(viewer.context,'/me/profile','PATCH',{version:saved.version,game:{roles:{value:['ДлиннаяРоль'.repeat(5)],public:false}}});
+  await ui.page.goto('/me');
+  await expect(steps).toContainText('Готово: 2 из 2');
+  await ui.page.goto('/discover');
+  await expect(preset.getByLabel('Роль из моей карточки')).toHaveCount(0);
+  await expect(preset).toContainText('не длиннее 40 символов');
   await ui.context.clearCookies();await ui.context.addCookies((await other.context.storageState()).cookies);
   await ui.page.goto('/me');
   await expect(steps.getByRole('button',{name:'Свернуть первые шаги'})).toBeVisible();
@@ -110,6 +116,15 @@ test('поиск команды объясняет решения и двуст�
   const aExchange=a.page.getByRole('region',{name:'Состояние обмена'}),bExchange=b.page.getByRole('region',{name:'Состояние обмена'});
   await expect(aExchange).toContainText('Обмен ещё не разрешён');
   await expect(a.page.getByRole('checkbox',{name:/Разрешаю показать этот контакт/})).not.toBeChecked();
+  await a.page.getByLabel('Твой игровой контакт').fill('captain@example.com');
+  await a.page.getByRole('checkbox',{name:/Разрешаю показать этот контакт/}).check();
+  await a.page.getByRole('button',{name:'Разрешить обмен контактами'}).click();
+  await expect(a.page.getByRole('alert')).toContainText('Укажите игровой идентификатор');
+  await expect(a.page.getByLabel('Твой игровой контакт')).toHaveValue('captain@example.com');
+  await a.page.getByLabel('Твой игровой контакт').fill('Captain#Draft');
+  await a.page.getByRole('button',{name:'Обновить статус'}).click();
+  await expect(aExchange).toContainText('Обмен ещё не разрешён');
+  await expect(a.page.getByLabel('Твой игровой контакт')).toHaveValue('Captain#Draft');
   await a.page.getByLabel('Твой игровой контакт').fill('Captain#EU1');
   await a.page.getByRole('checkbox',{name:/Разрешаю показать этот контакт/}).check();
   await a.page.getByRole('button',{name:'Разрешить обмен контактами'}).click();
