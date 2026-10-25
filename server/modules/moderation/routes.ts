@@ -4,6 +4,8 @@ import {z} from 'zod';
 import {query,one,execute,transaction,lockUsers} from '../../db/index.js';
 import {requireUser,fail,parse,idParam,notify} from '../../lib.js';
 import {canReadPost} from '../policy/service.js';
+import {reportEvidence} from './evidence.js';
+import {decodeScopedCursor,encodeScopedCursor} from '../../listing-cursor.js';
 const targetTypes=z.enum(['profile','post','comment','club','lfg','event']);
 function moderator(request:FastifyRequest){const user=requireUser(request);if(!['moderator','admin'].includes(user.platform_role))fail(403,'forbidden','Недостаточно прав для модерации платформы.');return user;}
 async function currentModerator(tx:PoolClient,id:string):Promise<{id:string;platform_role:string}>{
@@ -28,13 +30,16 @@ export async function registerModeration(app:FastifyInstance):Promise<void>{
   const report=await one('INSERT INTO reports(reporter_id,target_type,target_id,reason) VALUES($1,$2,$3,$4) RETURNING id,state,created_at',[user.id,body.target_type,body.target_id,body.reason]);return reply.code(201).send(report);
  });
  app.get('/api/v1/me/reports',async request=>{const user=requireUser(request,false);return {items:await query('SELECT id,target_type,target_id,reason,state,created_at,updated_at FROM reports WHERE reporter_id=$1 ORDER BY created_at DESC LIMIT 100',[user.id])};});
- app.get('/api/v1/moderation/reports',async request=>{moderator(request);const q=parse(z.object({state:z.enum(['open','reviewing','resolved','dismissed']).optional()}).passthrough(),request.query);return {items:await query('SELECT id,target_type,target_id,reason,state,created_at,updated_at FROM reports WHERE ($1::text IS NULL OR state=$1) ORDER BY created_at DESC LIMIT 100',[q.state??null])};});
+ app.get('/api/v1/moderation/reports',async request=>{
+  const user=moderator(request);const q=parse(z.object({state:z.enum(['open','reviewing','resolved','dismissed']).optional(),limit:z.coerce.number().int().min(1).max(50).default(25),cursor:z.string().max(600).optional()}).passthrough(),request.query);
+  const scope='moderation-reports:'+user.id+':'+(q.state??'all');const cursor=decodeScopedCursor(q.cursor,scope);
+  const rows=await query<{id:string;cursor_at:string;[key:string]:unknown}>(`SELECT id,target_type,target_id,reason,state,created_at,updated_at,to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at FROM reports
+   WHERE ($1::text IS NULL OR state=$1) AND ($3::timestamptz IS NULL OR (created_at,id)<($3::timestamptz,$4::uuid)) ORDER BY created_at DESC,id DESC LIMIT $2`,[q.state??null,q.limit+1,cursor?.at??null,cursor?.id??null]);
+  const page=rows.slice(0,q.limit);return {items:page.map(({cursor_at,...row})=>row),nextCursor:rows.length>q.limit?encodeScopedCursor(page.at(-1)!,scope):null};
+ });
  app.get('/api/v1/moderation/reports/:id',async request=>{const user=moderator(request);const report=await one<{id:string;target_type:string;target_id:string;state:string;reason:string}>('SELECT id,target_type,target_id,state,reason FROM reports WHERE id=$1',[idParam(request)]);if(!report)fail(404,'not_found','Жалоба не найдена.');
-  let evidence:unknown=null;
-  if(report.target_type==='post'&&await canReadPost(user.id,report.target_id))evidence=await one('SELECT p.id,r.body FROM posts p JOIN post_revisions r ON r.id=p.current_revision_id WHERE p.id=$1',[report.target_id]);
-  if(report.target_type==='comment'){const c=await one<{id:string;post_id:string;body:string}>('SELECT id,post_id,body FROM comments WHERE id=$1',[report.target_id]);if(c&&await canReadPost(user.id,c.post_id))evidence=c;}
-  if(report.target_type==='profile')evidence=await one('SELECT id,handle,display_name,biography FROM users WHERE id=$1 AND visibility=\'public\' AND status<>\'deleted\'',[report.target_id]);
-  await execute('INSERT INTO audit_actions(actor_id,action,target_id,reason) VALUES($1,\'review_report\',$2,\'Report-bound moderation read\')',[user.id,report.id]);return {...report,evidence,actions:await query('SELECT action,reason,created_at FROM moderation_actions WHERE report_id=$1 ORDER BY created_at',[report.id])};
+  const evidence=await reportEvidence(report.target_type,report.target_id,user.id);
+  await execute('INSERT INTO audit_actions(actor_id,action,target_id,reason) VALUES($1,\'review_report\',$2,\'Report-bound moderation read\')',[user.id,report.id]);return {...report,evidence,evidence_status:evidence?'available':'unavailable',actions:await query('SELECT action,reason,created_at FROM moderation_actions WHERE report_id=$1 ORDER BY created_at',[report.id])};
  });
  app.patch('/api/v1/moderation/reports/:id',async request=>{const user=moderator(request);const id=idParam(request);const body=parse(z.object({state:z.enum(['reviewing','resolved','dismissed']),reason:z.string().trim().min(5).max(2000)}).strict(),request.body);
   return transaction(async tx=>{await lockUsers(tx,[user.id]);await currentModerator(tx,user.id);const r=await one<{target_type:string;target_id:string}>('UPDATE reports SET state=$2,updated_at=now() WHERE id=$1 RETURNING target_type,target_id',[id,body.state],tx);if(!r)fail(404,'not_found','Жалоба не найдена.');await execute('INSERT INTO moderation_actions(actor_id,target_type,target_id,action,reason,report_id) VALUES($1,$2,$3,$4,$5,$6)',[user.id,r.target_type,r.target_id,body.state,body.reason,id],tx);return {ok:true};});

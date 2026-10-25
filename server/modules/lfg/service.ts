@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { execute, one, query, transaction } from '../../db/index.js';
 import { notify } from '../../lib.js';
+import {blocked} from '../policy/service.js';
 
 export type Announcement = {id:string;author_id:string;server:string;roles:string[];description:string;expires_at:Date;pending_policy:'keep'|'reject';state:'open'|'closed'|'expired'|'deleted';created_at:Date;updated_at:Date;handle:string;display_name:string;visibility:string;author_status:string;is_expired:boolean};
 export type Application = {id:string;announcement_id:string;applicant_id:string;message:string;disclosure_consent:boolean;disclosed_nickname:string|null;state:string;created_at:Date;decided_at:Date|null};
@@ -55,4 +56,8 @@ export function decryptContact(value:string,applicationId:string,userId:string):
   const decipher=createDecipheriv('aes-256-gcm',contactKey(),Buffer.from(nonce,'base64'));
   decipher.setAAD(Buffer.from(`${applicationId}:${userId}`));decipher.setAuthTag(Buffer.from(tag,'base64'));
   return Buffer.concat([decipher.update(Buffer.from(encrypted,'base64')),decipher.final()]).toString('utf8');
+}
+
+export async function canReadAnnouncement(row:Announcement|undefined,viewerId:string|null,tx?:PoolClient):Promise<boolean>{
+ return Boolean(row&&row.state!=='deleted'&&row.author_status==='active'&&(row.visibility==='public'||row.author_id===viewerId)&&(!viewerId||!await blocked(viewerId,row.author_id,tx)));
 }

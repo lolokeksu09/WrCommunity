@@ -38,7 +38,7 @@ export async function registerProfiles(app: FastifyInstance): Promise<void> {
       // Club creation and transfer lock the same row before assigning ownership.
       const current = await one<ProfileRow>('SELECT * FROM users WHERE id=$1 FOR UPDATE', [user.id], tx);
       if (!current || current.status !== 'active') fail(404, 'NOT_FOUND', 'Профиль не найден');
-      if (input.version !== current.version) fail(409, 'VERSION_CONFLICT', 'Профиль изменился. Обновите страницу и повторите действие');
+      if (input.version !== current.version) fail(409, 'VERSION_CONFLICT', 'Профиль изменился. Сравните свой ввод с актуальной версией.');
       const nextVisibility = input.visibility ?? current.visibility;
       if (nextVisibility !== current.visibility && input.visibility_acknowledged !== true) fail(422, 'VISIBILITY_ACK_REQUIRED', 'Подтвердите предупреждение об изменении видимости');
       if (nextVisibility === 'hidden' && await one(`SELECT id FROM clubs WHERE owner_id=$1 AND state<>'deleted' LIMIT 1`, [user.id], tx)) {
