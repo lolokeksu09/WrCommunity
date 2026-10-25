@@ -1,3 +1,4 @@
+import {ClubEvents} from './club-activity';
 import {LfgContacts} from './lfg-contacts';
 import {resetCommunityState} from './community-state';
 import React,{useEffect} from 'react';
@@ -44,6 +45,7 @@ const routes=[
  {path:'me/clubs',loader:(a:LoaderFunctionArgs)=>privateLoad(a,()=>list('/me/clubs',a.request)),element:<ClubCatalog mine/>},
  {path:'clubs/new',element:<ClubCreate/>},
  {path:'clubs/transfers/:transferId/accept',element:<TransferAccept/>},
+ {path:'clubs/:clubId/events',loader:async(a:LoaderFunctionArgs)=>{const c=await club(a);const raw=new URL(a.request.url).searchParams.get('view');const view=raw==='past'||raw==='cancelled'?raw:'upcoming';return {club:c,events:await list('/clubs/'+c.id+'/feed?view='+view,a.request)};},element:<ClubEvents/>},
  {path:'clubs/:clubId',loader:async(a:LoaderFunctionArgs)=>{const c=await club(a);return {club:c,feed:c.permissions.read_content?await list('/clubs/'+c.id+'/feed',a.request):{items:[]}};},element:<ClubDetail/>},
  ...([{path:'about',element:<ClubAbout/>},{path:'join',element:<ClubIdentity join/>},{path:'identity',element:<ClubIdentity/>},{path:'manage',element:<ClubManage/>},] as const).map(r=>({path:'clubs/:clubId/'+r.path,loader:club,element:r.element})),
  {path:'clubs/:clubId/settings',loader:async(a:LoaderFunctionArgs)=>{const c=await club(a);return {...c,available_posts:(await list<Post>('/clubs/'+c.id+'/posts',a.request)).items};},element:<ClubSettings/>},

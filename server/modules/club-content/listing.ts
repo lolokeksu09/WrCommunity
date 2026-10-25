@@ -1,3 +1,4 @@
+import {createHmac,randomBytes} from 'node:crypto';
 import {z} from 'zod';
 import {query} from '../../db/index.js';
 import {fail} from '../../lib.js';
@@ -8,9 +9,12 @@ import {canReadEvent,eventDTO,eventRow} from '../events/service.js';
 const views=['feed','upcoming','past','cancelled'] as const;
 export type ClubListingView=typeof views[number];
 export const clubListingQuery=z.object({view:z.enum(views).default('feed'),limit:z.coerce.number().int().min(1).max(50).default(20),cursor:z.string().max(900).optional()});
-const cursorSchema=z.object({version:z.literal(1),club:z.string().uuid(),view:z.enum(views),pin:z.string().uuid().nullable(),rank:z.union([z.literal(0),z.literal(1)]),at:z.string().datetime({offset:true}),id:z.string().uuid(),kind:z.enum(['post','event'])}).strict();
+const cursorSchema=z.object({version:z.literal(1),club:z.string().uuid(),view:z.enum(views),pin:z.string().regex(/^[A-Za-z0-9_-]{43}$/).nullable(),rank:z.union([z.literal(0),z.literal(1)]),at:z.string().datetime({offset:true}),id:z.string().uuid(),kind:z.enum(['post','event'])}).strict();
 type Cursor=z.infer<typeof cursorSchema>;
 type Candidate={id:string;kind:'post'|'event';rank:0|1;cursor_at:string};
+const fallbackCursorKey=randomBytes(32);
+// Bind order changes without disclosing or making private pin IDs guessable.
+function pinContext(club:string,viewer:string|null,pin:string|null){return pin?createHmac('sha256',process.env.COOKIE_SECRET??fallbackCursorKey).update(JSON.stringify(['club-listing-pin-v1',club,viewer,pin])).digest('base64url'):null;}
 const invalid=()=>fail(422,'invalid_cursor','Порядок ленты изменился или курсор недействителен. Открой клуб заново.');
 function decode(value:string|undefined,club:string,view:ClubListingView,pin:string|null):Cursor|null{
  if(value===undefined)return null;
@@ -25,7 +29,8 @@ function encode(row:Candidate,club:string,view:ClubListingView,pin:string|null){
 
 export async function clubListing(clubId:string,viewerId:string|null,input:{view:ClubListingView;limit:number;cursor?:string}){
  const club=await requireClub(clubId);const pin=input.view==='feed'?club.pinned_post_id:null;
- let cursor=decode(input.cursor,clubId,input.view,pin);
+ const context=pinContext(clubId,viewerId,pin);
+ let cursor=decode(input.cursor,clubId,input.view,context);
  if(!await canReadClubContent(viewerId,clubId,club.feed_visibility))return {items:[],nextCursor:null};
  const member=await canReadClubContent(viewerId,clubId,'members_only');
  const ascending=input.view==='upcoming';
@@ -47,13 +52,13 @@ export async function clubListing(clubId:string,viewerId:string|null,input:{view
    ORDER BY rank ASC,at ${ascending?'ASC':'DESC'},id DESC,kind ASC LIMIT 100`,params);
   for(const row of rows){
    let item:Record<string,unknown>|undefined;
-   if(row.kind==='post'){const post=await postDTO(row.id,viewerId);if(post)item={kind:'post',...post,pinned:row.rank===0};}
+   if(row.kind==='post'){const post=await postDTO(row.id,viewerId);if(post)item={kind:'post',...post,can_edit:viewerId===post.author_id,pinned:row.rank===0};}
    else{const event=await eventRow(row.id);if(event&&await canReadEvent(event,viewerId))item={kind:'event',...await eventDTO(event,viewerId)};}
    if(!item)continue;
-   if(items.length===input.limit)return {items,nextCursor:encode(last!,clubId,input.view,pin)};
+   if(items.length===input.limit)return {items,nextCursor:encode(last!,clubId,input.view,context)};
    items.push(item);last=row;
   }
   if(rows.length<100)return {items,nextCursor:null};
-  const tail=rows.at(-1)!;cursor={version:1,club:clubId,view:input.view,pin,rank:tail.rank,at:tail.cursor_at,id:tail.id,kind:tail.kind};
+  const tail=rows.at(-1)!;cursor={version:1,club:clubId,view:input.view,pin:context,rank:tail.rank,at:tail.cursor_at,id:tail.id,kind:tail.kind};
  }
 }

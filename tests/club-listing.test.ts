@@ -30,6 +30,7 @@ test('club feed pages beyond100 with old pin, precise ties and current ACL on ev
  for(let i=0;i<4;i++)await post(id,writer.id,200+i);
  const e=await event(id,owner.id,'Смешанная встреча','2050-01-01T10:00:00Z');
  const first=await request('GET',`/clubs/${id}/feed?limit=7`,reader);assert.equal(first.statusCode,200,first.body);
+ assert.equal((await request('GET',`/clubs/${id}/feed?limit=1`,owner)).json().items[0].can_edit,true);
  assert.equal(first.json().items[0].id,pin);assert.equal(first.json().items[0].pinned,true);assert.equal(first.json().items.length,7);assert.ok(first.json().nextCursor);
  const all=await pages(`/clubs/${id}/feed?limit=7`,reader);
  assert.equal(all.length,110);assert.equal(new Set(all.map(p=>p.kind+':'+p.id)).size,110);assert.equal(all.filter(p=>p.pinned).length,1);assert.ok(all.some(p=>p.id===e&&p.kind==='event'));
@@ -70,5 +71,9 @@ test('club event views sort by start, split ongoing/history/cancellation and pre
  const initial=(await request('GET',`/clubs/${id}/feed?view=upcoming&limit=1`,member)).json();
  await execute("UPDATE club_memberships SET state='left',revoked_at=now() WHERE club_id=$1 AND user_id=$2",[id,member.id]);
  const after=await request('GET',`/clubs/${id}/feed?view=upcoming&limit=1&cursor=${initial.nextCursor}`,member);assert.equal(after.statusCode,200,after.body);assert.equal(after.json().items[0].id,early);
+ const privatePin=await post(id,owner.id,300);await execute("UPDATE posts SET audience='members_only' WHERE id=$1",[privatePin]);await execute('UPDATE clubs SET pinned_post_id=$2 WHERE id=$1',[id,privatePin]);
+ assert.equal((await request('GET',`/clubs/${id}`)).json().pinned_post_id,null);
+ const publicFeed=(await request('GET',`/clubs/${id}/feed?limit=1`)).json();assert.ok(publicFeed.nextCursor);
+ const decoded=Buffer.from(publicFeed.nextCursor,'base64url').toString('utf8');assert.equal(decoded.includes(privatePin),false,'Cursor must not disclose unreadable pinned post ID');
  assert.equal((await request('GET',`/clubs/${id}/feed?limit=0`)).statusCode,422);assert.equal((await request('GET',`/clubs/${id}/feed?view=unknown`)).statusCode,422);
 });
