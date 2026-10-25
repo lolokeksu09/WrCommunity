@@ -10,7 +10,9 @@
 
 После него опубликован документационный [PR #33](https://github.com/lolokeksu09/WrCommunity/pull/33): main/VDS `f3a042b8c249c51475027481f8ef807a3419e49a`, [RELEASE 40165492015](https://github.com/lolokeksu09/WrCommunity/actions/runs/40165492015) success. Оба релиза подтвердили 61 API, desktop 28 passed + 4 штатных skipped и mobile 32 passed, deploy/строгий HTTPS главной/входа на 390/1440 px и vds-status. VDS ready=true, recovery_required=false; API/worker/PostgreSQL/Mailpit healthy, Caddy running. Это снимки проверок, не утверждение о постоянном состоянии HEAD или сервера.
 
-Для следующего релиза источник результата — описание соответствующего объединённого PR с exact merge SHA, RELEASE и VDS. Текущий документационный патч описан в CONTINUATION. Старые числа тестов не задают обязательный неизменный объём: актуальный набор определяется кодом/реестром и выводом CI.
+Документационный PR #34 также опубликован: main/VDS `5617d4567087983e8b2a6b396aadd3b6df74acf2`, [RELEASE 40171388962](https://github.com/lolokeksu09/WrCommunity/actions/runs/40171388962) success. Исправления уведомлений, очереди/материалов жалоб и форм из [PR #35](https://github.com/lolokeksu09/WrCommunity/pull/35) до его merge/RELEASE считаются проверенной разработкой, а не опубликованной версией.
+
+Для следующего релиза источник результата — описание соответствующего объединённого PR с exact merge SHA, RELEASE и VDS. Активный патч описан в CONTINUATION. Старые числа тестов не задают обязательный неизменный объём: актуальный набор определяется кодом/реестром и выводом CI.
 
 Защита main подтверждена ruleset 25793011: PR, required integration/docker-smoke/quality-gate, запрет force push/удаления. Перед каждым merge правила и все исходные FULL jobs сверяются заново по AGENTS.
 
