@@ -21,3 +21,5 @@
 | Материал жалобы | [PNG](desktop-moderation-evidence.png) | [PNG](mobile-moderation-evidence.png) |
 
 Снимки содержат только локальные тестовые аккаунты/данные. Исходные доказательства дефектов сохранены отдельно в [аудите](../../implementation/reviews/2026-10-25-product-audit.md).
+
+Первый FULL 40191899891 на `7ba1574` подтвердил 64/64 API, Docker и оба новых сценария на desktop/mobile, но обнаружил регрессию старого обмена контактами: parse() скрывал конкретную подсказку общей фразой. Исправление возвращает первое безопасное сообщение поля также в error.message, сохраняя error.fields. tests/validation.test.ts воспроизвёл RED по точному сообщению; затем GREEN 1/1 (436.9 мс), typecheck/build:server success. Следующее действие — новый FULL на новом head. Предыдущий FULL не разрешает merge.

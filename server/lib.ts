@@ -22,7 +22,7 @@ export function parse<T>(schema:ZodType<T>,value:unknown):T{
  if(!parsed.success){
   const fields:Record<string,string>=Object.create(null);
   for(const issue of parsed.error.issues){const key=issue.path.map(String).join('.')||'_form';fields[key]??=issue.message;}
-  fail(422,'validation','Проверьте введённые данные.',fields);
+  fail(422,'validation',Object.values(fields)[0]??'Проверьте введённые данные.',fields);
  }
  return parsed.data;
 }
