@@ -49,3 +49,10 @@ Detail also returns `pending_transfer:{id,to_user_id}|null` only to its initiati
 `GET /clubs/:id/reports` returns only reports targeting this club's posts, comments or events, with no reporter identity. `PATCH /clubs/:id/reports/:reportId` `{state:'reviewing'|'resolved'|'dismissed',reason}` updates a club-scoped decision and appends audit. Club roles never gain global sanction authority. Reason is 5–2000 characters.
 
 `DELETE /clubs/:id` `{password,confirmation:'DELETE'}` is an owner-only confirmed soft deletion. Revokes memberships/consents, cancels future registrations/events/pending transfers, hides all club history and media through current ACL, writes audit. No physical retention or backup deletion is invented. A nondeleted owned club continues blocking personal account deletion; a deleted club no longer counts as ownership.
+
+
+## Курсорная лента и встречи — PR #32
+
+`GET /api/v1/clubs/:id/feed` принимает `view=feed|upcoming|past|cancelled`, `limit`1–50 (по умолчанию20), `cursor` и возвращает `{items,nextCursor}`. Обычная лента сохраняет kind/DTO постов и встреч, выделяет доступное закрепление независимо от возраста, затем идёт created_at DESC/id DESC/kind ASC. Upcoming — open с ends_at>времени БД, starts_at ASC; past — completed/истёкшие open, starts_at DESC; cancelled — отменённые, starts_at DESC.
+
+Курсор привязан к клубу, виду и закреплению обычной ленты; время сохраняет микросекунды. Недопустимый/чужой курсор или изменение закрепления —422 invalid_cursor с предложением открыть клуб заново. Кандидаты обходятся ограниченными порциями до следующего видимого элемента; ACL postDTO/canReadEvent проверяются заново. Отзыв согласия/блокировка/приватность применяются к каждой странице. При недоступной закрытой ленте items пуст, курсора нет. Параметры добавлены без изменения write-контрактов, миграций и прав доступа.
