@@ -1,3 +1,4 @@
+import {clubListing,clubListingQuery} from './listing.js';
 import type { FastifyInstance } from 'fastify';
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
@@ -5,7 +6,6 @@ import { query, one, execute, transaction, lockUsers } from '../../db/index.js';
 import { requireUser, fail, idParam, parse, notify } from '../../lib.js';
 import { blocked, canReadPost } from '../policy/service.js';
 import { postDTO, lockPairs, authorDTO } from '../social/service.js';
-import { eventRow, canReadEvent, eventDTO } from '../events/service.js';
 import { membership, requireClub, requireManager, assertMedia, audit, assertActiveUser } from '../clubs/service.js';
 
 const contentSchema=z.object({body:z.string().trim().min(1).refine(value=>Array.from(value).length<=5000,'Не более 5000 символов'),images:z.array(z.string().uuid()).max(4).refine(ids=>new Set(ids).size===ids.length,'Изображения не должны повторяться').default([]),tags:z.array(z.string().trim().min(1).max(32)).max(10).default([])}).strict();
@@ -85,14 +85,7 @@ export async function registerClubContent(app:FastifyInstance):Promise<void> {
     const rows=await query<{id:string}>("SELECT id FROM posts WHERE club_id=$1 AND state='published' ORDER BY created_at DESC,id DESC LIMIT 100",[id]);
     const items=[];for(const row of rows){const post=await publicPost(row.id,viewer);if(post)items.push(post);}return {items};
   });
-  app.get('/api/v1/clubs/:id/feed',async req=>{
-    const id=idParam(req);const c=await requireClub(id),viewer=req.viewer?.id??null;
-    const rows=await query<{id:string}>("SELECT id FROM posts WHERE club_id=$1 AND state='published' ORDER BY created_at DESC,id DESC LIMIT 100",[id]);
-    const items:any[]=[];for(const row of rows){const p=await publicPost(row.id,viewer);if(p)items.push({kind:'post',...p,pinned:p.id===c.pinned_post_id});}
-    const events=await query<{id:string}>("SELECT id FROM events WHERE club_id=$1 ORDER BY created_at DESC,id DESC LIMIT 100",[id]);
-    for(const event of events){const row=await eventRow(event.id);if(row&&await canReadEvent(row,viewer))items.push({kind:'event',...await eventDTO(row,viewer)});}
-    items.sort((a,b)=>Number(b.pinned??false)-Number(a.pinned??false)||new Date(b.created_at).getTime()-new Date(a.created_at).getTime()||b.id.localeCompare(a.id));return {items:items.slice(0,100)};
-  });
+  app.get('/api/v1/clubs/:id/feed',async req=>clubListing(idParam(req),req.viewer?.id??null,parse(clubListingQuery,req.query)));
   app.post('/api/v1/clubs/:id/posts',async(req,reply)=>{
     const viewer=requireUser(req),id=idParam(req),body=parse(contentSchema,req.body);
     return transaction(async tx=>{
