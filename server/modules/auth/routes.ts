@@ -8,7 +8,7 @@ export { resolveSession } from './service.js';
 const password = z.string().min(12).max(128);
 const email = z.string().trim().toLowerCase().email().max(254);
 const tokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
-const registerSchema = z.object({ email, password, handle: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,32}$/), display_name: z.string().trim().min(1).max(80) }).strict();
+const registerSchema = z.object({ email, password, handle: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,32}$/,'Используйте 3–32 латинские буквы, цифры или знак подчёркивания.'), display_name: z.string().trim().min(1).max(80) }).strict();
 const securitySchema = z.object({ current_password: z.string().min(1).max(128), password: password.optional(), email: email.optional() }).strict().refine(v => v.password || v.email, 'Укажите новое значение');
 const limited = (max: number) => ({ config: { rateLimit: { max, timeWindow: '15 minutes' } } });
 

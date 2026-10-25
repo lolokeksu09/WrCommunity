@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { execute, lockPair, lockUsers, one, query, transaction } from '../../db/index.js';
 import { assertCurrentActor, fail, idParam, notify, parse, requireUser } from '../../lib.js';
 import { blocked } from '../policy/service.js';
-import { type Announcement,type Application,announcementDTO,announcementRow,applicationDTO,applyPendingPolicy,decryptContact,encryptContact,expireAnnouncement,expireLfg,refreshAnnouncement } from './service.js';
+import { canReadAnnouncement, type Announcement,type Application,announcementDTO,announcementRow,applicationDTO,applyPendingPolicy,decryptContact,encryptContact,expireAnnouncement,expireLfg,refreshAnnouncement } from './service.js';
 
 const createSchema=z.object({server:z.string().trim().min(1).max(80),roles:z.array(z.string().trim().min(1).max(40)).min(1).max(5).transform(canonicalRoles),description:z.string().trim().min(1).max(2000),expires_at:z.string().datetime({offset:true}),pending_policy:z.enum(['keep','reject'])}).strict();
 const updateSchema=z.object({description:createSchema.shape.description,expires_at:createSchema.shape.expires_at,pending_policy:createSchema.shape.pending_policy}).partial().strict().refine(value=>Object.keys(value).length>0,'Укажите изменения');
@@ -15,7 +15,7 @@ const applySchema=z.object({message:z.string().trim().min(1).max(500),disclosure
 const decisionSchema=z.object({decision:z.enum(['accepted','rejected'])}).strict();
 const contactSchema=z.object({game_contact:z.string().trim().min(1).max(120).refine(value=>!value.includes('@')&&!/^\+?[\d\s().-]{7,}$/.test(value),'Укажите игровой идентификатор, без email и телефона'),consent:z.literal(true)}).strict();
 async function visible(announcement:Announcement|undefined,viewerId:string|null,tx?:PoolClient):Promise<Announcement> {
-  if(!announcement||announcement.state==='deleted'||announcement.author_status!=='active'||(announcement.visibility!=='public'&&announcement.author_id!==viewerId)||(viewerId&&await blocked(viewerId,announcement.author_id,tx)))fail(404,'not_found','Объявление не найдено');
+  if(!announcement||!await canReadAnnouncement(announcement,viewerId,tx))fail(404,'not_found','Объявление не найдено');
   return announcement;
 }
 async function pairApplication(id:string,viewerId:string,tx:PoolClient,verified=true) {

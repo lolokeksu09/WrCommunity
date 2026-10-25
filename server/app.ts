@@ -60,7 +60,7 @@ export async function buildApp(options:{logger?:boolean}={}):Promise<FastifyInst
   else if(status===413){code='too_large';message='Файл или запрос превышает допустимый размер.';}
   else if(status===429){code='rate_limited';message='Слишком много запросов. Повторите позже.';}
   if(status>=500)request.log.error({requestId:request.id,code},'Request failed');
-  return reply.code(status).send({error:{code,message,requestId:request.id}});
+  return reply.code(status).send({error:{code,message,requestId:request.id,...(error instanceof HttpError&&error.fields?{fields:error.fields}:{})}});
  });
  app.get('/health/live',async()=>({ok:true}));
  app.get('/health/ready',async(_request,reply)=>{try{const result=await one<{ready:boolean}>('SELECT count(*)=$2::integer AS ready FROM schema_migrations WHERE name=ANY($1::text[])',[expectedMigrations,expectedMigrations.length]);if(!result?.ready)return reply.code(503).send({ok:false});return {ok:true};}catch{return reply.code(503).send({ok:false});}});

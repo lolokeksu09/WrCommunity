@@ -6,25 +6,26 @@ export async function blocked(a: string, b: string, tx?: PoolClient): Promise<bo
  return !!(await one('SELECT 1 FROM blocks WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)',[a,b],tx));
 }
 export async function canReadProfile(viewerId: string|null, profileId: string, tx?: PoolClient): Promise<boolean> {
- const user=await one<{status:string;visibility:string}>('SELECT status,visibility FROM users WHERE id=$1',[profileId],tx);
- if(!user || user.status!=='active') return false;
- if(viewerId===profileId) return true;
- return user.visibility==='public' && (!viewerId || !await blocked(viewerId,profileId,tx));
+ const row=await one<{allowed:boolean}>(`SELECT EXISTS(SELECT 1 FROM users u WHERE u.id=$1 AND ${profileReadSql('$2::uuid')}) AS allowed`,[profileId,viewerId],tx);
+ return row?.allowed??false;
 }
 export async function canReadPost(viewerId: string|null, postId: string, tx?: PoolClient): Promise<boolean> {
- const p=await one<{author_id:string;state:string;club_id:string|null;audience:string;status:string;visibility:string;club_state:string|null;feed_visibility:string|null;revision_status:string|null}>(`SELECT p.author_id,p.state,p.club_id,p.audience,u.status,u.visibility,c.state club_state,c.feed_visibility,r.status revision_status FROM posts p JOIN users u ON u.id=p.author_id LEFT JOIN clubs c ON c.id=p.club_id LEFT JOIN post_revisions r ON r.id=p.current_revision_id WHERE p.id=$1`,[postId],tx);
- if(!p || p.status!=='active' || p.state==='removed') return false;
- if(viewerId && await blocked(viewerId,p.author_id,tx)) return false;
- if(p.visibility!=='public' && viewerId!==p.author_id) return false;
- if(p.state!=='published' && viewerId!==p.author_id) return false;
- if(p.state==='published' && p.revision_status!=='approved') return false;
- if(p.club_id){
-  if(p.club_state==='deleted') return false;
-  if(p.audience==='members_only' || p.feed_visibility==='members_only'){
-   if(!viewerId) return false;
-   const m=await one(`SELECT 1 FROM club_memberships WHERE club_id=$1 AND user_id=$2 AND state='active' AND consented_at IS NOT NULL AND revoked_at IS NULL`,[p.club_id,viewerId],tx);
-   if(!m) return false;
-  }
- }
- return true;
+ const row=await one<{allowed:boolean}>(`SELECT EXISTS(SELECT 1 FROM posts p JOIN users u ON u.id=p.author_id LEFT JOIN clubs c ON c.id=p.club_id LEFT JOIN post_revisions r ON r.id=p.current_revision_id WHERE p.id=$1 AND ${postReadSql('$2::uuid')}) AS allowed`,[postId,viewerId],tx);
+ return row?.allowed??false;
+}
+
+// Only internal SQL parameter/alias literals are accepted, never request values.
+// The same predicates serve individual reads and set-based notification queries.
+export function unblockedSql(viewer:string,other:string):string{
+ return `NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=${viewer} AND b.blocked_id=${other}) OR (b.blocked_id=${viewer} AND b.blocker_id=${other}))`;
+}
+export function profileReadSql(viewer:string,alias='u'):string{
+ return `(${alias}.status='active' AND (${alias}.id=${viewer} OR (${alias}.visibility='public' AND ${unblockedSql(viewer,alias+'.id')})))`;
+}
+export function postReadSql(viewer:string):string{
+ return `(u.status='active' AND p.state<>'removed' AND ${unblockedSql(viewer,'p.author_id')}
+  AND (u.visibility='public' OR p.author_id=${viewer}) AND (p.state='published' OR p.author_id=${viewer})
+  AND (p.state<>'published' OR r.status='approved')
+  AND (p.club_id IS NULL OR (c.state<>'deleted' AND ((p.audience<>'members_only' AND c.feed_visibility<>'members_only') OR EXISTS(
+   SELECT 1 FROM club_memberships m WHERE m.club_id=p.club_id AND m.user_id=${viewer} AND m.state='active' AND m.consented_at IS NOT NULL AND m.revoked_at IS NULL)))))`;
 }

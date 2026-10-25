@@ -8,7 +8,7 @@ import {PostCard,usePagedCollection} from './social';
 import {Empty,PageHeading} from './ui';
 
 export type ClubFeedItem=(Post&{kind:'post';pinned:boolean})|(ClubEvent&{kind:'event'});
-function PageTail({page}:{page:{cursor?:string;busy:boolean;error:string;loadMore:()=>void}}){const location=useLocation();return <>{page.cursor&&<button className="secondary load-more" disabled={page.busy} onClick={page.loadMore}>{page.busy?'Загружается…':'Показать ещё'}</button>}{page.error&&<div className="feedback error club-list-error" role="alert">{page.error}<Link className="text-control" to={location.pathname+location.search}>Открыть начало списка</Link></div>}</>;}
+function PageTail({page}:{page:{cursor?:string|null;busy:boolean;error:string;loadMore:()=>void}}){const location=useLocation();return <>{page.cursor&&<button className="secondary load-more" disabled={page.busy} onClick={page.loadMore}>{page.busy?'Загружается…':'Показать ещё'}</button>}{page.error&&<div className="feedback error club-list-error" role="alert">{page.error}<Link className="text-control" to={location.pathname+location.search}>Открыть начало списка</Link></div>}</>;}
 function EventEntry({event}:{event:ClubEvent}){
  const registration=typeof event.my_registration==='object'&&event.my_registration?event.my_registration.state:event.my_registration;
  const active=registration===true||registration==='active'||registration==='registered';
