@@ -52,6 +52,6 @@ if(failures.length){
 }
 const entryFile=path.join(root,'dist','web',main.file);
 const entryBytes=await readFile(entryFile);
-const gzipBytes=gzipSync(entryBytes,{level:9}).length;
+const gzipBytes=gzipSync(entryBytes).length;
 console.log('Initial entry bundle: '+entryBytes.length+' bytes raw; '+gzipBytes+' bytes gzip.');
 console.log('Route-splitting check passed: '+requiredModules.length+' feature modules are separate dynamic imports.');
