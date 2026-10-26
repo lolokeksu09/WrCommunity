@@ -13,7 +13,7 @@
     "dev:web": "vite --config web/vite.config.ts --host 127.0.0.1",
     "dev:worker": "node --env-file-if-exists=.env --import tsx --watch server/worker.ts",
     "build": "npm run build:web && npm run build:server",
-    "build:web": "vite build --config web/vite.config.ts",
+    "build:web": "vite build --config web/vite.config.ts && npm run check:bundle",
     "build:server": "tsc -p tsconfig.server.json && node scripts/copy-migrations.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p web/tsconfig.json",
     "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
@@ -28,7 +28,8 @@
     "check:secrets": "node scripts/check-secrets.mjs",
     "check:ui": "node scripts/ci/check-ui-guidelines.mjs",
     "smoke:docker": "sh scripts/docker-smoke.sh",
-    "backup:verify": "node scripts/backup-restore.mjs"
+    "backup:verify": "node scripts/backup-restore.mjs",
+    "check:bundle": "node scripts/ci/check-route-splitting.mjs"
   },
   "dependencies": {
     "fastify": "5.12.7",

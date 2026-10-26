@@ -22,15 +22,15 @@
 
 ## Acceptance
 
-- [ ] `main.tsx` does not statically import the heavy route component modules.
-- [ ] Build manifest confirms route modules are dynamically imported from the main entry; bundle check reports entry raw/gzip sizes.
+- [x] `main.tsx` now uses typed lazy imports for 47 page component exports; `Gate`/`useSession` and profile-editor reset state are separated from page-heavy modules.
+- [x] Vite emits a manifest and `npm run check:bundle` verifies the 9 heavy route modules are dynamic imports and reports raw/gzip entry size. CI must still prove the check passes.
 - [ ] `npm run typecheck`, `npm run check:ui`, `npm run build`, and relevant mobile/desktop E2E checks pass on the final PR head.
 - [ ] Existing routes, loader data, auth redirects, draft reset behavior, and error boundaries remain unchanged.
-- [ ] Mobile route loading has an accessible status, retains navigation, and respects `prefers-reduced-motion`.
+- [x] Mobile route loading has an accessible Suspense status while the shell/nav remain mounted; the spinner uses existing global reduced-motion handling.
 - [ ] No local visual review is claimed unless actually run; if local browser setup is unavailable, record the reason and rely on CI artifacts as an explicitly limited alternative.
 - [ ] PR FULL passes before merge; after merge, verify RELEASE, deploy, strict HTTPS, and `vds-status` for the exact merge SHA.
 
-## Risks and constraints
+## Implementation snapshot\n\n- Code commit: `26331930246e7b88df0254ff2258cef1fb388e6b` (route component lazy imports and shared session/reset helpers).\n- Bundle guard/config/CSS and continuation updates are in progress; final verification must use the final PR head SHA.\n\n## Risks and constraints
 
 - `auth.tsx`, `social.tsx`, and `clubs.tsx` currently share components and utilities. Preserve public exports and test direct navigation, not just in-app links.
 - Avoid route path/loader rewrites and avoid changing behavior unrelated to loading.
