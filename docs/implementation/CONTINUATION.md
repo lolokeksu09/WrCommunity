@@ -1,22 +1,25 @@
-# WrCommunity — точка продолжения: Premium 2.0 audit (26.10.2026)
+# WrCommunity — continuation: Premium 2.0 foundation (26.10.2026)
 
-## Источник истины и последняя подтверждённая поставка
+## Confirmed main and prior milestone
 
-- Репозиторий: `lolokeksu09/WrCommunity`, `main` `2ef65bd03bd139372bfb6ae543fa59cbd480e236` до начала документационного PR.
-- [PR #40](https://github.com/lolokeksu09/WrCommunity/pull/40) опубликован, [RELEASE 40375469374](https://github.com/lolokeksu09/WrCommunity/actions/runs/40375469374) — success: API, Mobile Chromium, Docker, integration, deploy, vds-status. VDS подтвердил `active_revision=2ef65bd...`, `ready=true`, `recovery_required=false`. Desktop Chromium E2E **отключён до отдельного решения владельца**.
-- PR #40 поставил **код** редакционного наполнения (5 профилей, 3 клуба, 24 публикации), но **не запускает `--apply` автоматически**. Факт наполнения production-БД в текущей задаче не проверен. Руководство: [EDITORIAL-CONTENT.md](EDITORIAL-CONTENT.md).
-- Внешний SMTP по-прежнему требует отдельного решения перед открытым запуском; `Mailpit` — пилотный перехватчик писем, не публичная доставка.
+- Main baseline before this PR: `4ec19011c081e5e64866de72eda270d8cfbaca98`, [PR #41](https://github.com/lolokeksu09/WrCommunity/pull/41) merged, [RELEASE 40385241941](https://github.com/lolokeksu09/WrCommunity/actions/runs/40385241941) success, confirmed exact active VDS revision, `ready=true`, `recovery_required=false`.
+- Premium 2.0 original audit: [2026-10-26-premium-v2-audit.md](reviews/2026-10-26-premium-v2-audit.md). Separate app redesign **not started**. The report documented local Chromium `ERR_BLOCKED_BY_ADMINISTRATOR` and previous QA-01 smoke gap.
+- Previous editorial code has been released but actual `--apply` to production PostgreSQL **not reverified**. No statement here about how many editorial records are live. External SMTP still pending.
 
-## Текущая задача — исключительно документационный дизайн-аудит
+## Current active preparation
 
-- [PR #41](https://github.com/lolokeksu09/WrCommunity/pull/41), ветка `audit/premium-v2-local-review-2026-10-26`, база `2ef65bd03bd139372bfb6ae543fa59cbd480e236`.
-- Единый подробный [Premium 2.0 audit](reviews/2026-10-26-premium-v2-audit.md) содержит **исходную запись до просмотра** и второе дополнение с настоящими E2E/RELEASE screenshot-артефактами, bundle-метриками, ограничениями и матрицей приоритетов.
-- В архиве GitHub Actions [40382179306](https://github.com/lolokeksu09/WrCommunity/actions/runs/40382179306) были получены полный исходный snapshot и собранный `dist`; одноразовый workflow **удалён в том же PR**. Локальный статический сервер слушал `127.0.0.1:18880`; React-визуализация в Chromium **не состоялась** из-за `ERR_BLOCKED_BY_ADMINISTRATOR`, в этом окружении нет Docker/PostgreSQL/Node24. Не выдавать просмотр тестовых screenshot-файлов за интерактивный local browser review.
-- Существенная находка **QA-01**: нынешний `scripts/live-site-check.mjs` не проверяет завершение загрузки главной — RELEASE-скриншоты `home-390/1440.png` показывают «Загружаем раздел…». Это **пробел проверки**, не доказательство неисправности самого сайта. Исправление не входит в текущий docs-only PR.
-- Другие находки: большой intro above-the-fold, «Из твоей игровой карточки» и развёрнутые фильтры, тяжёлое 2/2 onboarding, однотипные карточки клубов, загрузка аватара/обложки. Никакие компоненты, API, БД, сервер или настройки CI не менялись.
+- Branch `prep/premium-v2-quality-baseline-2026-10-26`, base `4ec19011c081e5e64866de72eda270d8cfbaca98`.
+- Plan: [2026-10-26-premium-v2-preparation.md](../superpowers/plans/2026-10-26-premium-v2-preparation.md).
+- **QA-01 fixed in source:** `scripts/live-site-check.mjs` waits for a rendered feed or empty state, no spinner/error alert; captures after real content; checks JS errors. `scripts/ci/public-home-ready.mjs` and `tests/public-home-ready.test.mjs` added, 5 local tests passed on Node 22.16.0 in isolated workspace (not a full app validation).
+- **Baseline prepared:** `scripts/ci/premium-visual-baseline.mjs`, `premium-baseline-guard.mjs`, unit tests, four screen widths. Refuses production origins; only local HTTP. Guide: [PREMIUM-V2-BASELINE.md](PREMIUM-V2-BASELINE.md).
+- **Design proposal prepared:** [tokens](../design/premium-v2/tokens.json), [component contracts](../design/premium-v2/design-contract.md), [standalone four-screen comparative prototype](../design/premium-v2/premium-preview.html). No app CSS/React code consumes these files.
+- `npm test` includes all `tests/*.test.mjs` so regression checks are part of API CI. Existing test strategy stays.
+- Desktop Chromium automatic E2E remains **disabled by explicit owner decision**. User authorized preparation work but not a full redesign deployment.
+- Current execution environment cannot run full browser/app: old source archive, Node 22 instead of Node24, no local Postgres/Docker/dependencies and Chromium restrictions. Real local screenshots and performance baseline remain **not captured** until an isolated supported environment runs the new CLI.
+- No new production accounts, editorial seed or credentials touched. No API, PostgreSQL migrations, application UI or security policy changed.
 
-## Статус и следующее действие
+## Handoff and next action
 
-- Исходный аудит и его уточнения сохранены в ветке GitHub; [PR #41](https://github.com/lolokeksu09/WrCommunity/pull/41) создан как draft для сохранения промежуточного результата.
-- Перед merge: перепроверить diff `main...PR#41` — **только** `docs/implementation/reviews/2026-10-26-premium-v2-audit.md` и `docs/implementation/CONTINUATION.md`; затем при решении публиковать провести обязательный FULL exact head SHA, merge и RELEASE/VDS.
-- **Одно следующее действие:** завершить ревью документа и доказательств в PR #41, не начинать Premium 2.0 код до отдельного утверждения дизайна.
+- Review staged PR diff for only smoke/QA scripts, associated tests, package test command, candidate design docs/preview and continuation/plan.
+- Verify exact PR head via Draft FAST then Ready FULL `api-tests`, mobile Chromium, browser-tests, Docker smoke, integration, quality-gate; keep Desktop E2E off. Merge only after all required checks. Confirm main RELEASE, active VDS SHA and screenshot after content loaded.
+- **One next action after release:** run the local visual baseline in a supported Node24/Docker/Postgres/Chromium environment, inspect 20 screenshots and supply real evidence; then approve Premium 2.0 screen direction before touching live UI.
