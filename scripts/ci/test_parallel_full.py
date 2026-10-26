@@ -36,10 +36,16 @@ class ParallelFullContract(unittest.TestCase):
         self.assertIn("npm run test:e2e", browser)
         self.assertIn("WRC_E2E_WORKERS: '3'", browser)
 
-    def test_desktop_and_mobile_projects_run_on_isolated_runners(self):
+    def test_enabled_mobile_project_runs_in_isolated_runner(self):
         runner = job("browser-project")
         self.assertIn("fail-fast: false", runner)
-        self.assertIn("project: [desktop-chromium, mobile-chromium]", runner)
+        # Owner paused Desktop Chromium in automated FULL/RELEASE (2026-10-26).
+        # Restoring it requires a separate explicit owner request.
+        self.assertIn("project: [mobile-chromium]", runner)
+        self.assertNotIn("project: [desktop-chromium, mobile-chromium]", runner)
+        config = (Path(__file__).resolve().parents[2] / "scripts/playwright.config.ts").read_text(encoding="utf-8")
+        self.assertIn("name: 'desktop-chromium'", config)
+        self.assertIn("name: 'mobile-chromium'", config)
         self.assertIn("services:", runner)
         self.assertIn("postgres:", runner)
         self.assertIn("mailpit:", runner)
