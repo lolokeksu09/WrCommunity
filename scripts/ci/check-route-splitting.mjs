@@ -12,9 +12,9 @@ try{
   process.exit(1);
 }
 const entries=Object.entries(manifest);
-const mainPair=entries.find(([key])=>/(^|\/)main\.tsx$/.test(key));
+const mainPair=entries.find(([key,chunk])=>chunk.isEntry&&/(^|\/)index\.html$/.test(key))??entries.find(([key])=>/(^|\/)main\.tsx$/.test(key));
 if(!mainPair){
-  console.error('Route-splitting check could not find the web/src/main.tsx module in the Vite manifest.');
+  console.error('Route-splitting check could not find the web/index.html entry (or web/src/main.tsx module) in the Vite manifest.');
   process.exit(1);
 }
 const [mainKey,main]=mainPair;
