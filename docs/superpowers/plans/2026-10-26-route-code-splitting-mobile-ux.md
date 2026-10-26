@@ -1,37 +1,55 @@
 # WrCommunity — route code splitting and mobile loading UX
 
-**Status:** PR ready for review; FULL verification in progress.\n\n**PR:** [#37](https://github.com/lolokeksu09/WrCommunity/pull/37)\n\n**PR:** [#37](https://github.com/lolokeksu09/WrCommunity/pull/37)  
-**Base SHA:** `3bcf29661f3f5ac4c93580ee31c485cefd3cda5e`  
-**Working branch:** `perf/route-splitting-mobile-ux-2026-10-26`  
-**Scope:** frontend performance and loading UX only; no API, database, auth-policy, or production-data changes.
+**Status:** PR #37 is ready for review; Docker build-context fix is included in the latest commit and must be verified by FULL CI.
+
+- **PR:** [#37](https://github.com/lolokeksu09/WrCommunity/pull/37)
+- **Base SHA:** `3bcf29661f3f5ac4c93580ee31c485cefd3cda5e`
+- **Working branch:** `perf/route-splitting-mobile-ux-2026-10-26`
+- **Scope:** frontend performance and loading UX only; no API, database, auth-policy, or production-data changes.
 
 ## Findings
 
-- `web/src/main.tsx` statically imports route components from social, clubs, LFG/events, moderation/notifications, profile editor, and auth pages. This makes unrelated feature modules part of the initial dependency graph.
-- `Shell` also imports reset helpers from feature modules, preventing some of those modules from being deferred.
-- The app already has mobile navigation, safe-area padding, and reduced-motion support; preserve these contracts.
+- `web/src/main.tsx` statically imported page components from social, clubs, LFG/events, notifications, profile editor and auth pages.
+- Shell reset helpers pulled editor modules into the initial dependency graph.
+- The app already uses mobile navigation, safe-area padding and reduced-motion support; preserve those contracts.
+- After adding the bundle guard to `build:web`, Docker smoke revealed that the build stage copied only `scripts/copy-migrations.mjs`; it did not copy the new `scripts/ci/check-route-splitting.mjs`.
 
-## Changes
+## Changes implemented
 
-1. Extract the profile-editor draft reset map into a small state module so the reset operation remains synchronous without importing the editor UI into the entry bundle.
-2. Move the shared `Gate`/`useSession` helpers into `web/src/auth-session.tsx`; retain re-exports from `auth.tsx` for compatibility and point internal shared-helper imports at the small module.
-3. Convert route page modules in `web/src/main.tsx` to typed React lazy imports. Keep route loaders, paths, redirects, and error boundaries unchanged.
-4. Add an accessible in-content Suspense fallback that preserves the app shell/navigation while a route chunk loads, and honors reduced-motion settings. Add a mobile E2E regression that deliberately delays the clubs chunk and checks the fallback/nav.
-5. Emit Vite's build manifest and add a CI-enforced bundle check that verifies the heavy route modules are direct dynamic imports and reports initial entry raw/gzip bytes. Do not invent a hard byte budget without a measured baseline.
-6. Update the UI guideline check only if needed, and update continuation/status notes with exact SHA and verification evidence.
+1. Split 47 route page component exports into typed `React.lazy` imports. Paths, loaders, redirects and route error boundaries remain unchanged.
+2. Moved `Gate`/`useSession` into `web/src/auth-session.tsx`; `auth.tsx` preserves the existing re-exports.
+3. Moved the profile editor's draft baseline map/reset into `web/src/profile-editor-state.ts`, keeping account-switch reset synchronous.
+4. Added an accessible in-content Suspense fallback; shell and mobile navigation remain visible while route chunks load.
+5. Enabled the Vite manifest and added `npm run check:bundle`. The check verifies nine heavy feature modules are dynamic imports and reports initial entry raw/gzip size.
+6. Added an L2 mobile E2E regression in `tests/e2e/mobile-create-navigation.spec.ts`: delays the clubs JS chunk, then checks the loading status, persistent mobile navigation and no horizontal overflow.
+7. Added the bundle-check script to the Docker build stage so `npm run build` can run inside the container.
+
+## Measured bundle result
+
+- **Before:** [CI 40339802596](https://github.com/lolokeksu09/WrCommunity/actions/runs/40339802596), SHA `43b953e17bada1f4eafcad2a2cdc5b425b0fa5ef` — Vite entry JS `811.76 kB` raw / `224.00 kB` gzip.
+- **After:** [CI 40349035716](https://github.com/lolokeksu09/WrCommunity/actions/runs/40349035716), SHA `1b591118dcd9f8db315dfb698d8b6e6e52a66935` — Vite entry JS `357.77 kB` raw / `112.52 kB` gzip.
+- Initial entry reduction: approximately **55.9% raw** and **49.8% gzip**. This is a bundle-size comparison, not a claim of an equal percentage improvement in real-world page-load time.
+
+## Verification snapshot
+
+- FAST [40349693137](https://github.com/lolokeksu09/WrCommunity/actions/runs/40349693137) passed on SHA `1e558727a6e3a12aed8369681442b2b852389008`: secret scan, UI guideline check, typecheck, production build, bundle guard and server build.
+- FULL [40349858840](https://github.com/lolokeksu09/WrCommunity/actions/runs/40349858840) on that earlier SHA failed `docker-smoke`. The log confirmed `Cannot find module '/app/scripts/ci/check-route-splitting.mjs'`. The Dockerfile now copies the script; require a new FULL run on the latest SHA before merge.
+- Local build and manual visual inspection were not performed in this environment. CI browser evidence is not a substitute claim for manual visual review.
 
 ## Acceptance
 
-- [x] `main.tsx` now uses typed lazy imports for 47 page component exports; `Gate`/`useSession` and profile-editor reset state are separated from page-heavy modules.
-- [x] Vite emits a manifest; `npm run check:bundle` verified 9 dynamic route modules on CI run [40348748214](https://github.com/lolokeksu09/WrCommunity/actions/runs/40348748214). The size reporter now uses Node's default gzip settings. Final draft FAST [40349035716](https://github.com/lolokeksu09/WrCommunity/actions/runs/40349035716) also passed on SHA `1b591118dcd9f8db315dfb698d8b6e6e52a66935`; the check reports `357774` raw / `111411` gzip bytes.
-- [ ] `npm run typecheck`, `npm run check:ui`, `npm run build`, and relevant mobile/desktop E2E checks pass on the final PR head, including the delayed-chunk navigation regression.
-- [ ] Existing routes, loader data, auth redirects, draft reset behavior, and error boundaries remain unchanged.
-- [x] Mobile route loading has an accessible Suspense status while the shell/nav remain mounted; the spinner uses existing global reduced-motion handling.
-- [ ] No local visual review is claimed unless actually run; if local browser setup is unavailable, record the reason and rely on CI artifacts as an explicitly limited alternative.
-- [ ] PR FULL passes before merge; after merge, verify RELEASE, deploy, strict HTTPS, and `vds-status` for the exact merge SHA.
+- [x] Route page components are lazy-loaded and shared reset/session helpers no longer force feature-page modules into the entry bundle.
+- [x] Bundle guard verifies nine dynamic feature modules and reports entry size.
+- [x] Mobile fallback is accessible and preserves shell/navigation.
+- [x] Delayed-chunk mobile E2E regression is added and registered as L2/navigation.
+- [x] Docker build stage copies the bundle-check script.
+- [ ] FAST succeeds on the latest PR head.
+- [ ] FULL succeeds on the latest PR head: API, desktop/mobile Chromium, browser-tests, integration, docker-smoke and quality-gate.
+- [ ] Review desktop/mobile browser evidence and confirm the new delayed-chunk scenario passes.
+- [ ] After merge, verify RELEASE, deploy, strict HTTPS and vds-status on the exact merge SHA.
 
-## Implementation snapshot\n\n- Code split commit: `26331930246e7b88df0254ff2258cef1fb388e6b` (route component lazy imports and shared session/reset helpers).\n- Bundle guard/config/mobile fallback commit: `1763e09e93ff3f0a2fa2a60bed97ac106d89294a`.\n- Initial FAST at that SHA failed during `npm run build`; the failing job logs were not available from the connector. Inspection confirmed Vite uses `web/index.html` as the HTML entry. The guard now prefers the `index.html` entry and falls back to the `main.tsx` module, accommodating both manifest shapes; verify this fix on the new SHA.\n- PR [#37](https://github.com/lolokeksu09/WrCommunity/pull/37) is Ready for review. FAST succeeded on SHA `1e558727a6e3a12aed8369681442b2b852389008`; a full run [40349858840](https://github.com/lolokeksu09/WrCommunity/actions/runs/40349858840) started on that SHA. This documentation update changes the head, so require FULL on the new SHA before merge.\n\n## Measured bundle result\n\n- Baseline before splitting: [CI 40339802596](https://github.com/lolokeksu09/WrCommunity/actions/runs/40339802596), SHA `43b953e17bada1f4eafcad2a2cdc5b425b0fa5ef`: Vite entry JS `811.76 kB` raw / `224.00 kB` gzip.\n- After splitting: [CI 40348748214](https://github.com/lolokeksu09/WrCommunity/actions/runs/40348748214), SHA `fd067ff1f08bba8b07406bfe8f18b57a20054afb`: Vite entry JS `357.77 kB` raw / `112.52 kB` gzip.\n- Change in initial JS entry: approximately **55.9% less raw** and **49.8% less gzip**. This is a comparison of build output sizes, not a claim of the same percentage improvement in real-world page load time.\n\n## Verification snapshot\n\n- FAST [40349035716](https://github.com/lolokeksu09/WrCommunity/actions/runs/40349035716) passed on SHA `1b591118dcd9f8db315dfb698d8b6e6e52a66935`: secret check, UI guidelines, typecheck, production build, bundle guard, server build. FULL browser/API suites have not yet run for this PR because it is still draft.\n- Local visual inspection was not performed in this environment; rely on CI browser evidence after marking the PR ready, and report this limitation honestly.\n\n## Risks and constraints
+## Risks and constraints
 
-- `auth.tsx`, `social.tsx`, and `clubs.tsx` currently share components and utilities. Preserve public exports and test direct navigation, not just in-app links.
-- Avoid route path/loader rewrites and avoid changing behavior unrelated to loading.
-- No production data, secrets, or VDS configuration should be touched.
+- `auth.tsx`, `social.tsx`, `clubs.tsx` and LFG modules share dependencies; preserve exports and direct-navigation behavior.
+- Do not change route paths, API contracts, authorization policy, schema or production configuration.
+- Do not merge if any required FULL job is skipped, pending, cancelled or failed.

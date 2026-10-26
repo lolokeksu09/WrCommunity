@@ -7,6 +7,7 @@ COPY web ./web
 COPY server ./server
 COPY shared ./shared
 COPY scripts/copy-migrations.mjs ./scripts/copy-migrations.mjs
+COPY scripts/ci/check-route-splitting.mjs ./scripts/ci/check-route-splitting.mjs
 RUN npm run build && npm prune --omit=dev && npm cache clean --force
 
 FROM node:24.22.1-bookworm-slim AS runtime
