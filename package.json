@@ -16,7 +16,7 @@
     "build:web": "vite build --config web/vite.config.ts && npm run check:bundle",
     "build:server": "tsc -p tsconfig.server.json && node scripts/copy-migrations.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p web/tsconfig.json",
-    "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
+    "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts && node --test tests/editorial-seed.test.mjs",
     "test:e2e": "playwright test --config scripts/playwright.config.ts",
     "test:l1": "python3 -m unittest discover -s scripts/ci -p 'test_*.py' -v",
     "test:l2": "node scripts/ci/select-e2e.mjs L2",
