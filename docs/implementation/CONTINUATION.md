@@ -21,7 +21,7 @@
 
 ## Следующее действие
 
-1. Проверить последний HEAD PR #37 и дождаться FULL именно на нём: `api-tests`, desktop/mobile `browser-project`, `browser-tests`, `integration`, `docker-smoke`, `quality-gate` — все success.
+1. Проверить последний HEAD PR #37 и дождаться FULL именно на нём: `api-tests`, **включённый mobile** `browser-project`, `browser-tests`, `integration`, `docker-smoke`, `quality-gate` — все success. Desktop временно выключен по решению владельца.
 2. Проверить новый mobile delayed-chunk E2E и browser artifacts.
 3. При зелёном FULL сверить protection rules и объединить PR с expected head SHA.
 4. После merge проверить RELEASE, deploy, строгий HTTPS и vds-status на точном merge SHA.
@@ -33,3 +33,11 @@
 - Исправление в этом этапе: `await expect(more).toBeVisible()` до цикла догрузки. Оно должно дать корректную диагностику реального поведения. Проверить новым FULL на актуальном SHA; пока не заявлять успешное исправление.
 - `main` остаётся на доставленном `3bcf29661f3f5ac4c93580ee31c485cefd3cda5e` до зелёного FULL и отдельного RELEASE.
 - Полный FULL обязателен перед merge; для промежуточных правок предпочитать целевые тесты и Draft FAST. Не сокращать покрытие путём отключения упавшего сценария.
+
+## Новое указание владельца — временно без Desktop (26.10.2026)
+
+- Владелец потребовал не запускать отдельный Desktop Chromium E2E до следующего явного указания. Это переопределяет прежнюю политику обязательной desktop job для будущих CI-запусков; **не удалять** Playwright desktop project и тесты.
+- Изменения в PR #37: CI matrix только `mobile-chromium`, browser-tests подтверждает активный mobile runner; AGENTS/TESTING-STRATEGY синхронизированы, добавлен L1 guard. Обязательные `api-tests`, `docker-smoke`, `integration`, `quality-gate` не отключаются.
+- Предыдущий FULL [40353885484](https://github.com/lolokeksu09/WrCommunity/actions/runs/40353885484) для `20856ae61d66ec73d813d45bed59743dd5027606` был в процессе: API, mobile, Docker = success; desktop установка Chromium затянулась. После коммита с новым режимом требуется новый FULL на точном SHA; старые результаты не дают права merge.
+- Публичный read-only RELEASE smoke по HTTPS (390/1440px) остаётся включённым; это не отдельный desktop E2E suite. Desktop-регрессионное покрытие временно снижается.
+- Следующее действие: проверить CI для нового коммита, затем после обязательного FULL принять решение о merge PR #37; до зелёного FULL `main` не изменять.

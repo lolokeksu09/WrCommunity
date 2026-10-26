@@ -15,6 +15,13 @@ class PlaywrightWorkerReserve(unittest.TestCase):
         self.assertIn("fullyParallel: false", CONFIG)
         self.assertIn("retries: process.env.CI ? 1 : 0", CONFIG)
 
+    def test_owner_paused_desktop_in_automatic_ci(self):
+        # The desktop suite remains available for deliberate reactivation, not scheduled CI.
+        self.assertIn("project: [mobile-chromium]", WORKFLOW)
+        self.assertNotIn("project: [desktop-chromium, mobile-chromium]", WORKFLOW)
+        self.assertIn("Require enabled mobile Playwright project", WORKFLOW)
+        self.assertIn("Mobile browser project passed", WORKFLOW)
+
     def test_bounded_worker_override_only_for_browser_acceptance(self):
         browser = WORKFLOW.split("      - name: Browser acceptance checks", 1)[1]
         self.assertRegex(browser, r"WRC_E2E_WORKERS: \'(?:2|3)\'")

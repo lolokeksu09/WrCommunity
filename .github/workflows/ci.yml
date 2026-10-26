@@ -98,7 +98,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        project: [desktop-chromium, mobile-chromium]
+        # Temporarily mobile-only per owner decision (2026-10-26); do not restore desktop without explicit request.
+        project: [mobile-chromium]
     services:
       postgres:
         image: postgres:18.6-bookworm
@@ -160,16 +161,16 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     steps:
-      - name: Require both Playwright projects to complete successfully
+      - name: Require enabled mobile Playwright project to complete successfully
         env:
           BROWSER_PROJECT_RESULT: ${{ needs.browser-project.result }}
         shell: bash
         run: |
           if [[ "$BROWSER_PROJECT_RESULT" != "success" ]]; then
-            echo "::error::FULL requires desktop and mobile Playwright suites to succeed."
+            echo "::error::FULL requires the enabled mobile Playwright suite to succeed."
             exit 1
           fi
-          echo "Both browser project shards passed."
+          echo "Mobile browser project passed (desktop suite temporarily disabled by owner)."
 
   integration:
     name: integration
