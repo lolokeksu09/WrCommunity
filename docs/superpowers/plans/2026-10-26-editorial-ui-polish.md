@@ -1,7 +1,7 @@
 # WrCommunity — Editorial UI polish, pass 1 (26 October 2026)
 
 - **Base:** `9e19957c0e145e457eb157f89e851f284cd3ad63` after merged PR #37.
-- **Branch:** `design/editorial-polish-2026-10-26`.
+- **Branch:** `design/editorial-polish-2026-10-26`.\n- **Draft PR:** [#39](https://github.com/lolokeksu09/WrCommunity/pull/39).
 - **Scope:** current React site, CSS and documentation only. No new routes, fake content, server/API/security changes or changes to desktop E2E policy.
 - **Source of design direction:** approved v6 Editorial Social, dark restrained palette, readable content first, compact discoveries, club/LFG in 1–2 taps.
 - **Visual evidence:** checked committed screenshots `docs/evidence/screens/home-390.png`, `home-1440.png`, `club-390.png`, `lfg-390.png`, `login-390.png`, `profile-390.png`, `empty-390.png`; these are historical test screenshots, not a verified capture of today's VDS or the new patch. Cross-checked with `web/src/styles.css`, `web/src/main.tsx`, `web/src/social.tsx`.
