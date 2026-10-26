@@ -25,3 +25,8 @@ Base `c0d8eeee76a04cc79c490bbc4c46a37d8e4d6219`; branch `content/editorial-launc
 - Editor personas must not be counted as real users. Content may become stale; content is evergreen by design.
 - Operator needs root/control of production Docker environment. Do not place DB passwords or tokens in chat or Git.
 
+
+## Implementation status
+
+- One-shot script, test cases, Docker image copy and editorial provenance UI coded in dedicated branch. Await exact-sha FAST and FULL.
+- Server returns editorial provenance only for internally non-login records; public display badges and tonal monograms follow this signal.

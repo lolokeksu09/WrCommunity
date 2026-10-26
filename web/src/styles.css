@@ -390,3 +390,6 @@
     padding-block: 26px 29px;
   }
 }
+
+/* Editorial showcase accounts are explicit content from the WrCommunity team. */
+.editorial-author{display:inline-flex;align-items:center;gap:7px;flex-wrap:wrap;max-width:100%;min-width:0}.editorial-author .author{max-width:100%}.editorial-badge{display:inline-flex;align-items:center;padding:2px 6px;border:1px solid #607a9b;border-radius:5px;color:#d5e5fa;background:#1b2d42;font-size:10.5px;line-height:1.5;font-weight:650}.editorial-avatar{font-weight:800;letter-spacing:-.06em;text-shadow:0 1px 8px #0005}.editorial-avatar-jungle{background:linear-gradient(145deg,#326456,#101e26);border-color:#61998c;color:#dcf6de}.editorial-avatar-mid{background:linear-gradient(145deg,#57518e,#1a1c30);border-color:#878dc5;color:#e4e3ff}.editorial-avatar-support{background:linear-gradient(145deg,#6c526f,#271d30);border-color:#aa83ac;color:#f9dff7}.editorial-avatar-macro{background:linear-gradient(145deg,#315e81,#121e31);border-color:#739eca;color:#dbedff}.editorial-avatar-team{background:linear-gradient(145deg,#85674a,#221d25);border-color:#bd9978;color:#fff0da}

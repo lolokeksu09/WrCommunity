@@ -9,10 +9,10 @@ export async function lockPairs(tx:PoolClient, pairs:Array<[string,string]>):Pro
 }
 export async function authorDTO(authorId:string|null,viewerId:string|null,tx?:PoolClient){
  if(!authorId) return {id:null,handle:null,display_name:'Удалённый участник',avatar_url:null,profile_url:null};
- const a=await one<{id:string;handle:string;display_name:string;visibility:string;status:string;avatar_id:string|null}>('SELECT id,handle,display_name,visibility,status,avatar_id FROM users WHERE id=$1',[authorId],tx);
+ const a=await one<{id:string;handle:string;display_name:string;visibility:string;status:string;avatar_id:string|null;editorial:boolean}>("SELECT id,handle,display_name,visibility,status,avatar_id,(password_hash='!wrc-editorial-no-login-v1' AND email LIKE '%@example.invalid') AS editorial FROM users WHERE id=$1",[authorId],tx);
  if(!a || a.status==='deleted') return {id:null,handle:null,display_name:'Удалённый участник',avatar_url:null,profile_url:null};
  if(a.visibility!=='public' && viewerId!==a.id) return {id:null,handle:a.handle,display_name:a.display_name,avatar_url:null,profile_url:null};
- return {id:a.id,handle:a.handle,display_name:a.display_name,avatar_url:mediaURL(a.avatar_id),profile_url:`/profiles/${a.id}`};
+ return {id:a.id,handle:a.handle,display_name:a.display_name,avatar_url:mediaURL(a.avatar_id),profile_url:`/profiles/${a.id}`,editorial:a.editorial};
 }
 const commentVisibility=`c.state='published' AND (c.author_id IS NULL OR u.status IN ('active','deleted')) AND ($2::uuid IS NULL OR NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$2 AND b.blocked_id=c.author_id) OR (b.blocked_id=$2 AND b.blocker_id=c.author_id)))`;
 export async function visibleComments(postId:string,viewerId:string|null,tx?:PoolClient,options:{limit?:number;cursor?:[string,string]|null;id?:string}={}){
