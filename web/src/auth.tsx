@@ -5,7 +5,7 @@ import {type FormEvent} from 'react';
 import {Link,useLoaderData,useNavigate} from 'react-router-dom';
 import {Bookmark,Eye,Gamepad2,Globe,Lock,LogOut,Settings,ShieldCheck,UserRound,Users} from 'lucide-react';
 import {api,collection,mediaUrl,session,type Profile,type Viewer} from './api';
-import {ApiButton,AuthRequired,Avatar,CheckField,ConfirmButton,Empty,Feedback,Field,MenuLink,PageHeading,Select,Submit,date,draftValue,formValues,isChecked,splitValues,textValue,useFormDraft,useTask} from './ui';
+import {ApiButton,Avatar,CheckField,ConfirmButton,Empty,Feedback,Field,MenuLink,PageHeading,Select,Submit,date,draftValue,formValues,isChecked,splitValues,textValue,useFormDraft,useTask} from './ui';
 export {Gate,useSession};
 export function MyProfile(){
  const {user}=useSession();const profile=useLoaderData() as Profile;

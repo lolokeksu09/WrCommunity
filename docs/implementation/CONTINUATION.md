@@ -1,25 +1,29 @@
 # Продолжение работы WrCommunity
 
-Перед изменениями прочитать [AGENTS](../../AGENTS.md), сверить фактический `main`, открытый PR и CI. Это снимок разработки **до merge**; итоговые SHA релиза и VDS подтверждаются в описании объединённого PR.
+Перед изменениями прочитать [AGENTS](../../AGENTS.md), сверить фактический `main`, открытые PR и CI.
 
-## Последняя завершённая функциональная поставка
+## Последняя завершённая поставка
 
-- [PR #35](https://github.com/lolokeksu09/WrCommunity/pull/35) объединён 25.10.2026. `main` и VDS после доставки совпадали: `e3ddd73cfdb31c191992b8ca3497936f6ac07ae1`.
-- [RELEASE 40192597288](https://github.com/lolokeksu09/WrCommunity/actions/runs/40192597288): success (API 65/65, desktop/mobile, Docker, браузерная интеграция); deploy и vds-status success. Проверены строгий HTTPS, вход и главная на мобильном и desktop. Это историческая проверка, не гарантия текущей доступности.
-- Доставлены исправления истории уведомлений, очереди жалоб, формы профиля, регистрации, аватара и обложки. Повторять PR #35 не нужно. [Подробный отчёт](https://github.com/lolokeksu09/WrCommunity/pull/35).
-- PR #34 и более ранние этапы завершены, их исторические результаты остаются в описаниях соответствующих PR.
+- [PR #36](https://github.com/lolokeksu09/WrCommunity/pull/36) объединён 26.10.2026. Текущий `main` на момент продолжения: `3bcf29661f3f5ac4c93580ee31c485cefd3cda5e`.
+- [RELEASE 40344941160](https://github.com/lolokeksu09/WrCommunity/actions/runs/40344941160): API, desktop/mobile Chromium, browser-tests, integration и Docker smoke — success; deploy и vds-status — success. В deploy job также прошла браузерная проверка публичного сайта со строгим TLS. Quality-gate на push в main skipped ожидаемо, поскольку это PR-only job.
+- PR #36 добавил явные размеры изображений, перенос длинного текста, `npm run check:ui` и обновил документацию. Повторять его не нужно.
 
-## Текущая задача: завершение аудита интерфейса — PR #36
+## Текущая задача: route code splitting + mobile loading UX
 
-- [PR #36](https://github.com/lolokeksu09/WrCommunity/pull/36), рабочая ветка `feature/audit-followup-2026-10-26`, база `main` на начало патча: `e3ddd73cfdb31c191992b8ca3497936f6ac07ae1`.
-- [План](../superpowers/plans/2026-10-26-audit-followup.md) сохранён до исправлений (имя файла сверять с деревом PR при следующем продолжении).
-- Готово: явные размеры пользовательских изображений, перенос текста без разрыва обычных слов, статическая проверка `npm run check:ui` в CI, обновление инструкции проверки и дорожной карты. Схема БД, API, приватность, VDS и production-секреты не менялись.
-- На `b0eb310a84fb937edf818d6e1ecd2b5a5a59d4bc` полный [CI 40336856177](https://github.com/lolokeksu09/WrCommunity/actions/runs/40336856177) завершился success: `api-tests`, desktop/mobile `browser-project`, `browser-tests`, `integration`, `docker-smoke`, `quality-gate`. После этого SHA сделано документальное обновление: **CI предыдущего SHA не разрешает merge нового head**.
-- Прямой локальный визуальный просмотр новой сборки и снимки в текущей сессии не выполнялись; зелёные браузерные проверки CI не следует выдавать за ручной просмотр.
+- План: [2026-10-26-route-code-splitting-mobile-ux.md](../superpowers/plans/2026-10-26-route-code-splitting-mobile-ux.md).
+- PR: [#37](https://github.com/lolokeksu09/WrCommunity/pull/37), draft.
+- Ветка: `perf/route-splitting-mobile-ux-2026-10-26`.
+- База: `3bcf29661f3f5ac4c93580ee31c485cefd3cda5e`.
+- Последний кодовый коммит: `26331930246e7b88df0254ff2258cef1fb388e6b` — typed lazy imports для 47 page component exports; `Gate`/`useSession` вынесены в `auth-session.tsx`; сброс профиля — в `profile-editor-state.ts`.
+- Коммит bundle guard/UI fallback: `1763e09e93ff3f0a2fa2a60bed97ac106d89294a` — Vite manifest, `npm run check:bundle`, проверка 9 динамических route modules и доступный Suspense fallback, сохраняющий оболочку/навигацию.
+- Текущий CI [40348065024](https://github.com/lolokeksu09/WrCommunity/actions/runs/40348065024) выполняется на SHA `1763e09e93ff3f0a2fa2a60bed97ac106d89294a`; после этого документационного коммита нужно проверить CI уже для нового HEAD.
+- Локальный build и ручной визуальный просмотр в этой среде не выполнялись. Не заявлять снижение размера в процентах до получения baseline; bundle check должен вывести фактические raw/gzip размеры на новом build.
+- API, БД, серверные маршруты, политика авторизации и production-конфигурация не меняются.
 
-## Первое незавершённое действие
+## Следующее действие
 
-1. Сверить последний head PR #36 и `main` после документального коммита, затем дождаться FULL именно для этого head; проверить все обязательные jobs без skipped/failure.
-2. При успешном FULL проверить protection/ruleset, выполнить expected-head merge PR #36 и подтвердить точный SHA merge.
-3. Проверить RELEASE на точном SHA `main`, deploy, строгий HTTPS, `vds-status`. Зафиксировать результат в описании PR; не выдавать старый статус VDS за новый.
-4. Следующие отдельные направления: измерить размер JS-бандла и скорость загрузки; затем компактное завершение онбординга и удобство длинной игровой формы. Любые новые продуктовые модули требуют утверждённой спецификации. Публичный запуск дополнительно зависит от внешней почты, домена, правил UGC, юридических и эксплуатационных решений из [STATUS](STATUS.md).
+1. Убедиться, что все внутренние импорты `Gate`/`useSession` используют лёгкий модуль и нет неиспользуемых импортов.
+2. Проверить FAST на точном последнем SHA: typecheck, UI check, build и bundle guard; исправить все ошибки.
+3. После FAST отметить PR #37 ready и дождаться полного FULL: API, desktop/mobile Chromium, browser-tests, integration, docker-smoke, quality-gate — все success на одном head.
+4. Просмотреть CI browser evidence и проверить навигацию/loader/redirect на мобильном и desktop. Если ручной локальный просмотр недоступен, описать фактическую альтернативу.
+5. После merge проверить RELEASE, deploy, строгий HTTPS и vds-status на точном merge SHA. Не смешивать зелёный PR CI с фактом публикации.
