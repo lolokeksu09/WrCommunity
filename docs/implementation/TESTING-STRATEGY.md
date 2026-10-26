@@ -12,9 +12,11 @@
 2. **FULL (Ready PR):** последний SHA ветки должен пройти `integration`, `docker-smoke` и `quality-gate` со статусом именно **success**. Перевод из Draft в Ready запускает FULL заново. Не сливать при pending, skipped, failure или cancelled у любой FULL job. Число тестов изменяется вместе с проектом.
 3. **RELEASE (после merge в `main`):** ещё раз дождаться проверок для **точного merge SHA**, затем `deploy` и `vds-status`. Проверить публичный HTTPS и соответствие активной ревизии. При выключенном `WRC_DEPLOY_ENABLED` или пропуске job не заявлять, что деплой состоялся.
 
-**Реализация CI:** [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) автоматически выбирает этап по **состоянию PR**, а не по догадкам о затронутых файлах. В **Draft PR** запускается job `fast` (проверка регламента CI, секретов, TypeScript и сборки), а `api-tests`/`browser-project`/`browser-tests`/`integration`/`docker-smoke` не запускаются. После перевода в **Ready for review**, повторного открытия или нового коммита в готовый PR параллельно запускаются `api-tests`, **две матричные jobs `browser-project`** (`desktop-chromium` и `mobile-chromium`, отдельные test PostgreSQL/Mailpit) и `docker-smoke`; затем `browser-tests` требует успеха обеих матричных jobs, а `integration` — успеха `api-tests` и `browser-tests`. Постоянно исполняемый для PR job `quality-gate` проверяет результаты соответствующего этапа и завершается ошибкой при неверном/неуспешном наборе. При push в `main` выполняются прежние FULL-проверки, после которых возможны `deploy` и `vds-status`. На 25.10.2026 required checks integration/docker-smoke/quality-gate подтверждены активным ruleset 25793011. Перед каждым merge фактические правила и все исходные FULL jobs проверяются заново по AGENTS.
+**Временное решение владельца от 26.10.2026:** автоматический Desktop Chromium отключён **до отдельного распоряжения владельца**. В `.github/workflows/ci.yml` FULL и RELEASE запускают только `browser-project (mobile-chromium)`; `browser-tests` и `integration` требуют его успеха вместе с API. `docker-smoke`, `quality-gate` (для PR), миграции, проверки безопасности и публикации остаются обязательными. Desktop-сценарии и Playwright-конфигурация **не удаляются**; повторно включать Desktop без явного запроса запрещено. Отсутствие отдельной desktop job в этом режиме ожидаемо, а не успех тестирования Desktop. Публичный read-only smoke релиза с проверкой TLS на 390/1440 px сохраняется: это не отдельный Desktop E2E suite. Эта временная настройка снижает desktop-регрессионное покрытие.
 
-Регрессии надёжности PR #35: `tests/community-reliability.test.ts` проверяет историю/счётчик и ACL уведомлений, очередь/материалы жалоб и безопасные ошибки полей. Два сценария `tests/e2e/community-reliability.spec.ts` зарегистрированы как L3 moderation/forms и выполняются в desktop/mobile; они дополнительно проверяют сохранение исходного снимка профиля при loader revalidation и переходах между маршрутами, явное разрешение конфликта и nullable-медиа. Локальная PGlite-проверка не заменяет конкурентность штатного PostgreSQL в CI.
+**Реализация CI:** [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) автоматически выбирает этап по **состоянию PR**. В Draft PR выполняется `fast` (L1, секреты, UI, TypeScript и build). В Ready PR параллельно выполняются `api-tests`, **одна** `browser-project (mobile-chromium)` с отдельными test PostgreSQL/Mailpit и `docker-smoke`; затем `browser-tests` проверяет mobile job, `integration` — API и browser-tests, а `quality-gate` — успешность набора. При push в `main` запускается та же мобильная FULL-схема перед deploy/vds-status. Required checks в активном ruleset 25793011: `integration`, `docker-smoke`, `quality-gate` (последний PR-only). Перед merge сверять фактические правила и *только включённые* обязательные проверки на точном head SHA.
+
+Регрессии надёжности PR #35: `tests/community-reliability.test.ts` проверяет историю/счётчик и ACL уведомлений, очередь/материалы жалоб и безопасные ошибки полей. Два сценария `tests/e2e/community-reliability.spec.ts` зарегистрированы как L3 moderation/forms и в период приостановки Desktop выполняются в mobile CI; они дополнительно проверяют сохранение исходного снимка профиля при loader revalidation и переходах между маршрутами, явное разрешение конфликта и nullable-медиа. Локальная PGlite-проверка не заменяет конкурентность штатного PostgreSQL в CI.
 
 ## 2. Правило классификации изменений
 
@@ -57,10 +59,10 @@ node --env-file=.env.test --import tsx --test --test-concurrency=1 tests/social.
 
 ```bash
 node --env-file=.env.test node_modules/@playwright/test/cli.js test tests/e2e/notification-quick-read.spec.ts --config scripts/playwright.config.ts --project=mobile-chromium
-node --env-file=.env.test node_modules/@playwright/test/cli.js test tests/e2e/comment-thread-usability.spec.ts --config scripts/playwright.config.ts --project=desktop-chromium
+node --env-file=.env.test node_modules/@playwright/test/cli.js test tests/e2e/comment-thread-usability.spec.ts --config scripts/playwright.config.ts --project=mobile-chromium
 ```
 
-Без `--project` тест запускается для **обоих** проектов: `desktop-chromium` и `mobile-chromium`. [`scripts/playwright.config.ts`](../../scripts/playwright.config.ts) задаёт **1 worker локально**, **2 по умолчанию в CI** и **3 в полном CI** через `WRC_E2E_WORKERS=3`, при этом `fullyParallel: false` сохраняет последовательность сценариев внутри каждого spec-файла. В CI сохранён один повтор при неуспехе. Дальнейшее увеличение параллелизма требует отдельной проверки на общие данные PostgreSQL и Mailpit.
+При ручном запуске **явно указывай `--project=mobile-chromium`**, пока Desktop приостановлен владельцем; без `--project` сама Playwright-конфигурация по-прежнему включает оба проекта (для будущего восстановления). [`scripts/playwright.config.ts`](../../scripts/playwright.config.ts) задаёт **1 worker локально**, **2 по умолчанию в CI** и **3 в полном CI** через `WRC_E2E_WORKERS=3`, при этом `fullyParallel: false` сохраняет последовательность сценариев внутри каждого spec-файла. В CI сохранён один повтор при неуспехе. Дальнейшее увеличение параллелизма требует отдельной проверки на общие данные PostgreSQL и Mailpit.
 
 **Перед запуском E2E** требуются рабочие test PostgreSQL и применённые миграции, собранный web/server, корректные тестовые переменные окружения. Playwright по умолчанию поднимает `npm start` (если `E2E_BASE_URL` не задан); локальный рецепт задаёт `E2E_BASE_URL` и запускает тестовый API отдельно; сценарии email/уведомлений/очередей дополнительно требуют `npm run start:worker` и Mailpit. Просто выполнить указанные две команды на чистой машине **недостаточно** — использовать окружение, воспроизводящее одну из `browser-project` jobs из CI. Не подключать E2E к production-БД.
 
@@ -118,13 +120,13 @@ npm run backup:verify
 | GitHub событие | Выполняемые проверки | Условие перехода |
 |---|---|---|
 | Новый Draft PR / новый commit в Draft | `fast` + `quality-gate`, без полного набора | Агент вручную запускает нужные целевые сценарии и переводит PR в Ready только после завершения изменения |
-| `ready_for_review`, `opened` как Ready, `reopened` как Ready, `synchronize` как Ready | `api-tests` + 2 × `browser-project` + `browser-tests` + `integration` + `docker-smoke` + `quality-gate` | Только `success` всех FULL jobs на актуальном SHA разрешает merge |
+| `ready_for_review`, `opened` как Ready, `reopened` как Ready, `synchronize` как Ready | `api-tests` + `browser-project (mobile-chromium)` + `browser-tests` + `integration` + `docker-smoke` + `quality-gate` | Только `success` всех FULL jobs на актуальном SHA разрешает merge |
 | `converted_to_draft` | Снова `fast` + `quality-gate` | Draft не допускается к слиянию |
-| `push` в `main` | FULL (`api-tests`, 2 × `browser-project`, агрегаторы `browser-tests`/`integration`, `docker-smoke`), затем возможны `deploy` и `vds-status` | Нужна подтверждённая публичная проверка и активный SHA |
+| `push` в `main` | FULL (`api-tests`, `browser-project (mobile-chromium)`, агрегаторы `browser-tests`/`integration`, `docker-smoke`), затем возможны `deploy` и `vds-status` | Нужна подтверждённая публичная проверка и активный SHA |
 
 **Технические гарантии:** `quality-gate` исполняется через `if: always()`, проверяет состояния зависимых jobs и завершается с кодом 1 при несоответствии этапа. Действующий деплой по-прежнему имеет `needs: [integration, docker-smoke]` и привязку к `github.sha`; проверки SSH, TLS, приватности и бэкапов не меняются. Набор инвариантов закреплён в `scripts/ci/test_ci_stages.py` (Python stdlib) и исполняется в FAST и FULL.
 
-**Ограничение доступа:** только администратор репозитория может подтвердить и включить обязательный check `quality-gate` и запрет обхода в Branch protection / Rulesets. GitHub считает условно пропущенные jobs успешными для некоторых настроек required checks. Поэтому без такой настройки **нельзя** обещать технически гарантированную блокировку merge; агенты обязаны соблюдать ручной fail-closed контроль FULL. Для ускорения FULL используется ограниченный параллелизм Playwright — **три worker в полном CI, два по умолчанию в CI без явной настройки, один локально**; `fullyParallel: false` запрещает параллельный запуск отдельных тестов внутри файла. Это независимые БД **между** `api-tests`, desktop и mobile runners, но **три worker внутри одного browser runner** всё ещё используют общие тестовые данные: глобальные фикстуры требуют проверки гонок и отдельного FULL.
+**Ограничение доступа:** только администратор репозитория может подтвердить и включить обязательный check `quality-gate` и запрет обхода в Branch protection / Rulesets. GitHub считает условно пропущенные jobs успешными для некоторых настроек required checks. Поэтому без такой настройки **нельзя** обещать технически гарантированную блокировку merge; агенты обязаны соблюдать ручной fail-closed контроль FULL. Для ускорения FULL используется ограниченный параллелизм Playwright — **три worker в полном CI, два по умолчанию в CI без явной настройки, один локально**; `fullyParallel: false` запрещает параллельный запуск отдельных тестов внутри файла. Это независимые БД **между** `api-tests` и активным mobile runner, но **три worker внутри одного browser runner** всё ещё используют общие тестовые данные: глобальные фикстуры требуют проверки гонок и отдельного FULL.
 
 **Почему не пять отдельных CI:** L1–L3 — категории выбранных агентом коротких функциональных проверок, L4 — FULL перед merge, L5 — проверка реального релиза. Это одна система с тремя запускаемыми этапами, без пяти независимо обслуживаемых пайплайнов.
 
@@ -137,7 +139,7 @@ npm run backup:verify
 | **L1 — Instant** | `npm run test:l1`: быстрые проверки структуры и инвариантов CI, классификации, команд без запуска PostgreSQL/браузера | Автоматически в Draft FAST и готовом FULL |
 | **L2 — Quick** | `npm run test:l2`: короткие E2E сценарии из реестра, при необходимости по конкретной области | Агент выборочно при работе над функцией |
 | **L3 — Functional** | `npm run test:l3`: многошаговые сценарии и проверки сохранения состояния | Агент до перевода PR в Ready |
-| **L4 — Integration** | Параллельные `api-tests` (все API, миграции, backup), два изолированных `browser-project` (desktop/mobile E2E), агрегатор `browser-tests`, затем `integration`; одновременно `docker-smoke` и затем `quality-gate` на Ready PR | Обязательный FULL готового PR и `main` |
+| **L4 — Integration** | Параллельные `api-tests` (все API, миграции, backup), один `browser-project (mobile-chromium)` с изолированными сервисами, агрегатор `browser-tests`, затем `integration`; одновременно `docker-smoke` и затем `quality-gate` на Ready PR | Обязательный FULL готового PR и `main` |
 | **L5 — Release** | `deploy` с read-only проверкой реального HTTPS и `vds-status` с активным SHA, доступностью контейнеров и БД | Только после полного L4 на `main` |
 
 ### Запуск выборочных сценариев
@@ -147,12 +149,12 @@ npm run backup:verify
 ```bash
 npm run test:l1
 npm run test:l2 -- feed --project=mobile-chromium
-npm run test:l2 -- comments --project=desktop-chromium
+npm run test:l2 -- comments --project=mobile-chromium
 npm run test:l3 -- auth
 npm run test:l3 -- notifications --project=mobile-chromium
 ```
 
-Без выбора области запускаются все сценарии указанного уровня для desktop и mobile. Поддерживаются `--project=mobile-chromium`, `--project=desktop-chromium` и `--list`. Увидеть выборку, **не** запуская браузер, можно так:
+Без указания проекта Playwright выбирает оба проекта, поэтому во время временного отказа от Desktop явно добавляй `--project=mobile-chromium` для реального ручного запуска. Поддерживаются `--project=mobile-chromium`, `--project=desktop-chromium` и `--list`. Увидеть выборку, **не** запуская браузер, можно так:
 
 ```bash
 npm run test:l2 -- feed --dry-run
@@ -170,7 +172,7 @@ L2/L3 вызывают реальный Playwright без заглушек: ло
 
 ### Ограничения
 
-В L1 нет визуальных браузерных утверждений: мгновенный запуск достигнут за счёт статических контрактов, не имитации UI. Присваивание L2/L3 отражает **глубину сценария**, а не гарантированную продолжительность. В полном CI сейчас три worker на уровне spec-файлов; по умолчанию при ручном запуске с `CI=true` без дополнительной переменной — два. Покрытие FULL не сокращено; при признаках гонок вернуть `WRC_E2E_WORKERS: '2'`, а при подтверждённой проблеме также на двух worker — к одному либо обеспечить полноценную изоляцию тестовой БД.
+В L1 нет визуальных браузерных утверждений: мгновенный запуск достигнут за счёт статических контрактов, не имитации UI. Присваивание L2/L3 отражает **глубину сценария**, а не гарантированную продолжительность. В полном CI сейчас три worker на уровне spec-файлов; по умолчанию при ручном запуске с `CI=true` без дополнительной переменной — два. Покрытие сценариев активного mobile проекта не сокращено (Desktop-проект временно приостановлен владельцем); при признаках гонок вернуть `WRC_E2E_WORKERS: '2'`, а при подтверждённой проблеме также на двух worker — к одному либо обеспечить полноценную изоляцию тестовой БД.
 
 ## 10. Выбор L2/L3 по изменённым файлам — Smart Affected Plan
 
@@ -235,14 +237,14 @@ npm run test:affected -- --execute --base=<полный-40-символьный-
 - `documentation-only`: явно выводится, что E2E не выбран. Нельзя представлять это как успешный браузерный прогон.
 - `--dry-run` показывает команды **без выполнения** и допускается только вместе с `--execute`. Вывод не является доказательством прохождения тестов. `--json` сохраняет существующий режим плана и несовместим с `--execute`.
 - Ошибки тестов, отсутствие инфраструктуры и нераспознанные аргументы **не скрываются**: команда завершается ненулевым кодом. Все дочерние команды вызываются без shell-интерполяции.
-- `--project=desktop-chromium|mobile-chromium` используется только по явному запросу; без него включены оба проекта Playwright.
+- В автоматическом FULL/RELEASE до отдельного указания владельца активен только `mobile-chromium`. Для ручного выполнения также явно указывай `--project=mobile-chromium`; desktop оставлен в конфигурации для восстановления, но не запускается в текущем режиме.
 - Для полного PR оставаться обязательными `integration`, `docker-smoke` и `quality-gate`; для релиза — `deploy` и `vds-status` на проверенном SHA. Нельзя заменять их успехом локального `--execute`.
 
 **Зачем это ускоряет работу:** до этого `test:affected` выдавал отдельные команды по области, которые при выполнении по очереди могли заново проверять один и тот же сценарий и неоднократно запускать Playwright. `--execute` объединяет выборку и исполняет её один раз. Это не меняет фактическую длительность обязательного FULL CI и не гарантирует фиксированное ускорение без замеров.
 
 ## 12. Параллелизм и актуальные источники
 
-Полный workflow задаёт `WRC_E2E_WORKERS=3` отдельно для desktop/mobile; CI без явного значения использует 2, локально 1. `fullyParallel: false`, один повтор в CI; общие данные внутри runner требуют проверки гонок. Менять параллелизм можно только отдельным сравнительным FULL без сокращения набора. При нестабильности вернуться к 2 worker; при подтверждённой проблеме на двух — к одному либо обеспечить изоляцию БД.
+Полный workflow задаёт `WRC_E2E_WORKERS=3` для активного mobile runner (Desktop временно выключен); CI без явного значения использует 2, локально 1. `fullyParallel: false`, один повтор в CI; общие данные внутри runner требуют проверки гонок. Менять параллелизм можно только отдельным сравнительным FULL без сокращения набора. При нестабильности вернуться к 2 worker; при подтверждённой проблеме на двух — к одному либо обеспечить изоляцию БД.
 
 - Подготовка локального API/E2E и команды с переменными: [LOCAL-DEVELOPMENT](LOCAL-DEVELOPMENT.md).
 - Подтверждённый объём и ссылки RELEASE: [STATUS](STATUS.md); состав — [реестр E2E](../../scripts/ci/e2e-levels.json) и вывод конкретного CI.

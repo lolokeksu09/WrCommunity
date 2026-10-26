@@ -6,7 +6,7 @@ import {useEffect,useId,useLayoutEffect,useRef,useState,type FormEvent} from 're
 import {Link,useLoaderData,useLocation,useNavigationType,useNavigate,useParams,useSearchParams} from 'react-router-dom';
 import {ArrowRight,Bookmark,ChevronDown,ChevronLeft,ChevronRight,ChevronUp,Heart,ImagePlus,MessageCircle,MoreHorizontal,Plus,Search,Send,Trash2,X} from 'lucide-react';
 import {ApiError,api,collection,mediaUrl,message,query,type Author,type Collection,type Comment,type ImageAsset,type Post,type Profile} from './api';
-import {Gate,useSession} from './auth';
+import {Gate,useSession} from './auth-session';
 import {ApiButton,AuthorName,Avatar,CheckField,ConfirmButton,Empty,Feedback,Field,PageHeading,ReportLink,Select,Submit,date,formValues,isChecked,splitValues,textValue,useTask} from './ui';
 import {PostGallery} from './post-gallery';
 import {PostText} from './post-text';

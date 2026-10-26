@@ -7,7 +7,7 @@ import {useState,type FormEvent} from 'react';
 import {Link,useLoaderData,useNavigate,useParams,useSearchParams} from 'react-router-dom';
 import {ArrowRight,CalendarDays,Check,ChevronRight,Clock,Gamepad2,Globe,Lock,Plus,Search,ShieldCheck,Users} from 'lucide-react';
 import {api,collection,query,type Collection,type Profile} from './api';
-import {Gate,useSession} from './auth';
+import {Gate,useSession} from './auth-session';
 import {PlayerCard,usePagedCollection} from './social';
 import {ApiButton,CheckField,ConfirmButton,Empty,Feedback,Field,PageHeading,ReportLink,Select,Submit,date,formValues,isChecked,numberValue,splitValues,textValue,useFormDraft,useTask} from './ui';
 import type {Club} from './clubs';

@@ -1,7 +1,7 @@
 import {Link} from 'react-router-dom';
 import {Check,ShieldCheck,Users} from 'lucide-react';
 import {api} from './api';
-import {useSession} from './auth';
+import {useSession} from './auth-session';
 import {Feedback,useTask} from './ui';
 import type {Club} from './clubs';
 import type {ClubEvent} from './lfg-events';

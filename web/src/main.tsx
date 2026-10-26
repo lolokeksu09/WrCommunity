@@ -1,23 +1,71 @@
-import {AuthPage} from './auth-page';
-import {ProfileEditor,resetProfileEditorState} from './profile-editor';
-import {ClubEvents} from './club-activity';
-import {LfgContacts} from './lfg-contacts';
+import {resetProfileEditorState} from './profile-editor-state';
 import {resetCommunityState} from './community-state';
-import React,{useEffect} from 'react';
+import React,{lazy,Suspense,useEffect,type ComponentType,type LazyExoticComponent} from 'react';
 import {createRoot} from 'react-dom/client';
 import {createBrowserRouter,Link,NavLink,Outlet,RouterProvider,ScrollRestoration,useLocation,useNavigation,useRouteError,useRouteLoaderData,redirect,type LoaderFunctionArgs} from 'react-router-dom';
 import {Bell,Bookmark,Compass,Gamepad2,Home as HomeIcon,LoaderCircle,Plus,Search,Settings,ShieldCheck,UserRound,Users} from 'lucide-react';
 import {api,collection,query,session,type Collection,type Post,type Profile,type Session} from './api';
-import {AccountSettings,DeleteAccount,MyProfile,SessionsPage,useSession} from './auth';
-import {ClubAbout,ClubAudit,ClubCatalog,ClubCreate,ClubDetail,ClubIdentity,ClubManage,ClubMembers,ClubModeration,ClubOwnPosts,ClubRequests,ClubReports,ClubSettings,ClubTransfer,TransferAccept,type Club,type ClubMember,type Revision} from './clubs';
-import {Home,PeopleList,PostDetail,PostEditor,PostsPage,PublicProfile,resetPostDrafts} from './social';
-import {Discovery,EventDetail,EventEditor,EventParticipants,LfgApplications,LfgCatalog,LfgCreate,LfgDetail,MyLfg,type Application,type ClubEvent,type Lfg} from './lfg-events';
-import {ModerationAudit,ModerationReport,ModerationReports,MyReports,MySanctions,NotificationSettings,Notifications,ReportPage,Sanctions,type Notification} from './notifications';
+import {useSession} from './auth-session';
+import type {Club,ClubMember,Revision} from './clubs';
+import {resetPostDrafts} from './post-drafts';
+import type {Application,ClubEvent,Lfg} from './lfg-events';
+import type {Notification} from './notifications';
 import {Empty,ErrorView,PageHeading,Skeleton,resetFormDrafts} from './ui';
 import './styles.css';
+
+function lazyNamed<M,K extends keyof M>(load:()=>Promise<M>,name:K):LazyExoticComponent<Extract<M[K],ComponentType<any>>>{
+ return lazy(async()=>({default:(await load())[name] as Extract<M[K],ComponentType<any>>}));
+}
+const AuthPage=lazyNamed(()=>import('./auth-page'),'AuthPage');
+const ProfileEditor=lazyNamed(()=>import('./profile-editor'),'ProfileEditor');
+const ClubEvents=lazyNamed(()=>import('./club-activity'),'ClubEvents');
+const LfgContacts=lazyNamed(()=>import('./lfg-contacts'),'LfgContacts');
+const AccountSettings=lazyNamed(()=>import('./auth'),'AccountSettings');
+const DeleteAccount=lazyNamed(()=>import('./auth'),'DeleteAccount');
+const MyProfile=lazyNamed(()=>import('./auth'),'MyProfile');
+const SessionsPage=lazyNamed(()=>import('./auth'),'SessionsPage');
+const ClubAbout=lazyNamed(()=>import('./clubs'),'ClubAbout');
+const ClubAudit=lazyNamed(()=>import('./clubs'),'ClubAudit');
+const ClubCatalog=lazyNamed(()=>import('./clubs'),'ClubCatalog');
+const ClubCreate=lazyNamed(()=>import('./clubs'),'ClubCreate');
+const ClubDetail=lazyNamed(()=>import('./clubs'),'ClubDetail');
+const ClubIdentity=lazyNamed(()=>import('./clubs'),'ClubIdentity');
+const ClubManage=lazyNamed(()=>import('./clubs'),'ClubManage');
+const ClubMembers=lazyNamed(()=>import('./clubs'),'ClubMembers');
+const ClubModeration=lazyNamed(()=>import('./clubs'),'ClubModeration');
+const ClubOwnPosts=lazyNamed(()=>import('./clubs'),'ClubOwnPosts');
+const ClubRequests=lazyNamed(()=>import('./clubs'),'ClubRequests');
+const ClubReports=lazyNamed(()=>import('./clubs'),'ClubReports');
+const ClubSettings=lazyNamed(()=>import('./clubs'),'ClubSettings');
+const ClubTransfer=lazyNamed(()=>import('./clubs'),'ClubTransfer');
+const TransferAccept=lazyNamed(()=>import('./clubs'),'TransferAccept');
+const Home=lazyNamed(()=>import('./social'),'Home');
+const PeopleList=lazyNamed(()=>import('./social'),'PeopleList');
+const PostDetail=lazyNamed(()=>import('./social'),'PostDetail');
+const PostEditor=lazyNamed(()=>import('./social'),'PostEditor');
+const PostsPage=lazyNamed(()=>import('./social'),'PostsPage');
+const PublicProfile=lazyNamed(()=>import('./social'),'PublicProfile');
+const Discovery=lazyNamed(()=>import('./lfg-events'),'Discovery');
+const EventDetail=lazyNamed(()=>import('./lfg-events'),'EventDetail');
+const EventEditor=lazyNamed(()=>import('./lfg-events'),'EventEditor');
+const EventParticipants=lazyNamed(()=>import('./lfg-events'),'EventParticipants');
+const LfgApplications=lazyNamed(()=>import('./lfg-events'),'LfgApplications');
+const LfgCatalog=lazyNamed(()=>import('./lfg-events'),'LfgCatalog');
+const LfgCreate=lazyNamed(()=>import('./lfg-events'),'LfgCreate');
+const LfgDetail=lazyNamed(()=>import('./lfg-events'),'LfgDetail');
+const MyLfg=lazyNamed(()=>import('./lfg-events'),'MyLfg');
+const ModerationAudit=lazyNamed(()=>import('./notifications'),'ModerationAudit');
+const ModerationReport=lazyNamed(()=>import('./notifications'),'ModerationReport');
+const ModerationReports=lazyNamed(()=>import('./notifications'),'ModerationReports');
+const MyReports=lazyNamed(()=>import('./notifications'),'MyReports');
+const MySanctions=lazyNamed(()=>import('./notifications'),'MySanctions');
+const NotificationSettings=lazyNamed(()=>import('./notifications'),'NotificationSettings');
+const Notifications=lazyNamed(()=>import('./notifications'),'Notifications');
+const ReportPage=lazyNamed(()=>import('./notifications'),'ReportPage');
+const Sanctions=lazyNamed(()=>import('./notifications'),'Sanctions');
 type RootData=Session&{unread:number};
 let draftAccount:string|null|undefined;
-function Shell(){const {user,unread}=useRouteLoaderData('root') as RootData;if(draftAccount!==(user?.id??null)){resetFormDrafts();resetProfileEditorState();resetPostDrafts(user?.id??null);resetCommunityState(user?.id??null);draftAccount=user?.id??null;}const navigation=useNavigation();const location=useLocation();useEffect(()=>{const headings:Record<string,string>={'/':'Лента','/discover':'Поиск игроков','/clubs':'Клубы','/me':'Мой профиль','/login':'Вход','/signup':'Регистрация','/notifications':'Уведомления'};document.title=(headings[location.pathname]??'Сообщество игроков')+' — WrCommunity';},[location.pathname]);useEffect(()=>{if(!user)return;void api('/me/heartbeat','POST',{}).catch(()=>{});const timer=setInterval(()=>{void api('/me/heartbeat','POST',{}).catch(()=>{});},60000);return()=>clearInterval(timer);},[user?.id]);const links=[{to:'/',title:'Лента',icon:HomeIcon,end:true},{to:'/discover',title:'Поиск',icon:Search},{to:'/clubs',title:'Клубы',icon:Users},{to:'/me',title:'Профиль',icon:UserRound}];return <div className="app-shell"><a className="skip-link" href="#main-content">К содержимому</a><aside className="sidebar"><Link className="brand" to="/"><img src="/brand.svg" alt="" width={31} height={31}/>WrCommunity</Link><nav aria-label="Основная навигация">{links.map(item=><NavLink key={item.to} to={item.to} end={item.end}><item.icon size={21}/><span>{item.title}</span></NavLink>)}<NavLink to="/notifications"><Bell size={21}/><span>Уведомления</span>{unread>0&&<span className="count-badge">{unread}</span>}</NavLink>{user&&<><NavLink to="/me/bookmarks"><Bookmark size={21}/><span>Закладки</span></NavLink><NavLink to="/me/settings"><Settings size={21}/><span>Настройки</span></NavLink></>}{user&&user.platform_role!=='member'&&<NavLink to="/platform/moderation/reports"><ShieldCheck size={21}/><span>Модерация</span></NavLink>}</nav><Link className="primary sidebar-create" to="/posts/new"><Plus size={19}/> Написать пост</Link><div className="sidebar-bottom">{user?<Link to="/me"><span className="profile-dot">{user.display_name.slice(0,1)}</span><span><b>{user.display_name}</b><small>@{user.handle}</small></span></Link>:<><p>Твоя компания<br/>за пределами матча.</p><Link className="secondary" to="/login">Войти в сообщество</Link></>}<small>Независимое сообщество Wild Rift</small></div></aside><div className="main-column"><header className="mobile-header"><Link className="brand" to="/"><img src="/brand.svg" alt="" width={31} height={31}/>WrCommunity</Link><div><Link className="icon-button" to="/discover" aria-label="Поиск"><Search size={20}/></Link><Link className="icon-button bell-link" to="/notifications" aria-label={unread?'Уведомления, непрочитанных: '+unread:'Уведомления'}><Bell size={20}/>{unread>0&&<i/>}</Link><Link className="icon-button" to={user?'/me':'/login'} aria-label={user?'Мой профиль':'Войти'}>{user?<span className="profile-dot">{user.display_name.slice(0,1)}</span>:<UserRound size={21}/>}</Link></div></header>{navigation.state==='loading'&&<div className="route-progress" role="status" aria-label="Открываем страницу"/>}<main id="main-content" className="page-content" tabIndex={-1}><Outlet/></main><footer className="site-footer">WrCommunity — независимое сообщество. Не связано с Riot Games.</footer></div><aside className="right-rail"><div className="rail-intro"><span className="rail-symbol"><img src="/brand.svg" width="42" height="42" alt=""/></span><h2>В игре — команда.<br/>Здесь — свои.</h2><p>Обсуждай. Делись опытом. Находи тех, с кем хочется играть снова.</p></div><div className="rail-links"><Link to="/discover/lfg"><Gamepad2 size={20}/><span><b>Ищу команду</b><small>Один матч или постоянный состав</small></span></Link><Link to="/clubs"><Users size={20}/><span><b>Клубы по интересам</b><small>Общие темы и новые встречи</small></span></Link></div>{!user&&<section className="rail-signup"><h3>Присоединяйся к разговору</h3><p>Создай профиль, когда будешь готов.</p><Link className="primary" to="/signup">Создать аккаунт</Link><Link to="/login">Уже есть аккаунт</Link></section>}<p className="fine-print">Игровые данные участники указывают самостоятельно.</p></aside><nav className="bottom-nav" aria-label="Основная мобильная навигация">{links.slice(0,2).map(item=><NavLink key={item.to} to={item.to} end={item.end}><item.icon size={21}/><span>{item.title}</span></NavLink>)}<NavLink className="nav-create" to={user?'/posts/new':'/login?returnTo=%2Fposts%2Fnew'} aria-label="Создать публикацию"><span className="nav-create-icon"><Plus size={22}/></span><span>Создать</span></NavLink>{links.slice(2).map(item=><NavLink key={item.to} to={item.to} end={item.end}><item.icon size={21}/><span>{item.title}</span></NavLink>)}</nav><ScrollRestoration/></div>;}
+function Shell(){const {user,unread}=useRouteLoaderData('root') as RootData;if(draftAccount!==(user?.id??null)){resetFormDrafts();resetProfileEditorState();resetPostDrafts(user?.id??null);resetCommunityState(user?.id??null);draftAccount=user?.id??null;}const navigation=useNavigation();const location=useLocation();useEffect(()=>{const headings:Record<string,string>={'/':'Лента','/discover':'Поиск игроков','/clubs':'Клубы','/me':'Мой профиль','/login':'Вход','/signup':'Регистрация','/notifications':'Уведомления'};document.title=(headings[location.pathname]??'Сообщество игроков')+' — WrCommunity';},[location.pathname]);useEffect(()=>{if(!user)return;void api('/me/heartbeat','POST',{}).catch(()=>{});const timer=setInterval(()=>{void api('/me/heartbeat','POST',{}).catch(()=>{});},60000);return()=>clearInterval(timer);},[user?.id]);const links=[{to:'/',title:'Лента',icon:HomeIcon,end:true},{to:'/discover',title:'Поиск',icon:Search},{to:'/clubs',title:'Клубы',icon:Users},{to:'/me',title:'Профиль',icon:UserRound}];return <div className="app-shell"><a className="skip-link" href="#main-content">К содержимому</a><aside className="sidebar"><Link className="brand" to="/"><img src="/brand.svg" alt="" width={31} height={31}/>WrCommunity</Link><nav aria-label="Основная навигация">{links.map(item=><NavLink key={item.to} to={item.to} end={item.end}><item.icon size={21}/><span>{item.title}</span></NavLink>)}<NavLink to="/notifications"><Bell size={21}/><span>Уведомления</span>{unread>0&&<span className="count-badge">{unread}</span>}</NavLink>{user&&<><NavLink to="/me/bookmarks"><Bookmark size={21}/><span>Закладки</span></NavLink><NavLink to="/me/settings"><Settings size={21}/><span>Настройки</span></NavLink></>}{user&&user.platform_role!=='member'&&<NavLink to="/platform/moderation/reports"><ShieldCheck size={21}/><span>Модерация</span></NavLink>}</nav><Link className="primary sidebar-create" to="/posts/new"><Plus size={19}/> Написать пост</Link><div className="sidebar-bottom">{user?<Link to="/me"><span className="profile-dot">{user.display_name.slice(0,1)}</span><span><b>{user.display_name}</b><small>@{user.handle}</small></span></Link>:<><p>Твоя компания<br/>за пределами матча.</p><Link className="secondary" to="/login">Войти в сообщество</Link></>}<small>Независимое сообщество Wild Rift</small></div></aside><div className="main-column"><header className="mobile-header"><Link className="brand" to="/"><img src="/brand.svg" alt="" width={31} height={31}/>WrCommunity</Link><div><Link className="icon-button" to="/discover" aria-label="Поиск"><Search size={20}/></Link><Link className="icon-button bell-link" to="/notifications" aria-label={unread?'Уведомления, непрочитанных: '+unread:'Уведомления'}><Bell size={20}/>{unread>0&&<i/>}</Link><Link className="icon-button" to={user?'/me':'/login'} aria-label={user?'Мой профиль':'Войти'}>{user?<span className="profile-dot">{user.display_name.slice(0,1)}</span>:<UserRound size={21}/>}</Link></div></header>{navigation.state==='loading'&&<div className="route-progress" role="status" aria-label="Открываем страницу"/>}<main id="main-content" className="page-content" tabIndex={-1}><Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><span className="route-loading-indicator" aria-hidden="true"/><span>Загружаем раздел…</span></div>}><Outlet/></Suspense></main><footer className="site-footer">WrCommunity — независимое сообщество. Не связано с Riot Games.</footer></div><aside className="right-rail"><div className="rail-intro"><span className="rail-symbol"><img src="/brand.svg" width="42" height="42" alt=""/></span><h2>В игре — команда.<br/>Здесь — свои.</h2><p>Обсуждай. Делись опытом. Находи тех, с кем хочется играть снова.</p></div><div className="rail-links"><Link to="/discover/lfg"><Gamepad2 size={20}/><span><b>Ищу команду</b><small>Один матч или постоянный состав</small></span></Link><Link to="/clubs"><Users size={20}/><span><b>Клубы по интересам</b><small>Общие темы и новые встречи</small></span></Link></div>{!user&&<section className="rail-signup"><h3>Присоединяйся к разговору</h3><p>Создай профиль, когда будешь готов.</p><Link className="primary" to="/signup">Создать аккаунт</Link><Link to="/login">Уже есть аккаунт</Link></section>}<p className="fine-print">Игровые данные участники указывают самостоятельно.</p></aside><nav className="bottom-nav" aria-label="Основная мобильная навигация">{links.slice(0,2).map(item=><NavLink key={item.to} to={item.to} end={item.end}><item.icon size={21}/><span>{item.title}</span></NavLink>)}<NavLink className="nav-create" to={user?'/posts/new':'/login?returnTo=%2Fposts%2Fnew'} aria-label="Создать публикацию"><span className="nav-create-icon"><Plus size={22}/></span><span>Создать</span></NavLink>{links.slice(2).map(item=><NavLink key={item.to} to={item.to} end={item.end}><item.icon size={21}/><span>{item.title}</span></NavLink>)}</nav><ScrollRestoration/></div>;}
 function PostEditorRoute({club=false}:{club?:boolean}){const {pathname}=useLocation();const {user}=useSession();return <PostEditor key={(user?.id??'guest')+':'+pathname} club={club}/>;}
 function RouteError(){return <ErrorView error={useRouteError()}/>;}
 const read=<T,>(path:string,request:Request)=>api<T>(path,'GET',undefined,request.signal);

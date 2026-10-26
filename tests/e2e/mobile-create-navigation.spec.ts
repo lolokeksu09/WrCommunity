@@ -27,3 +27,24 @@ test('мобильная навигация позволяет создать п
     } finally { await ui.context.close(); }
   } finally { await player.context.dispose(); }
 });
+
+
+test('загрузка route chunk сохраняет мобильную навигацию и показывает статус', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'Проверка мобильного состояния загрузки раздела');
+  let chunkRequested = false;
+  await page.route('**/assets/clubs-*.js', async route => {
+    chunkRequested = true;
+    await new Promise(resolve => setTimeout(resolve, 700));
+    await route.continue();
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const nav = page.getByRole('navigation', { name: 'Основная мобильная навигация' });
+  await expect(nav).toBeVisible();
+  await nav.getByRole('link', { name: 'Клубы' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Загружаем раздел…' })).toBeVisible();
+  await expect(nav).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Клубы' })).toBeVisible();
+  expect(chunkRequested).toBe(true);
+  await noOverflow(page);
+});

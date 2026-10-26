@@ -3,7 +3,8 @@ import {useLoaderData,useNavigate} from 'react-router-dom';
 import {Gamepad2,Globe,Lock,ShieldCheck} from 'lucide-react';
 import {canonicalRoles,roleLabel} from '../../shared/game-roles';
 import {ApiError,api,mediaUrl,type Profile} from './api';
-import {Gate} from './auth';
+import {Gate} from './auth-session';
+import {draftBaselines} from './profile-editor-state';
 import {RolePicker} from './game-roles';
 import {CheckField,Feedback,Field,PageHeading,Submit,draftValue,formValues,isChecked,splitValues,textValue,useFormDraft,useTask} from './ui';
 
@@ -12,8 +13,6 @@ type Patch=Record<string,unknown>;
 const gameFields=[['server','Сервер','EU',60],['roles','Роли','',60],['rank','Ранг','',60],['champions','Любимые чемпионы','Через запятую',undefined],['schedule','Когда играешь','Вечером по будням',500],['timezone','Часовой пояс','Europe/Moscow',80],['languages','Языки','Русский, English',undefined]] as const;
 const labels:Record<string,string>={display_name:'Имя',biography:'О себе',avatar_id:'Аватар',cover_id:'Обложка',visibility:'Видимость профиля',online_opt_in:'Присутствие на сайте',game:'Игровая карточка'};
 const same=(a:unknown,b:unknown)=>JSON.stringify(a??null)===JSON.stringify(b??null);
-const draftBaselines=new Map<string,Profile>();
-export function resetProfileEditorState(){draftBaselines.clear();}
 
 function makePatch(profile:Profile,mode:Mode,data:FormData,avatar:string|null,cover:string|null,visibility:Profile['visibility']):Patch{
  const patch:Patch={};

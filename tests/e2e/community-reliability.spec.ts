@@ -16,6 +16,8 @@ test('уведомления и жалобы догружают историю �
   await ui.page.goto('/notifications');
   await expect.soft(ui.page.locator('.sidebar .count-badge')).toHaveText('1');
   const more=ui.page.getByRole('button',{name:'Показать ещё'});
+  // Wait for the lazily loaded route to render its first page before checking pagination.
+  await expect(more).toBeVisible();
   for(let i=0;i<4&&await more.count();i++){const before=await ui.page.locator('.notification-entry').count();await more.click();await expect(ui.page.locator('.notification-entry')).not.toHaveCount(before);}
   await expect.soft(ui.page.locator('.notification-entry')).toHaveCount(63);
   const mark=ui.page.getByRole('button',{name:'Отметить как прочитанное'});

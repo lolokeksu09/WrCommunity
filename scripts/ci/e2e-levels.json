@@ -187,6 +187,12 @@
       "name": "формы выделяют ошибки, разрешают конфликт профиля и убирают изображения",
       "level": "L3",
       "area": "forms"
+    },
+    {
+      "file": "mobile-create-navigation.spec.ts",
+      "name": "загрузка route chunk сохраняет мобильную навигацию и показывает статус",
+      "level": "L2",
+      "area": "navigation"
     }
   ]
 }

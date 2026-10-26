@@ -2,7 +2,7 @@ import {useLayoutEffect,useRef,useState,type FormEvent} from 'react';
 import {useLoaderData,useParams} from 'react-router-dom';
 import {Check,Clock,RefreshCw,ShieldCheck} from 'lucide-react';
 import {api} from './api';
-import {Gate,useSession} from './auth';
+import {Gate,useSession} from './auth-session';
 import {Feedback,Field,PageHeading,Submit,formValues,isChecked,textValue,useTask} from './ui';
 
 type ContactState={own_contact:string|null;partner_contact:string|null;own_consented:boolean;partner_consented:boolean;notice:string};

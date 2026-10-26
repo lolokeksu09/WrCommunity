@@ -2,7 +2,7 @@ import {useEffect,useRef,useState,type FormEvent} from 'react';
 import {Link,useNavigate,useSearchParams} from 'react-router-dom';
 import {Lock} from 'lucide-react';
 import {ApiError,api,session} from './api';
-import {useSession} from './auth';
+import {useSession} from './auth-session';
 import {ApiButton,Empty,Feedback,Field,PageHeading,Submit,formValues,textValue,useTask} from './ui';
 
 type Mode='login'|'signup'|'recovery'|'reset'|'verify';
