@@ -1,12 +1,12 @@
 import {FirstSteps} from './player-journey';
+import {Gate,useSession} from './auth-session';
 import {roleLabel} from '../../shared/game-roles';
 import {type FormEvent} from 'react';
-import {Link,useLoaderData,useNavigate,useRouteLoaderData} from 'react-router-dom';
+import {Link,useLoaderData,useNavigate} from 'react-router-dom';
 import {Bookmark,Eye,Gamepad2,Globe,Lock,LogOut,Settings,ShieldCheck,UserRound,Users} from 'lucide-react';
-import {api,collection,mediaUrl,session,type Profile,type Session,type Viewer} from './api';
+import {api,collection,mediaUrl,session,type Profile,type Viewer} from './api';
 import {ApiButton,AuthRequired,Avatar,CheckField,ConfirmButton,Empty,Feedback,Field,MenuLink,PageHeading,Select,Submit,date,draftValue,formValues,isChecked,splitValues,textValue,useFormDraft,useTask} from './ui';
-export const useSession=()=>useRouteLoaderData('root') as Session;
-export function Gate({children,verified=false,publicOnly=false}:{children:React.ReactNode;verified?:boolean;publicOnly?:boolean}){const {user}=useSession();if(!user||(verified&&!user.verified))return <AuthRequired user={user} verified={verified}/>;if(publicOnly&&user.visibility!=='public')return <Empty title="Нужен публичный профиль" to="/me/privacy" action="Настроить приватность">Сначала решите, какие данные профиля вы готовы открыть сообществу.</Empty>;return <>{children}</>;}
+export {Gate,useSession};
 export function MyProfile(){
  const {user}=useSession();const profile=useLoaderData() as Profile;
  return <Gate><PageHeading title="Мой профиль" action={<Link to="/me/edit" className="icon-button" aria-label="Редактировать профиль"><Settings size={21}/></Link>}/>

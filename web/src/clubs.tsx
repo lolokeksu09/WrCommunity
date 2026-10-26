@@ -7,7 +7,7 @@ import {useState,type FormEvent} from 'react';
 import {Link,useLoaderData,useNavigate,useParams,useSearchParams} from 'react-router-dom';
 import {ArrowRight,CalendarDays,ChevronRight,Globe,Lock,Plus,Settings,ShieldCheck,Users} from 'lucide-react';
 import {api,collection,mediaUrl,query,type Collection,type Post,type Profile} from './api';
-import {Gate,useSession} from './auth';
+import {Gate,useSession} from './auth-session';
 import {PostCard,PostList} from './social';
 import {ApiButton,Avatar,CheckField,ConfirmButton,Empty,Feedback,Field,MenuLink,PageHeading,ReportLink,Select,Submit,date,formValues,isChecked,textValue,useTask} from './ui';
 import {EventCard,type ClubEvent} from './lfg-events';

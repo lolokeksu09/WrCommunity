@@ -2,7 +2,7 @@ import {useState,type FormEvent} from 'react';
 import {Link,useLoaderData,useNavigate,useRouteLoaderData,useSearchParams} from 'react-router-dom';
 import {Bell,CheckCheck,ChevronRight,Settings,ShieldCheck} from 'lucide-react';
 import {api,type Collection} from './api';
-import {Gate,useSession} from './auth';
+import {Gate,useSession} from './auth-session';
 import {usePagedCollection} from './social';
 import {ApiButton,CheckField,Empty,Feedback,Field,MenuLink,PageHeading,Select,Submit,date,formValues,isChecked,textValue,useTask} from './ui';
 export type Notification={id:string;event_type:string;category:string;label:string;href:string;actor:{id:string;handle:string;display_name:string}|null;created_at:string;read_at:string|null};
