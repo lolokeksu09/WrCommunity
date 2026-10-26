@@ -105,3 +105,16 @@
 Рекомендовано: сохранить принятую v6 Editorial Social **как информационную архитектуру**, но сформировать новый единый визуальный язык **AMOLED Editorial Gaming**; внедрять не «одним CSS-коммитом», а короткими проверяемыми пакетами с неизменными контрактами данных. Это **направление на ревью**, не разрешение изменять сайт. Предлагаемые патчи: 1) tokens/navigation, 2) home/feed, 3) discover/LFG, 4) clubs/events, 5) profile/editors, 6) responsive/a11y/performance и quality evidence.
 
 Главный критерий начала реализации: владелец утверждает макеты ключевых экранов, а измеримый baseline и локальный браузерный review доступны в среде без текущей блокировки. Продолжить с **QA-01 и матрицы состояний**; не тратить время на обложки до документированного UX-контракта.
+
+
+## 9. Preparation implementation checkpoint (26 October, follow-up)
+
+The separate Premium foundation PR (branch: `prep/premium-v2-quality-baseline-2026-10-26`) addresses audit finding **QA-01** and prepares reusable baseline material. Status in this section is **implemented in the PR branch; production status must be confirmed against its eventual merge RELEASE**.
+
+- Public smoke has a real rendering gate: `scripts/ci/public-home-ready.mjs` requires the feed heading, published post **or empty state**, no loading spinner and no error alert before a screenshot. Browser JS errors reject the run. The original screenshot showing «Загружаем раздел…» is preserved as evidence for the previous gap, not evidence of current broken user-facing functionality.
+- Tests cover the original false-success scenario and adjacent negative cases, plus isolated-only URL restrictions for the new one-shot visual baseline.
+- `scripts/ci/premium-visual-baseline.mjs` targets 20 read-only guest screenshots on 360/390/430/1440 px in a developer-provided **local** test environment. It reports screenshots, overflow, JS errors, broken media, diagnostic LCP/CLS (INP unmeasured). **It has not run successfully in the previous restricted local browser environment**; no invented performance/a11y pass status.
+- Candidate `docs/design/premium-v2/tokens.json` (contrast guards), `design-contract.md` (UI, state/privacy contract) and `premium-preview.html` (standalone before/after mockups for feed, search, clubs, profile) are independent from live styles and routes. They are **proposals**, subject to owner approval.
+- [Exact operator workflow](../PREMIUM-V2-BASELINE.md) specifies Node24, isolated PostgreSQL/Mailpit, reproducible screenshots and checks. Automated desktop Chromium E2E stays disabled. No production content, accounts or secrets are changed.
+
+**Audit closure classification:** QA-01 = fix proposed in code, pending exact-SHA CI/RELEASE; UX-01..UX-17 = design proposal, not marked fixed; real local browser baseline and WCAG/field CWV measurements = pending. Keep this distinction until new evidence exists.
