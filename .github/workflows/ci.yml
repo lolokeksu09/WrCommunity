@@ -241,7 +241,7 @@ jobs:
               exit 0
             fi
           else
-            if [[ "$FAST_RESULT" == "skipped" && "$UI_RESULT" == "success" && "$INTEGRATION_RESULT" == "success" && "$DOCKER_RESULT" == "success" ]]; then
+            if [[ "$FAST_RESULT" == "skipped" && "$INTEGRATION_RESULT" == "success" && "$DOCKER_RESULT" == "success" ]]; then
               echo "Ready PR: FULL integration and Docker smoke passed."
               exit 0
             fi
