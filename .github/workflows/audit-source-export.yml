@@ -1,0 +1,36 @@
+name: Temporary Premium Audit Source Snapshot
+on:
+  push:
+    branches: [audit/premium-v2-local-review-2026-10-26]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5.0.0
+      - name: Archive reviewed tree without external state
+        run: git archive --format=tar.gz --output=wrc-audit-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wrc-premium-audit-source
+          path: wrc-audit-source.tar.gz
+          retention-days: 1
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5.0.0
+      - uses: actions/setup-node@v5.0.0
+        with:
+          node-version: 24.22.1
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: tar -czf wrc-audit-dist.tar.gz dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wrc-premium-audit-dist
+          path: wrc-audit-dist.tar.gz
+          retention-days: 1
