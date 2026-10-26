@@ -71,7 +71,7 @@ export async function registerProfiles(app: FastifyInstance): Promise<void> {
     const id = idParam(request);
     const viewer = request.viewer?.id ?? null;
     reply.header('Cache-Control', 'private, no-store');
-    const profile = await one<ProfileRow>(`SELECT u.*,(u.visibility='public' AND u.online_opt_in AND u.last_seen>now()-interval '2 minutes') AS online
+    const profile = await one<ProfileRow>(`SELECT u.*,(u.password_hash='!wrc-editorial-no-login-v1' AND u.email LIKE '%@example.invalid') AS editorial,(u.visibility='public' AND u.online_opt_in AND u.last_seen>now()-interval '2 minutes') AS online
       FROM users u WHERE u.id=$1 AND u.status='active' AND (u.visibility='public' OR u.id=$2::uuid)
       AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.blocker_id=$2::uuid AND b.blocked_id=u.id) OR (b.blocked_id=$2::uuid AND b.blocker_id=u.id))`, [id, viewer]);
     if (!profile) fail(404, 'NOT_FOUND', 'Профиль не найден');

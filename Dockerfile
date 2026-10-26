@@ -18,6 +18,7 @@ COPY --chown=node:node --from=build /app/package.json /app/package-lock.json ./
 COPY --chown=node:node --from=build /app/node_modules ./node_modules
 COPY --chown=node:node --from=build /app/dist ./dist
 COPY --chown=node:node scripts/container-health.mjs ./scripts/container-health.mjs
+COPY --chown=node:node scripts/editorial-seed.mjs ./scripts/editorial-seed.mjs
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 CMD ["node", "scripts/container-health.mjs"]

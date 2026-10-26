@@ -7,7 +7,7 @@ export interface ProfileRow {
   id: string; handle: string; display_name: string; visibility: 'public' | 'hidden'; biography: string;
   avatar_id: string | null; cover_id: string | null; game: Record<string, { value: unknown; public: boolean }>;
   online_opt_in: boolean; created_at: Date; updated_at: Date; version: number;
-  status: string; online?: boolean;
+  status: string; online?: boolean; editorial?: boolean;
 }
 
 export function publicGame(game: ProfileRow['game']): ProfileRow['game'] {
@@ -25,5 +25,5 @@ export function ownProfileDTO(row: ProfileRow): object {
 export function publicProfileDTO(row: ProfileRow, social: { following: boolean; blocked_by_me: boolean; follower_count: number; following_count: number } = { following: false, blocked_by_me: false, follower_count: 0, following_count: 0 }): object {
   return { id: row.id, handle: row.handle, display_name: row.display_name, visibility: row.visibility,
     biography: row.biography, avatar_id: row.avatar_id, cover_id: row.cover_id, game: publicGame(row.game),
-    game_data_source: 'self_reported', online: row.visibility === 'public' && !!row.online, created_at: row.created_at, ...social };
+    game_data_source: 'self_reported', online: row.visibility === 'public' && !!row.online, editorial:row.editorial===true, created_at: row.created_at, ...social };
 }
