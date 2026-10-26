@@ -53,3 +53,9 @@
 - `auth.tsx`, `social.tsx`, `clubs.tsx` and LFG modules share dependencies; preserve exports and direct-navigation behavior.
 - Do not change route paths, API contracts, authorization policy, schema or production configuration.
 - Do not merge if any required FULL job is skipped, pending, cancelled or failed.
+
+## FULL failure and regression synchronization
+
+- [FULL 40350273616](https://github.com/lolokeksu09/WrCommunity/actions/runs/40350273616) on `500b1f6850780a62cac6db75c5c66daedb801246`: API and Docker pass; desktop/mobile browser shards fail on the same notification pagination E2E scenario, with 30 of 63 rows visible.
+- After route code splitting, the browser can reach `/notifications` before the lazy view renders. The test used `more.count()` (non-waiting) as its loop condition and could skip loading entirely. Introduced an explicit Playwright readiness assertion on the Load More button before any page-count assertions. This is a test synchronization hypothesis supported by the failure log and source; wait for the final FULL to validate.
+- Keep the required FULL before merging; no bypass or skip is permitted.

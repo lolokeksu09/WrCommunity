@@ -25,3 +25,11 @@
 2. Проверить новый mobile delayed-chunk E2E и browser artifacts.
 3. При зелёном FULL сверить protection rules и объединить PR с expected head SHA.
 4. После merge проверить RELEASE, deploy, строгий HTTPS и vds-status на точном merge SHA.
+
+## Диагностика FULL для PR #37 (26.10.2026)
+
+- FULL [40350273616](https://github.com/lolokeksu09/WrCommunity/actions/runs/40350273616) на `500b1f6850780a62cac6db75c5c66daedb801246`: API и docker-smoke успешно; оба browser-project упали на одном сценарии `tests/e2e/community-reliability.spec.ts` («уведомления и жалобы догружают историю...»). Desktop: 29 passed, 1 failed, 5 skipped; Mobile: 34 passed, 1 failed.
+- Симптом: в проверке ожидается 63 уведомления, но остаётся 30; в момент начала ожидания DOM ещё пустой. Тест до изменения проверял `more.count()` без ожидания готовности lazy route — цикл мог не выполниться вообще. Это подтверждённый дефект синхронизации теста по исходному коду и логам, **не доказательство дефекта API**.
+- Исправление в этом этапе: `await expect(more).toBeVisible()` до цикла догрузки. Оно должно дать корректную диагностику реального поведения. Проверить новым FULL на актуальном SHA; пока не заявлять успешное исправление.
+- `main` остаётся на доставленном `3bcf29661f3f5ac4c93580ee31c485cefd3cda5e` до зелёного FULL и отдельного RELEASE.
+- Полный FULL обязателен перед merge; для промежуточных правок предпочитать целевые тесты и Draft FAST. Не сокращать покрытие путём отключения упавшего сценария.
