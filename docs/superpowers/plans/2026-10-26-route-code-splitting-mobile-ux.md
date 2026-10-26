@@ -16,7 +16,7 @@
 1. Extract the profile-editor draft reset map into a small state module so the reset operation remains synchronous without importing the editor UI into the entry bundle.
 2. Move the shared `Gate`/`useSession` helpers into `web/src/auth-session.tsx`; retain re-exports from `auth.tsx` for compatibility and point internal shared-helper imports at the small module.
 3. Convert route page modules in `web/src/main.tsx` to typed React lazy imports. Keep route loaders, paths, redirects, and error boundaries unchanged.
-4. Add an accessible in-content Suspense fallback that preserves the app shell/navigation while a route chunk loads, and honors reduced-motion settings.
+4. Add an accessible in-content Suspense fallback that preserves the app shell/navigation while a route chunk loads, and honors reduced-motion settings. Add a mobile E2E regression that deliberately delays the clubs chunk and checks the fallback/nav.
 5. Emit Vite's build manifest and add a CI-enforced bundle check that verifies the heavy route modules are direct dynamic imports and reports initial entry raw/gzip bytes. Do not invent a hard byte budget without a measured baseline.
 6. Update the UI guideline check only if needed, and update continuation/status notes with exact SHA and verification evidence.
 
@@ -24,7 +24,7 @@
 
 - [x] `main.tsx` now uses typed lazy imports for 47 page component exports; `Gate`/`useSession` and profile-editor reset state are separated from page-heavy modules.
 - [x] Vite emits a manifest; `npm run check:bundle` verified 9 dynamic route modules on CI run [40348748214](https://github.com/lolokeksu09/WrCommunity/actions/runs/40348748214). The size reporter now uses Node's default gzip settings. Final draft FAST [40349035716](https://github.com/lolokeksu09/WrCommunity/actions/runs/40349035716) also passed on SHA `1b591118dcd9f8db315dfb698d8b6e6e52a66935`; the check reports `357774` raw / `111411` gzip bytes.
-- [ ] `npm run typecheck`, `npm run check:ui`, `npm run build`, and relevant mobile/desktop E2E checks pass on the final PR head.
+- [ ] `npm run typecheck`, `npm run check:ui`, `npm run build`, and relevant mobile/desktop E2E checks pass on the final PR head, including the delayed-chunk navigation regression.
 - [ ] Existing routes, loader data, auth redirects, draft reset behavior, and error boundaries remain unchanged.
 - [x] Mobile route loading has an accessible Suspense status while the shell/nav remain mounted; the spinner uses existing global reduced-motion handling.
 - [ ] No local visual review is claimed unless actually run; if local browser setup is unavailable, record the reason and rely on CI artifacts as an explicitly limited alternative.
