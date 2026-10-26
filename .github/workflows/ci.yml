@@ -41,6 +41,20 @@ jobs:
       - run: npm run check:secrets
       - run: npm run typecheck
       - run: npm run build
+  ui-quality:
+    name: ui-quality
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false) || (github.event_name == 'pull_request' && github.event.pull_request.draft == true)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5.0.0
+      - uses: actions/setup-node@v5.0.0
+        with:
+          node-version: 24.22.1
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run check:ui
+
   api-tests:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
     runs-on: ubuntu-24.04
@@ -221,7 +235,7 @@ jobs:
   quality-gate:
     name: quality-gate
     if: always() && github.event_name == 'pull_request'
-    needs: [fast, integration, docker-smoke]
+    needs: [fast, ui-quality, integration, docker-smoke]
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     steps:
@@ -229,17 +243,18 @@ jobs:
         env:
           PR_DRAFT: ${{ github.event.pull_request.draft }}
           FAST_RESULT: ${{ needs.fast.result }}
+          UI_RESULT: ${{ needs.ui-quality.result }}
           INTEGRATION_RESULT: ${{ needs.integration.result }}
           DOCKER_RESULT: ${{ needs.docker-smoke.result }}
         shell: bash
         run: |
           if [[ "$PR_DRAFT" == "true" ]]; then
-            if [[ "$FAST_RESULT" == "success" && "$INTEGRATION_RESULT" == "skipped" && "$DOCKER_RESULT" == "skipped" ]]; then
+            if [[ "$FAST_RESULT" == "success" && "$UI_RESULT" == "success" && "$INTEGRATION_RESULT" == "skipped" && "$DOCKER_RESULT" == "skipped" ]]; then
               echo "Draft PR: FAST passed. Full checks are deferred until ready_for_review."
               exit 0
             fi
           else
-            if [[ "$FAST_RESULT" == "skipped" && "$INTEGRATION_RESULT" == "success" && "$DOCKER_RESULT" == "success" ]]; then
+            if [[ "$FAST_RESULT" == "skipped" && "$UI_RESULT" == "success" && "$INTEGRATION_RESULT" == "success" && "$DOCKER_RESULT" == "success" ]]; then
               echo "Ready PR: FULL integration and Docker smoke passed."
               exit 0
             fi
