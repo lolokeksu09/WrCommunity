@@ -31,6 +31,12 @@
 
 - [ ] `npm run test:l1`, `npm run check:ui`, `npm run typecheck`, `npm run build` pass on the final revision.
 - [ ] Mobile Chromium E2E and API/Docker/integration/quality-gate success on the exact PR head; Desktop E2E remains disabled until owner explicitly reverses the decision.
-- [ ] No horizontal overflow at 360/390/430; forms, bottom nav and hero maintain keyboard focus/contrast/reduced-motion contracts.
+- [ ] No horizontal overflow at 360/390/430; forms, bottom nav and hero maintain keyboard focus/contrast/reduced-motion contracts. A static CSS-only patch is ready for CI, but no new screenshot has been reviewed yet.
 - [ ] Compare new local screenshot at 390 and 1440 if browser environment available; if not, state that manual inspection is unavailable and rely only on CI evidence actually obtained.
 - [ ] Do not merge this design work or deploy until the pre-existing PR #37 RELEASE has finished and the owner approves the direction or requests merge.
+
+## Implementation snapshot
+
+- Stylesheet change is additive and scoped to existing components; the layout structure and all links remain unchanged. Earlier source CSS minification is untouched.
+- Brand colours remain in the approved blue/slate family; no external fonts, imagery or new dependencies.
+- Manual before references are committed historic screenshots, not current VDS captures. A fresh CI/browser comparison is still required.
