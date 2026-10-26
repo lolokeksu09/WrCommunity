@@ -36,7 +36,7 @@ function makePatch(profile:Profile,mode:Mode,data:FormData,avatar:string|null,co
  return patch;
 }
 function valueView(key:string,value:unknown):ReactNode{
- if((key==='avatar_id'||key==='cover_id')&&typeof value==='string')return <img className="conflict-image" src={mediaUrl(value)} alt="Версия изображения"/>;
+ if((key==='avatar_id'||key==='cover_id')&&typeof value==='string')return <img className="conflict-image" src={mediaUrl(value)} alt="Версия изображения" width={320} height={200}/>;
  if(value===null||value===undefined||value==='')return 'Не задано';
  if(typeof value==='boolean')return value?'Да':'Нет';
  if(key==='visibility')return value==='public'?'Публичный':'Скрытый';
@@ -106,10 +106,10 @@ function Editor({profile:loadedProfile,mode}:{profile:Profile;mode:Mode}){
      <Field label="Имя" name="display_name" required maxLength={80} defaultValue={profile.display_name}/>
      <Field label="О себе" name="biography" type="textarea" maxLength={2000} defaultValue={profile.biography}/>
      <Field label="Аватар" name="avatar"><input type="file" name="avatar" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={event=>{void upload(event,'avatar');}}/></Field>
-     {avatarId?<><img className="upload-preview" src={mediaUrl(avatarId)} alt="Аватар"/><button className="secondary" type="button" disabled={uploading} onClick={()=>setAvatarId(null)}>Убрать аватар</button></>:<p className="muted">Аватар не выбран.</p>}
+     {avatarId?<><img className="upload-preview" src={mediaUrl(avatarId)} alt="Аватар" width={75} height={75}/><button className="secondary" type="button" disabled={uploading} onClick={()=>setAvatarId(null)}>Убрать аватар</button></>:<p className="muted">Аватар не выбран.</p>}
      {avatarId!==profile.avatar_id&&<button className="text-control" type="button" disabled={uploading} onClick={()=>setAvatarId(profile.avatar_id)}>Вернуть сохранённый аватар</button>}
      <Field label="Обложка" name="cover"><input type="file" name="cover" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={event=>{void upload(event,'cover');}}/></Field>
-     {coverId?<><img className="upload-preview wide" src={mediaUrl(coverId)} alt="Обложка"/><button className="secondary" type="button" disabled={uploading} onClick={()=>setCoverId(null)}>Убрать обложку</button></>:<p className="muted">Обложка не выбрана.</p>}
+     {coverId?<><img className="upload-preview wide" src={mediaUrl(coverId)} alt="Обложка" width={640} height={140}/><button className="secondary" type="button" disabled={uploading} onClick={()=>setCoverId(null)}>Убрать обложку</button></>:<p className="muted">Обложка не выбрана.</p>}
      {coverId!==profile.cover_id&&<button className="text-control" type="button" disabled={uploading} onClick={()=>setCoverId(profile.cover_id)}>Вернуть сохранённую обложку</button>}
     </>}
     {mode==='game'&&<>

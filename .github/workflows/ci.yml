@@ -39,6 +39,7 @@ jobs:
           git fetch --no-tags --depth=1 origin "$WRC_BASE_SHA"
           npm run test:affected -- --base="$WRC_BASE_SHA"
       - run: npm run check:secrets
+      - run: npm run check:ui
       - run: npm run typecheck
       - run: npm run build
   api-tests:
@@ -81,6 +82,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check:secrets
+      - run: npm run check:ui
       - run: npm run typecheck
       - run: npm run build
       - run: npm run test:l1

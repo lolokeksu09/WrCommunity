@@ -21,7 +21,7 @@ export function PostGallery({images}:{images:ImageAsset[]}){
     className="post-image-trigger"
     aria-label={'Открыть изображение '+(position+1)+' из '+images.length}
     onClick={event=>show(position,event)}
-   ><img src={image.url} alt="Вложение к публикации" loading="lazy"/></button>)}
+   ><img src={image.url} alt="Вложение к публикации" loading="lazy" width={image.width??640} height={image.height??480}/></button>)}
   </div>
   <dialog
    ref={dialog}
@@ -44,7 +44,7 @@ export function PostGallery({images}:{images:ImageAsset[]}){
      </div>
     </div>
     <div className="post-gallery-stage">
-     <img src={images[index].url} alt={'Изображение '+(index+1)+' из '+images.length}/>
+     <img src={images[index].url} alt={'Изображение '+(index+1)+' из '+images.length} width={images[index].width??1200} height={images[index].height??900}/>
     </div>
     {images.length>1&&<div className="post-gallery-controls">
      <button type="button" className="secondary" aria-label="Предыдущее изображение" onClick={()=>move(-1)}><ChevronLeft size={19}/> Назад</button>

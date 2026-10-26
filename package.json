@@ -26,6 +26,7 @@
     "start": "node --env-file-if-exists=.env dist/server/index.js",
     "start:worker": "node --env-file-if-exists=.env dist/server/worker.js",
     "check:secrets": "node scripts/check-secrets.mjs",
+    "check:ui": "node scripts/ci/check-ui-guidelines.mjs",
     "smoke:docker": "sh scripts/docker-smoke.sh",
     "backup:verify": "node scripts/backup-restore.mjs"
   },

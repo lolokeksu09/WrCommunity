@@ -1,6 +1,6 @@
 # WrCommunity 1.0: состояние и условия запуска
 
-На 25.10.2026 продуктовые модули M0–M11 реализованы, техническая приёмка M12 выполнена. Приложение работает как пилот с реальными Fastify API/PostgreSQL/worker и React UI. Общедоступный HTTPS сам по себе не означает готовность к открытому запуску.
+На 26.10.2026 продуктовые модули M0–M11 реализованы, техническая приёмка M12 выполнена. Приложение работает как пилот с реальными Fastify API/PostgreSQL/worker и React UI. Общедоступный HTTPS сам по себе не означает готовность к открытому запуску.
 
 Этот файл — единая сводка подтверждённой поставки и оставшихся условий. Правила: [AGENTS](../../AGENTS.md), запуск: [LOCAL-DEVELOPMENT](LOCAL-DEVELOPMENT.md), активный снимок задачи: [CONTINUATION](CONTINUATION.md). Приоритет требований: прямые решения владельца и утверждённый Social Core; PROPOSAL не вводит новые требования сам по себе.
 
@@ -10,7 +10,7 @@
 
 После него опубликован документационный [PR #33](https://github.com/lolokeksu09/WrCommunity/pull/33): main/VDS `f3a042b8c249c51475027481f8ef807a3419e49a`, [RELEASE 40165492015](https://github.com/lolokeksu09/WrCommunity/actions/runs/40165492015) success. Оба релиза подтвердили 61 API, desktop 28 passed + 4 штатных skipped и mobile 32 passed, deploy/строгий HTTPS главной/входа на 390/1440 px и vds-status. VDS ready=true, recovery_required=false; API/worker/PostgreSQL/Mailpit healthy, Caddy running. Это снимки проверок, не утверждение о постоянном состоянии HEAD или сервера.
 
-Документационный PR #34 также опубликован: main/VDS `5617d4567087983e8b2a6b396aadd3b6df74acf2`, [RELEASE 40171388962](https://github.com/lolokeksu09/WrCommunity/actions/runs/40171388962) success. Исправления уведомлений, очереди/материалов жалоб и форм из [PR #35](https://github.com/lolokeksu09/WrCommunity/pull/35) до его merge/RELEASE считаются проверенной разработкой, а не опубликованной версией.
+Документационный PR #34 также опубликован: main/VDS `5617d4567087983e8b2a6b396aadd3b6df74acf2`, [RELEASE 40171388962](https://github.com/lolokeksu09/WrCommunity/actions/runs/40171388962) success. [PR #35](https://github.com/lolokeksu09/WrCommunity/pull/35) также объединён с `main` и опубликован: точный merge SHA `e3ddd73cfdb31c191992b8ca3497936f6ac07ae1`, [RELEASE 40192597288](https://github.com/lolokeksu09/WrCommunity/actions/runs/40192597288) success (API 65/65, desktop/mobile, Docker, integration), deploy и vds-status success. Исправления уведомлений, очереди жалоб и форм доступны в опубликованном пилоте. Это снимок проверки 25.10.2026, не постоянная гарантия доступности.
 
 Для следующего релиза источник результата — описание соответствующего объединённого PR с exact merge SHA, RELEASE и VDS. Активный патч описан в CONTINUATION. Старые числа тестов не задают обязательный неизменный объём: актуальный набор определяется кодом/реестром и выводом CI.
 

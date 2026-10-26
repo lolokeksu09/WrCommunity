@@ -20,6 +20,7 @@
 ## CI и выбор проверок
 
 - **Draft → FAST:** типы, сборка, секреты, CI-policy и автоматический план затронутых проверок. Для нескольких файлов используй `npm run test:affected -- --files` с полным набором путей либо `--base=<полный SHA>`. План — рекомендация, не тест.
+- Для изменений интерфейса дополнительно запускай `npm run check:ui`; проверка должна завершиться успешно вместе с typecheck/build и затронутыми browser-сценариями.
 - Для фактического выполнения в изолированном окружении есть `npm run test:affected -- --execute --files` с полным набором путей; `--execute --base=<SHA>` сравнивает полный diff. При server/auth/ACL расширяй API/негативные проверки по стратегии. `--list`, `--dry-run` и созданный тест не доказывают успешного исполнения.
 - L1: `npm run test:l1`; L2/L3: `npm run test:l2 -- <area>` / `npm run test:l3 -- <area>` в подготовленном E2E-окружении. Новые E2E регистрируй с точными именем, уровнем и существующей областью.
 - **Ready → FULL:** на последнем head SHA должны завершиться именно success: `api-tests`, оба `browser-project` (desktop/mobile), `browser-tests`, `integration`, `docker-smoke`, `quality-gate`. При skipped, pending, cancelled, failure или отсутствии обязательной job merge запрещён. После нового коммита проверяется новый SHA; при merge используй expected head.
