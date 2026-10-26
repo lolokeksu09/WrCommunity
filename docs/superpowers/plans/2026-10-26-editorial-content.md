@@ -30,3 +30,6 @@ Base `c0d8eeee76a04cc79c490bbc4c46a37d8e4d6219`; branch `content/editorial-launc
 
 - One-shot script, test cases, Docker image copy and editorial provenance UI coded in dedicated branch. Await exact-sha FAST and FULL.
 - Server returns editorial provenance only for internally non-login records; public display badges and tonal monograms follow this signal.
+
+- Root-only VDS wrapper `scripts/apply-editorial-content.sh` reads active SHA from the existing protected deployment-state file and invokes Compose without printing secrets.
+- Operational directions `docs/implementation/EDITORIAL-CONTENT.md` describe preview, apply and read-only verification.
