@@ -284,7 +284,10 @@
   }
 }
 @media (max-width: 359px) {
-  /* The team label is the longest; remove its redundant icon on tiny screens. */
+  /* The team label is the longest; remove its redundant icon and reclaim 4px. */
+  .rift-signal .discoveries-shortcuts a {
+    padding-inline: 3px;
+  }
   .rift-signal .discoveries-shortcuts a:nth-child(3) svg:first-child {
     display: none;
   }
