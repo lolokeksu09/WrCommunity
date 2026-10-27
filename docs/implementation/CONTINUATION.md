@@ -156,3 +156,14 @@
 - После этого усилены регрессионные проверки CSS ширин `320/430/1440` в `tests/e2e/premium-mobile-polish.spec.ts`. Новая ревизия **требует отдельной exact-head FULL**, нельзя переносить статус предыдущей без проверки. QA отчёт: [Premium 2.1 visual](reviews/2026-10-27-premium-2-1-mobile-visual-audit.md).
 - Interactive local app/browser on a developer workstation was not run through this assistant's tools; only GitHub CI rendered the modified app. Real Android file picker/keyboard/200% zoom and TalkBack remain unverified, desktop automated E2E stays off.
 - **Следующее действие:** проверить final exact-head FULL, сообщить владельцу ссылку на PR #57 и screenshots; не объединять и не публиковать 2.1 без нового разрешения.
+
+
+## 27.10.2026 — Mobile editorial redesign, stage 1 (PR #59)
+
+- Owner rejected Premium 2.0–2.2 as a cosmetic update and requested substantial quality improvement. Production remains on Rift Signal release `f762dc890f92476f1e3caa2f541b62648d60416c` as work begins.
+- Branch `feat/mobile-editorial-redesign-2026-10-27`, draft [PR #59](https://github.com/lolokeksu09/WrCommunity/pull/59); [plan](../superpowers/plans/2026-10-27-mobile-editorial-redesign.md).
+- Code committed: `web/src/social.tsx` introduces semantic mobile masthead + stream sections; `web/src/mobile-editorial.css` reworks mobile information hierarchy/navigation/feed/cards/club listing/profile fields and search; `web/src/main.tsx` imports the layer last. Desktop styles remain intentionally unchanged.
+- Regression: new mobile L2 scenario in `tests/e2e/home-feed-ux.spec.ts`, registered in `scripts/ci/e2e-levels.json`: 320,360,390,430 viewport overflow and home-to-club route plus home/club evidence.
+- The working environment cannot clone/run full app (outbound DNS to GitHub blocked; local Node22 and no Docker/Postgres). Real build, browser screenshots, mobile CSS overflow and production behavior **not yet independently verified**. Do not claim visual review or successful CI until exact-HEAD Actions results.
+- No server, API, database, migrations, auth/ACL or deployment changes. No VDS update authorized by PR creation.
+- **Next action:** inspect exact PR #59 Draft FAST then Ready FULL and Chromium screenshots; correct any failing visual/functional regressions before requesting merge/deploy approval.
