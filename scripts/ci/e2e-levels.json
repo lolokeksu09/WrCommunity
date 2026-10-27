@@ -241,6 +241,12 @@
       "name": "Premium lab: repeat three throttled mobile LCP navigations with element attribution",
       "level": "L2",
       "area": "feed"
+    },
+    {
+      "file": "premium-lcp-phases.spec.ts",
+      "name": "Premium lab: compare mobile LCP timing phases with actual and empty synthetic feed",
+      "level": "L2",
+      "area": "feed"
     }
   ]
 }
