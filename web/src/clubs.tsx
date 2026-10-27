@@ -18,7 +18,7 @@ const clubActionName=(action:string)=>({club_create:'Создание клуба
 export const roleName=(value:string)=>({owner:'Владелец',admin:'Администратор',moderator:'Модератор',member:'Участник'} as Record<string,string>)[value]??value;
 export function ClubCard({club}:{club:Club}){
  return <Link className="club-card" to={'/clubs/'+club.id}>
-  <span className="club-card-cover" aria-hidden="true">{club.cover_id?<img src={mediaUrl(club.cover_id)} alt="" loading="lazy" width="640" height="240"/>:<span className="club-cover-placeholder">{club.name.slice(0,1)}</span>}</span>
+  <span className="club-card-cover" aria-hidden="true">{club.cover_id?<img src={mediaUrl(club.cover_id)} alt="" loading="lazy" width="640" height="240"/>:<span className={"club-cover-placeholder club-cover-tone-"+(parseInt(club.id.replace(/-/g,'').slice(0,8),16)%4)} />}</span>
   <span className="club-card-content"><span className="club-card-heading"><span className="club-symbol">{club.avatar_id?<img src={mediaUrl(club.avatar_id)} alt="" loading="lazy" width="55" height="55"/>:club.name.slice(0,1)}</span><ChevronRight size={20} aria-hidden="true"/></span>
    <span className="club-info"><b>{club.name}</b><span>{club.description}</span><small>{club.feed_visibility==='public'?<Globe size={13} aria-hidden="true"/>:<Lock size={13} aria-hidden="true"/>} {club.feed_visibility==='public'?'Открытая лента':'Для участников'}<span className="dot">·</span>{club.join_mode==='open'?'Свободное вступление':'По заявке'}</small></span>
    {club.state==='archived'?<span className="pill club-membership">В архиве</span>:club.membership&&<span className="pill club-membership">{club.membership.state==='pending'?'Заявка на рассмотрении':roleName(club.membership.role)}</span>}
