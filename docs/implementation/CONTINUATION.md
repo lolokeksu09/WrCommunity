@@ -77,3 +77,10 @@
 - **Pending on this new branch:** validate exact new-head GitHub CI `api-tests`, `browser-project (mobile-chromium)`, `browser-tests`, `docker-smoke`, `integration`, `quality-gate`. A successful FULL does not mean that the separate **manual** premium visual collector executed; its URL-redaction path also needs a targeted local-only evidence run before claiming runtime verification.
 - Outstanding manual release evidence: native 200% zoom, screen reader, Android picker and keyboard, throttled performance/field Web Vitals. Desktop Chromium automatic E2E remains disabled.
 - **One next action:** finish this branch's exact-head checks and record their outcomes in its PR, without merging to `main` or deploying.
+
+## 27.10.2026 — isolated Premium 2.0 accessibility checks and release decision
+
+- Working branch: `audit/premium-2-a11y-release-gates-2026-10-27`, directly stacked on reviewed [PR #49](https://github.com/lolokeksu09/WrCommunity/pull/49), source head `347e1dfa4bbcc6297dbff08d064aa0bfcff2c3f7`. Source `main` at start: `1077824c8a4d7d7c20f60ca8652e28805dee61eb`. No main/VDS interaction.
+- [Scope/plan](../superpowers/plans/2026-10-27-premium-2-a11y-gates.md). New `tests/e2e/premium-accessibility.spec.ts` plus registry entries: isolated 320px reflow and keyboard privacy tests for profile/editor/game/privacy; reduced-motion + keyboard discovery. Captures only disposable test identity in isolated CI. No product app, API, migrations or workflow modifications.
+- [Release-gate decision](reviews/2026-10-27-premium-2-release-gates.md): prefer one reviewed cumulative integration path to avoid duplicate releases; never merge existing stacked PRs plus aggregate. Android picker/IME, real 200% browser zoom, real screen-reader speech and throttled CWV remain unverified until separately executed. Auto Desktop Chromium E2E remains disabled as instructed.
+- Required next action: verify new exact-head mobile FULL jobs; if any test fails, preserve failure evidence, fix in this branch, recheck and update PR description. **No merge/deploy authorized.**
