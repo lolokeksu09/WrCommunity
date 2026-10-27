@@ -61,3 +61,10 @@
 - See [addendum](reviews/2026-10-27-premium-2-feed-design.md#addendum--editorial-fixture-and-keyboard-accessibility-2026-10-27). Full WCAG/200% actual zoom/screen reader and production editorial backend seed testing remain incomplete; auto Desktop Chromium E2E stays paused.
 - **Integration order:** #43 docs → #44 CLS diagnostics → #45 stable shell (base #44) → #46 feed (base #45). Each PR must be rechecked against its actual base/head, reviewed, Ready FULL on exact SHA and merged in order; rebase/update branch if required. No deployment without explicit owner authorization and successful RELEASE/HTTPS/VDS SHA verification.
 - **One next action:** remove the temporary workflow, verify final PR #46 FAST/diff, then prepare the parent #43 for FULL review (not automatic merge).
+
+## 27.10.2026 — combined Premium 2.0 integration candidate (no production deploy)
+
+- Branch `integration/premium-2-release-candidate-2026-10-27` combines all code/test commits by ancestry of [PR #46](https://github.com/lolokeksu09/WrCommunity/pull/46) (which includes #44 and #45), plus both original audit/roadmap documents from [PR #43](https://github.com/lolokeksu09/WrCommunity/pull/43). Preparation `main` SHA: `1077824c8a4d7d7c20f60ca8652e28805dee61eb`.
+- [Detailed integration manifest](reviews/2026-10-27-premium-2-integration-candidate.md) gives all source heads, prior CI evidence, exact omissions and release blockers. #43 [FULL 40454276661](https://github.com/lolokeksu09/WrCommunity/actions/runs/40454276661) succeeded; #44 [FULL 40454680744](https://github.com/lolokeksu09/WrCommunity/actions/runs/40454680744) succeeded. #45/#46 individual FULL and combined integration FULL need explicit verification.
+- **This is an isolated review and CI branch, not a substitute for a protected-main merge/release.** No live VDS, schema, production account or seed touched. Auto Desktop Chromium remains disabled.
+- **Next step:** require combined FULL success on the integration PR's exact head; evaluate outstanding manual 200% zoom and authenticated/keyboard tests. Publication to main/VDS is a separate authorized action, since a main merge triggers RELEASE.
