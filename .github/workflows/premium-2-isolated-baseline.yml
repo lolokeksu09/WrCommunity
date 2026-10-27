@@ -64,12 +64,12 @@ jobs:
         run: |
           node dist/server/index.js > /tmp/wrc-premium-server.log 2>&1 &
           curl --fail --silent --show-error --retry 40 --retry-connrefused --retry-delay 1 http://127.0.0.1:13000/health/ready
+      - name: Targeted mobile feed E2E on isolated data
+        run: npx playwright test --config scripts/playwright.config.ts --project=mobile-chromium tests/e2e/home-feed-ux.spec.ts
       - name: Capture 20 local read-only screen states
         run: |
           node scripts/ci/premium-visual-baseline.mjs
           printf '%s\n' "$GITHUB_SHA" > test-results/premium-baseline/source-sha.txt
-      - name: Targeted mobile feed E2E on isolated data
-        run: npx playwright test --config scripts/playwright.config.ts --project=mobile-chromium tests/e2e/home-feed-ux.spec.ts
       - name: Upload reproducible evidence
         if: always()
         uses: actions/upload-artifact@v4.6.2
