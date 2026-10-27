@@ -23,3 +23,12 @@
 - Review staged PR diff for only smoke/QA scripts, associated tests, package test command, candidate design docs/preview and continuation/plan.
 - Verify exact PR head via Draft FAST then Ready FULL `api-tests`, mobile Chromium, browser-tests, Docker smoke, integration, quality-gate; keep Desktop E2E off. Merge only after all required checks. Confirm main RELEASE, active VDS SHA and screenshot after content loaded.
 - **One next action after release:** run the local visual baseline in a supported Node24/Docker/Postgres/Chromium environment, inspect 20 screenshots and supply real evidence; then approve Premium 2.0 screen direction before touching live UI.
+
+
+## 27.10.2026 — Premium 2.0 P2-0 CLS attribution (working PR #44)
+
+- Parent **plan/evidence PR #43** is a separate docs-only Draft: [Premium 2.0 implementation plan](https://github.com/lolokeksu09/WrCommunity/blob/audit/premium-2-preparation-2026-10-27/docs/superpowers/plans/2026-10-27-premium-2-implementation.md). This branch originates directly from `main` `1077824c8a4d7d7c20f60ca8652e28805dee61eb`.
+- This branch: `feat/premium-2-cls-attribution-2026-10-27`; unmerged [PR #44](https://github.com/lolokeksu09/WrCommunity/pull/44). Changes limited to manual privacy-safe CLS diagnostics in `scripts/ci/premium-visual-baseline.mjs`, pure session-window summarizer, unit tests, and docs.
+- Tested in disposable Chromium runner [40449771048](https://github.com/lolokeksu09/WrCommunity/actions/runs/40449771048) at audit SHA `bd28e55b20125a50395783bf86af27019e263638`, local `http://127.0.0.1:13000/`, PostgreSQL `wrcommunity_test`; artifact `12709559163` has 20 PNGs, JSON and source SHA. **20/20 passed; unit tests passed**; direct initial `document` shift plus later `main`/`footer` shift observed on every guest route. **11/20** diagnostic session CLS readings exceeded 0.1. Full evidence [here](reviews/2026-10-27-premium-2-cls-attribution.md).
+- The prior failed unit [run 40449682358](https://github.com/lolokeksu09/WrCommunity/actions/runs/40449682358) exposed a wrong expected region ordering in a new test; assertion corrected and rerun passed. No UI, API, DB, production or VDS changes. Desktop Chromium automated E2E stays disabled. Not a CLS fix.
+- Before declaring PR ready or merge, remove ephemeral audit-only workflow, confirm final diff/FAST, run required Ready FULL and ensure owner review. One next action for subsequent P2-1 UI work: isolate actual initial fallback/shell geometry and prove lower CLS at 360/390/430/1440 on disposable fixtures while preserving interactions/ACL.
