@@ -23,3 +23,14 @@
 - Review staged PR diff for only smoke/QA scripts, associated tests, package test command, candidate design docs/preview and continuation/plan.
 - Verify exact PR head via Draft FAST then Ready FULL `api-tests`, mobile Chromium, browser-tests, Docker smoke, integration, quality-gate; keep Desktop E2E off. Merge only after all required checks. Confirm main RELEASE, active VDS SHA and screenshot after content loaded.
 - **One next action after release:** run the local visual baseline in a supported Node24/Docker/Postgres/Chromium environment, inspect 20 screenshots and supply real evidence; then approve Premium 2.0 screen direction before touching live UI.
+
+
+## 27.10.2026 — Premium 2.0 evidence audit in Draft PR #43
+
+- **Active documentation-only PR:** [#43](https://github.com/lolokeksu09/WrCommunity/pull/43), branch `audit/premium-2-preparation-2026-10-27` against `main` **`1077824c8a4d7d7c20f60ca8652e28805dee61eb`**.
+- **Actual audit document:** [2026-10-27-premium-2-audit.md](reviews/2026-10-27-premium-2-audit.md). First-stage screenshots/source hypotheses retained; a separate corroboration section was added on 27.10 using the current production RELEASE and E2E screenshot artifacts.
+- **Verified:** [RELEASE 40395582321](https://github.com/lolokeksu09/WrCommunity/actions/runs/40395582321) on the exact main SHA reports success for api-tests/mobile Chromium/browser-tests/integration/docker-smoke/deploy/vds-status. Downloaded and visually inspected `deployed-public-site` screenshots (390/1440 feed/login) and fresh mobile Chromium E2E screens. Production now shows clearly labeled editorial posts; old empty-feed snapshot is not representative of this RELEASE. QA-01 release smoke reported rendered content.
+- **Local source acquisition:** direct Git clone and GitHub DNS failed in the current container. Recovered full earlier `git archive` of `2ef65bd…` from workflow 40382179306; compared it to current main: 17 commits changed no `web/src` or `server/` files. Browser/React app has **not** been launched locally; this is not a clean checkout of `main`. Node 22/npm 10, absent Docker/dependencies and blocked external DNS remain the environment blockers.
+- **Not checked:** isolated local UI interactions, editable/authenticated states from personal testing, 20-shot localhost baseline, Lighthouse/CWV and manual a11y. E2E fixture screenshots are not production users.
+- **Constraints:** no app/server/database/production changes, no new editorial accounts or synthetic engagement, do not merge Draft #43, do not re-enable automated Desktop Chromium E2E.
+- **One next action:** obtain reproducible browser baseline from an isolated supported environment at exact current `main` SHA and append screenshot paths/measurements to the audit before authorizing screen implementation.
