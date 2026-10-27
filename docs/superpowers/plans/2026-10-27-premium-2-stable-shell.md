@@ -13,13 +13,13 @@ This is an experimentally testable hypothesis, *not* proof of a specific CSS dec
 
 ## Authorized bounded change
 
-- [ ] Replace the standalone hydration fallback with the same responsive layout geometry as the real `Shell`: mobile header, desktop grid tracks and route-content stage. Keep loading status meaningful, non-interactive and a11y-labeled; no fake navigation controls.
-- [ ] Reserve a stable, near-viewport vertical route-loading stage to keep transient footer layout from entering the view and moving on content arrival, not hide actual errors, page content, loader state or metrics.
-- [ ] Introduce only modest consistent spacing/tokens when needed for shell consistency; do not redesign feed, discovery, clubs, profile or auth in this PR.
-- [ ] Keep `React Router` route loaders, privacy permissions, scroll restoration, header actions, bottom nav and reduced-motion unaffected.
-- [ ] Test on 20 public guest screenshots at 360×800, 390×844, 430×932, 1440×900 in isolated PostgreSQL, with same instrumented CLS collector as PR #44. Compare each route/viewport to original baseline, report both improvements and regressions.
-- [ ] Add regression assertions on loading/final shell geometry and basic keyboard/login navigation where feasible; no CSS-only speculative full-suite tests.
-- [ ] Capture PNGs, lab metrics, exact SHA and manual visual observations. Re-test after every change that changes measured layout.
+- [x] Replace the standalone hydration fallback with the same responsive layout geometry as the real `Shell`: mobile header, desktop grid tracks and route-content stage. Keep loading status meaningful, non-interactive and a11y-labeled; no fake navigation controls.
+- [x] Reserve a stable, near-viewport vertical route-loading stage to keep transient footer layout from entering the view and moving on content arrival, not hide actual errors, page content, loader state or metrics.
+- [x] Keep visual-token scope unchanged; this narrow PR corrects stable shell geometry without a global visual redesign. New palette/type scale remains a separate bounded design PR.
+- [x] Keep `React Router` route loaders, privacy permissions, scroll restoration, header actions, bottom nav and reduced-motion unaffected.
+- [x] Test on 20 public guest screenshots at 360×800, 390×844, 430×932, 1440×900 in isolated PostgreSQL, with same instrumented CLS collector as PR #44. Compare each route/viewport to original baseline, report both improvements and regressions.
+- [ ] Include real-browser regression checks in Ready FULL and manually verify keyboard/zoom/authenticated/error behavior before any production merge; do not claim these manual checks have already been run.
+- [x] Capture PNGs, lab metrics, exact SHA and manual visual observations. Re-test after every change that changes measured layout. See [measured report](../../implementation/reviews/2026-10-27-premium-2-stable-shell.md), runner 40451128776.
 - [ ] Do not merge until parent PRs' order and protected main rules are satisfied; Ready FULL must succeed on final relevant head. Do not deploy without review.
 
 ## Acceptance
