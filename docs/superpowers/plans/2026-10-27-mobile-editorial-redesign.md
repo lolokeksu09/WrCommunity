@@ -2,6 +2,7 @@
 
 **Base:** `f762dc890f92476f1e3caa2f541b62648d60416c` (Rift Signal published).
 **Branch:** `feat/mobile-editorial-redesign-2026-10-27`.
+**PR:** https://github.com/lolokeksu09/WrCommunity/pull/59 (Ready for isolated FULL, unmerged).
 **Owner goal:** a distinctly new, premium mobile product instead of cosmetic layers. Preserve desktop arrangements until separately approved.
 
 ## Decisions and scope
