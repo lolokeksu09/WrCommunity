@@ -265,6 +265,12 @@
       "name": "Rift Signal соединяет три реальных маршрута и сохраняет адаптивность",
       "level": "L2",
       "area": "feed"
+    },
+    {
+      "file": "home-feed-ux.spec.ts",
+      "name": "Mobile editorial hub keeps reading and club navigation usable at narrow widths",
+      "level": "L2",
+      "area": "feed"
     }
   ]
 }
