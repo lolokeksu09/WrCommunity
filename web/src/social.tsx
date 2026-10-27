@@ -4,13 +4,93 @@ export {resetPostDrafts} from './post-drafts';
 import {roleLabel} from '../../shared/game-roles';
 import {useEffect,useId,useLayoutEffect,useRef,useState,type FormEvent} from 'react';
 import {Link,useLoaderData,useLocation,useNavigationType,useNavigate,useParams,useSearchParams} from 'react-router-dom';
-import {ArrowRight,Bookmark,ChevronDown,ChevronLeft,ChevronRight,ChevronUp,Heart,ImagePlus,MessageCircle,MoreHorizontal,Plus,Search,Send,Trash2,X} from 'lucide-react';
+import {ArrowRight,Bookmark,ChevronDown,ChevronLeft,ChevronRight,ChevronUp,Gamepad2,Heart,ImagePlus,MessageCircle,MoreHorizontal,Plus,Search,Send,Trash2,Users,X} from 'lucide-react';
 import {ApiError,api,collection,mediaUrl,message,query,type Author,type Collection,type Comment,type ImageAsset,type Post,type Profile} from './api';
 import {Gate,useSession} from './auth-session';
 import {ApiButton,AuthorName,Avatar,CheckField,ConfirmButton,Empty,Feedback,Field,PageHeading,ReportLink,Select,Submit,date,formValues,isChecked,splitValues,textValue,useTask} from './ui';
 import {PostGallery} from './post-gallery';
 import {PostText} from './post-text';
-export function Discoveries(){const [collapsed,setCollapsed]=useState(()=>{try{return sessionStorage.getItem('wrcommunity:discoveries-collapsed')!=='0';}catch{return false;}}),[slide,setSlide]=useState(0);const touch=useRef<{x:number;y:number}|null>(null);const {user}=useSession();const cards=[{title:'Найти своих',description:'Игроки, команды и темы, которые тебе близки.',to:'/discover',button:'Смотреть игроков',label:'Открытия'},{title:'Своя компания',description:'Общие интересы. Знакомые лица. Новые встречи.',to:'/clubs',button:'Открыть клубы',label:'Сообщества'},{title:'Есть что обсудить?',description:'Тактика, впечатления и собственные истории.',to:'/posts/new',button:'Написать пост',label:'Обсуждения'}];const card=cards[slide];function move(n:number){setSlide((n+cards.length)%cards.length);}function toggle(){const next=!collapsed;setCollapsed(next);try{sessionStorage.setItem('wrcommunity:discoveries-collapsed',next?'1':'0');}catch{}}return <section className={'discoveries'+(user?' compact':'')} aria-label="Открытия"><div className="discoveries-caption"><span>НАВИГАЦИЯ ПО СООБЩЕСТВУ</span><button className="text-control" onClick={toggle} aria-expanded={!collapsed}>{collapsed?'Развернуть':'Свернуть'}{collapsed?<ChevronDown size={15}/>:<ChevronUp size={15}/>}</button></div><nav className="discoveries-shortcuts" aria-label="Быстрые переходы"><Link to="/discover"><Search size={16}/> Игроки <ArrowRight size={14}/></Link><Link to="/clubs">Клубы <ArrowRight size={14}/></Link><Link to="/discover/lfg">Ищу команду <ArrowRight size={14}/></Link></nav>{!collapsed&&<><div className="hero-shell"><div className={'hero hero-'+slide} onTouchStart={e=>{touch.current={x:e.touches[0].clientX,y:e.touches[0].clientY};}} onTouchEnd={e=>{if(touch.current){const dx=e.changedTouches[0].clientX-touch.current.x,dy=e.changedTouches[0].clientY-touch.current.y;if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)*1.2)move(slide+(dx<0?1:-1));touch.current=null;}}} onTouchCancel={()=>{touch.current=null;}} onKeyDown={e=>{if(e.target!==e.currentTarget)return;if(e.key==='ArrowRight'){e.preventDefault();move(slide+1);}if(e.key==='ArrowLeft'){e.preventDefault();move(slide-1);}}} tabIndex={0}><div className="hero-portal" aria-hidden="true"><div/><i/><b/></div><div className="hero-content"><span className="hero-label">{card.label}</span><h2>{card.title}</h2><p>{card.description}</p><Link to={card.to} className="hero-action">{card.button}<ArrowRight size={14}/></Link></div><button className="hero-next" aria-label="Следующая карточка" onClick={()=>move(slide+1)}><ArrowRight size={19}/></button></div></div><div className="hero-controls"><span>{slide+1} из {cards.length}</span><div className="hero-dots">{cards.map((_,i)=><button key={i} aria-label={'Карточка '+(i+1)} aria-current={slide===i} className={slide===i?'selected':''} onClick={()=>move(i)}/>)}</div></div></>}</section>;}
+function RiftMap({variant='compact'}:{variant?:'compact'|'hero'}) {
+ const route='M -12 126 C 24 126 31 100 70 100 C 105 100 116 72 151 72 C 181 72 184 100 210 100 C 244 100 247 123 282 123 C 316 123 320 100 350 100 C 380 100 389 73 432 73';
+ return <svg className={'rift-map rift-map-'+variant} viewBox="0 0 420 150" preserveAspectRatio={variant==='hero'?'none':'xMidYMid slice'} aria-hidden="true" focusable="false">
+  <g className="rift-map-contours">
+   <path d="M-24 22 C16 0 51 3 88 24 S150 51 192 25 S259 3 304 25 S376 49 445 17"/>
+   <path d="M-26 40 C13 19 49 22 84 42 S151 68 194 43 S261 22 305 43 S379 67 447 35"/>
+   <path d="M-26 59 C13 39 48 41 83 59 S152 86 195 61 S261 41 306 60 S379 85 447 54"/>
+   <path d="M-25 78 C15 60 49 61 84 77 S153 103 195 79 S263 60 306 78 S379 103 447 72"/>
+   <path d="M-24 98 C14 82 48 82 83 97 S153 122 195 98 S264 80 306 98 S380 121 446 91"/>
+   <path d="M-24 139 C19 114 53 120 88 138 S153 160 195 137 S264 117 306 138 S379 157 447 129"/>
+  </g>
+  <path className="rift-map-route-shadow" d={route}/>
+  <path className="rift-map-route" d={route}/>
+  <path className="rift-map-route-highlight" d={route}/>
+  <g className="rift-map-stations">
+   <g className="rift-map-station rift-map-station-players">
+    <circle className="rift-map-node-ring" cx="70" cy="100" r="12"/>
+    <circle className="rift-map-node-core" cx="70" cy="100" r="3"/>
+    <path className="rift-map-node-tick" d="M70 82v5M70 113v5"/>
+   </g>
+   <g className="rift-map-station rift-map-station-clubs">
+    <circle className="rift-map-node-ring" cx="210" cy="100" r="12"/>
+    <circle className="rift-map-node-core" cx="210" cy="100" r="3"/>
+    <path className="rift-map-node-tick" d="M210 82v5M210 113v5"/>
+   </g>
+   <g className="rift-map-station rift-map-station-team">
+    <circle className="rift-map-node-ring" cx="350" cy="100" r="12"/>
+    <circle className="rift-map-node-core" cx="350" cy="100" r="3"/>
+    <path className="rift-map-node-tick" d="M350 82v5M350 113v5"/>
+   </g>
+  </g>
+ </svg>;
+}
+export function Discoveries(){
+ const [collapsed,setCollapsed]=useState(()=>{try{return sessionStorage.getItem('wrcommunity:discoveries-collapsed')!=='0';}catch{return false;}}),[slide,setSlide]=useState(0);
+ const touch=useRef<{x:number;y:number}|null>(null);
+ const {user}=useSession();
+ const cards=[
+  {title:'Найти своих',description:'Игроки, команды и темы, которые тебе близки.',to:'/discover',button:'Смотреть игроков',label:'Открытия'},
+  {title:'Своя компания',description:'Общие интересы. Знакомые лица. Новые встречи.',to:'/clubs',button:'Открыть клубы',label:'Сообщества'},
+  {title:'Есть что обсудить?',description:'Тактика, впечатления и собственные истории.',to:'/posts/new',button:'Написать пост',label:'Обсуждения'}
+ ];
+ const card=cards[slide];
+ function move(n:number){setSlide((n+cards.length)%cards.length);}
+ function toggle(){const next=!collapsed;setCollapsed(next);try{sessionStorage.setItem('wrcommunity:discoveries-collapsed',next?'1':'0');}catch{}}
+ return <section className={'discoveries rift-signal'+(user?' compact':'')} aria-label="Открытия">
+  <div className="rift-signal-art" aria-hidden="true"><RiftMap/></div>
+  <div className="discoveries-caption">
+   <span className="rift-signal-title">Выбери маршрут</span>
+   <button className="text-control" onClick={toggle} aria-expanded={!collapsed}>{collapsed?'Развернуть':'Свернуть'}{collapsed?<ChevronDown size={15}/>:<ChevronUp size={15}/>}</button>
+  </div>
+  <nav className="discoveries-shortcuts" aria-label="Быстрые переходы">
+   <Link to="/discover"><Search size={16}/> Игроки <ArrowRight size={14}/></Link>
+   <Link to="/clubs"><Users size={16}/> Клубы <ArrowRight size={14}/></Link>
+   <Link to="/discover/lfg"><Gamepad2 size={16}/> Ищу команду <ArrowRight size={14}/></Link>
+  </nav>
+  {!collapsed&&<>
+   <div className="hero-shell">
+    <div className={'hero hero-'+slide}
+     onTouchStart={e=>{touch.current={x:e.touches[0].clientX,y:e.touches[0].clientY};}}
+     onTouchEnd={e=>{if(touch.current){const dx=e.changedTouches[0].clientX-touch.current.x,dy=e.changedTouches[0].clientY-touch.current.y;if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)*1.2)move(slide+(dx<0?1:-1));touch.current=null;}}}
+     onTouchCancel={()=>{touch.current=null;}}
+     onKeyDown={e=>{if(e.target!==e.currentTarget)return;if(e.key==='ArrowRight'){e.preventDefault();move(slide+1);}if(e.key==='ArrowLeft'){e.preventDefault();move(slide-1);}}}
+     tabIndex={0}>
+     <div className="hero-portal" aria-hidden="true"><RiftMap variant="hero"/></div>
+     <div className="hero-content">
+      <span className="hero-label">{card.label}</span>
+      <h2>{card.title}</h2>
+      <p>{card.description}</p>
+      <Link to={card.to} className="hero-action">{card.button}<ArrowRight size={14}/></Link>
+     </div>
+     <button className="hero-next" aria-label="Следующая карточка" onClick={()=>move(slide+1)}><ArrowRight size={19}/></button>
+    </div>
+   </div>
+   <div className="hero-controls">
+    <span>{slide+1} из {cards.length}</span>
+    <div className="hero-dots">{cards.map((_,i)=><button key={i} aria-label={'Карточка '+(i+1)} aria-current={slide===i} className={slide===i?'selected':''} onClick={()=>move(i)}/>)}</div>
+   </div>
+  </>}
+ </section>;
+}
 export function Home(){const data=useLoaderData() as Collection<Post>;const [params]=useSearchParams();const mode=params.get('mode')??'all';const {user}=useSession();return <><h1 className="sr-only">Лента WrCommunity</h1><div className="feed-head"><div><h2>Лента</h2><span>Публикации сообщества</span></div><Link className="quiet-link" to="/discover"><Search size={17}/> Найти</Link></div><nav className="tabs" aria-label="Тип ленты"><Link to="/" preventScrollReset className={mode==='all'?'active':''}>Все</Link><Link to="/?mode=following" preventScrollReset className={mode==='following'?'active':''}>Подписки</Link><Link className="create-link" to="/posts/new" aria-label="Создать публикацию"><Plus size={19}/><span>Написать</span></Link></nav><Discoveries/>{mode==='following'&&!user?<Empty title="Твоя лента подписок" to="/login?returnTo=%2F%3Fmode%3Dfollowing" action="Войти">Войди, чтобы читать публикации интересных тебе авторов.</Empty>:<PostList key={mode} data={data} path={'/feed'+query({mode})} emptyTitle={mode==='following'?'Здесь появятся посты твоих авторов':'Сообщество начинается с разговора'} emptyTo={mode==='following'?'/discover':'/posts/new'} emptyAction={mode==='following'?'Найти авторов':'Написать пост'} emptyText={mode==='following'?'Найди игроков по ролям и интересам и подпишись на их публикации.':'Публикаций пока нет. Поделись мыслью, задай вопрос или найди компанию для следующего матча.'}/>}<div className="community-note"><img src="/brand.svg" width="32" height="32" alt=""/><div><h2>За пределами матча</h2><p>Независимое русскоязычное сообщество игроков Wild Rift.</p></div></div></>;}
 export function usePagedCollection<T extends {id:string}>(initial:Collection<T>,path:string){
  const {user}=useSession();
