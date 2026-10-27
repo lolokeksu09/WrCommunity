@@ -450,6 +450,137 @@
     background: #0c1521;
   }
   .profile-media-section .upload-preview { border-radius: 4px 13px 4px 4px; }
+  /* Editorial V3: content takes precedence over the promotional banner. */
+  .home-stage {
+    margin-block: 10px 5px;
+    padding: 11px 14px 12px;
+    gap: 4px;
+  }
+  .home-stage-index { font-size: 8px; }
+  .home-stage-copy h2 {
+    font-size: clamp(23px, 6.8vw, 29px);
+    line-height: 1.045;
+  }
+  .home-stage-copy p {
+    margin-top: 4px;
+    font-size: 11.5px;
+    line-height: 1.35;
+    max-width: none;
+  }
+  .home-stream .feed-head { margin-top: 8px; }
+  .home-stream > .tabs { margin-bottom: 7px; }
+
+  /* One public quick-search form, distinct from the advanced form.
+     Keep real players visible while optional filters are closed. */
+  .discovery-controls { display: grid; gap: 0; min-width: 0; margin: 6px 0 16px; }
+  .discovery-quick-search {
+    display: grid;
+    min-width: 0;
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid #486378;
+    border-radius: 4px 16px 4px 4px;
+    background: linear-gradient(125deg, #17283a, #111b2a 75%);
+  }
+  .discovery-quick-search > label {
+    color: #e8f3ff;
+    font-size: 13px;
+    font-weight: 750;
+  }
+  .discovery-quick-row { display: flex; gap: 8px; min-width: 0; }
+  .discovery-quick-row .field {
+    flex: 1 1 auto;
+    width: 1px;
+    min-width: 0;
+    min-height: 46px;
+    padding: 9px 10px;
+    background: #09121f;
+    border-color: #4a6079;
+    border-radius: 5px;
+    color: #ecf4ff;
+  }
+  .discovery-quick-row .primary { padding-inline: 12px; min-width: 86px; min-height: 46px; }
+  .discovery-controls .filter-panel {
+    margin: 7px 0 0;
+    padding: 0 10px 4px;
+    border: 1px solid #2d4358;
+    border-radius: 4px 4px 12px 4px;
+    background: #101925;
+  }
+  .discovery-controls .filter-panel.collapsed { padding-bottom: 4px; }
+  .discovery-controls .filter-panel-toolbar { margin: 0; }
+  .discovery-controls .filter-panel-toolbar .filter-toggle {
+    min-height: 44px;
+    padding: 6px 9px;
+    background: transparent;
+    border-color: transparent;
+    font-size: 12px;
+    color: #c9dbea;
+  }
+  .discovery-controls .filter-panel-fields { padding-bottom: 15px; }
+  .discovery-controls .active-filters { margin: 3px 0 9px; }
+  .discovery-controls .search-preferences { margin: 8px 0 0; padding: 11px 12px; }
+  .discovery-controls .search-preferences-heading { gap: 8px; }
+  .discovery-controls .search-preferences h2 { font-size: 13px; }
+  .discovery-controls + .person { margin-top: 6px; }
+
+  /* Profile links change composition, not route semantics or keyboard order. */
+  .profile-menu-group { min-width: 0; margin-top: 23px; }
+  .profile-menu-group .section-title { margin-block: 0 9px; }
+  .profile-link-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    border-top: 0;
+    margin: 0;
+  }
+  .profile-link-grid .menu-link {
+    min-width: 0;
+    min-height: 67px;
+    padding: 12px;
+    align-items: center;
+    border: 1px solid #30465c;
+    border-radius: 4px 13px 4px 4px;
+    background: #121b28;
+    color: #e5f0fb;
+    gap: 6px;
+  }
+  .profile-link-grid .menu-link b {
+    font-size: 12px;
+    line-height: 1.35;
+    font-weight: 720;
+  }
+  .profile-link-grid .menu-link > svg { width: 15px; color: #a5f4df; }
+  .profile-settings { margin-top: 20px; }
+  .profile-menu-group + .profile-settings { border-top: 1px solid #29394a; }
+
+  /* Club page: an identity dossier with all existing permission-bound actions. */
+  .club-dossier {
+    min-width: 0;
+    margin: 16px 0 11px;
+    padding-bottom: 11px;
+    border: 1px solid #30465b;
+    border-radius: 4px 16px 4px 4px;
+    background: linear-gradient(160deg, #141f31, #0d151f 85%);
+    overflow: hidden;
+  }
+  .club-dossier .club-cover {
+    height: 132px;
+    min-height: 132px;
+    border: 0;
+    border-bottom: 1px solid #43546c;
+    border-radius: 0;
+    margin: 0 0 4px;
+  }
+  .club-dossier .page-heading { margin: 15px 0 10px; padding: 0 13px; }
+  .club-dossier .page-heading h1 { font-size: clamp(23px, 7.2vw, 30px); }
+  .club-dossier .page-heading p { margin-top: 6px; line-height: 1.4; }
+  .club-dossier > .pills { margin: 5px 13px 8px; gap: 6px; }
+  .club-dossier .pill { min-height: 27px; }
+  .club-dossier > .profile-actions { margin: 10px 13px 0; }
+  .club-dossier > .profile-actions a { min-height: 45px; }
+  .club-dossier > .info-note { margin-inline: 13px; }
+  .club-dossier + .club-tabs { margin-top: 5px; }
   .site-footer { margin-top: 6px; color: #8ca0b3; }
 }
 @media (max-width: 359px) {
