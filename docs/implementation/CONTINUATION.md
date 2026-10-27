@@ -97,3 +97,9 @@
 - Added `tests/e2e/premium-semantics-performance.spec.ts` (two scenarios registered at L3/editor and L2/feed), [plan](../superpowers/plans/2026-10-27-premium-2-semantics-performance.md) and [evidence/release limits](reviews/2026-10-27-premium-2-semantics-performance.md). This extends existing authenticated keyboard/320px evidence with editor accessible-name checks and guest mobile Chromium CPU/network-throttled navigation observations, not full WCAG/native 200% zoom.
 - Exact new-head FULL required: API, mobile Chromium, browser-tests, docker-smoke, integration, quality-gate. No claim of pass until completed. INP, production CWV, native Android picker/IME, TalkBack and real 200% browser zoom remain unverified. Desktop Chromium E2E stays disabled.
 - **Single next action:** verify final FULL and report fixture-based measured values and limits; do not retarget/merge to main or deploy without separate explicit authorization.
+
+## 27.10.2026 — LCP attribution after PR #51
+
+- Source: validated [PR #51](https://github.com/lolokeksu09/WrCommunity/pull/51) `3c29907cc65528f50433492ab8ecc6ffbcef047c`, one throttled 390px lab sample LCP 5808ms, not production metrics.
+- Branch `audit/premium-2-lcp-attribution-2026-10-27`. Added three-run isolated 390x844 CDP 150ms / 200000 download B/s / 4x CPU performance test, static element-region metadata and numeric timing without private DOM/URLs; exact L2 registry entry. Plan [here](../superpowers/plans/2026-10-27-premium-2-lcp-attribution.md); [audit](reviews/2026-10-27-premium-2-lcp-attribution.md).
+- **Required next action:** complete exact-head PR FULL and read actual evidence values; document any unavailable metric or failure. No `main` merge, deployment, production user/data modification or Desktop Chromium E2E. Manual Android/zoom/screen-reader and field CWV remain open.
