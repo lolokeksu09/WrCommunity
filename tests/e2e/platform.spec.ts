@@ -296,6 +296,8 @@ for(const width of [360,390,430,1440])test(`адаптивность ${width}px:
   await page.screenshot({path:testInfo.outputPath(`loading-${width}.png`),fullPage:false});
   await network.send('Network.emulateNetworkConditions',{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
   await network.detach();
+  // Premium 2.0 keeps discoveries compact by default; expand before testing slides.
+  await page.getByRole('button',{name:'Развернуть',exact:true}).click();
   await page.getByRole('button',{name:'Карточка 2',exact:true}).click();
   await expect(page.locator('.hero h2')).toHaveText('Своя компания');
   await page.locator('.hero').focus();await page.keyboard.press('ArrowRight');

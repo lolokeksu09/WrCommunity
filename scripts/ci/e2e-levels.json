@@ -193,6 +193,60 @@
       "name": "загрузка route chunk сохраняет мобильную навигацию и показывает статус",
       "level": "L2",
       "area": "navigation"
+    },
+    {
+      "file": "home-feed-ux.spec.ts",
+      "name": "редакционная метка и оформление видны в изолированной ленте на 390px и 1440px",
+      "level": "L2",
+      "area": "feed"
+    },
+    {
+      "file": "home-feed-ux.spec.ts",
+      "name": "главная доступна с клавиатуры, раскрытие карусели управляется стрелками",
+      "level": "L2",
+      "area": "navigation"
+    },
+    {
+      "file": "premium-auth-visual.spec.ts",
+      "name": "Premium audit: authenticated hidden profile, editor, privacy and responsive visual evidence",
+      "level": "L3",
+      "area": "editor"
+    },
+    {
+      "file": "premium-accessibility.spec.ts",
+      "name": "Premium accessibility: authenticated 320px reflow and keyboard privacy without publishing",
+      "level": "L3",
+      "area": "editor"
+    },
+    {
+      "file": "premium-accessibility.spec.ts",
+      "name": "Premium accessibility: reduced motion leaves discovery usable from the keyboard",
+      "level": "L2",
+      "area": "navigation"
+    },
+    {
+      "file": "premium-semantics-performance.spec.ts",
+      "name": "Premium evidence: profile editor fields expose keyboard focus and accessible labels",
+      "level": "L3",
+      "area": "editor"
+    },
+    {
+      "file": "premium-semantics-performance.spec.ts",
+      "name": "Premium lab: throttled isolated mobile guest feed records navigation LCP and CLS",
+      "level": "L2",
+      "area": "feed"
+    },
+    {
+      "file": "premium-lcp-attribution.spec.ts",
+      "name": "Premium lab: repeat three throttled mobile LCP navigations with element attribution",
+      "level": "L2",
+      "area": "feed"
+    },
+    {
+      "file": "premium-lcp-phases.spec.ts",
+      "name": "Premium lab: compare mobile LCP timing phases with actual and empty synthetic feed",
+      "level": "L2",
+      "area": "feed"
     }
   ]
 }

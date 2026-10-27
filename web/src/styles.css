@@ -393,3 +393,38 @@
 
 /* Editorial showcase accounts are explicit content from the WrCommunity team. */
 .editorial-author{display:inline-flex;align-items:center;gap:7px;flex-wrap:wrap;max-width:100%;min-width:0}.editorial-author .author{max-width:100%}.editorial-badge{display:inline-flex;align-items:center;padding:2px 6px;border:1px solid #607a9b;border-radius:5px;color:#d5e5fa;background:#1b2d42;font-size:10.5px;line-height:1.5;font-weight:650}.editorial-avatar{font-weight:800;letter-spacing:-.06em;text-shadow:0 1px 8px #0005}.editorial-avatar-jungle{background:linear-gradient(145deg,#326456,#101e26);border-color:#61998c;color:#dcf6de}.editorial-avatar-mid{background:linear-gradient(145deg,#57518e,#1a1c30);border-color:#878dc5;color:#e4e3ff}.editorial-avatar-support{background:linear-gradient(145deg,#6c526f,#271d30);border-color:#aa83ac;color:#f9dff7}.editorial-avatar-macro{background:linear-gradient(145deg,#315e81,#121e31);border-color:#739eca;color:#dbedff}.editorial-avatar-team{background:linear-gradient(145deg,#85674a,#221d25);border-color:#bd9978;color:#fff0da}
+
+
+/* P2-1: avoid shifting the footer into view while route data or lazy UI resolves.
+   This reserves space only for the temporary loading state; real content has its
+   natural height and remains fully rendered and scrollable. */
+.route-loading {
+  min-height: max(42vh, calc(100dvh - 80px));
+}
+.initial-shell .initial-nav-slot {
+  display: block;
+  min-height: 57px;
+  border-radius: 9px;
+  background: #18212e;
+}
+.initial-shell .mobile-header,
+.initial-shell .sidebar {
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-loading-indicator {
+    animation: none;
+  }
+}
+
+/* Keep the document's content stage anchored when the first heading has a top
+   margin. A flow root prevents that margin from escaping and moving <main>. */
+.page-content {
+  display: flow-root;
+  min-height: calc(100dvh - 64px);
+}
+@media (min-width: 760px) {
+  .page-content {
+    min-height: 100dvh;
+  }
+}
