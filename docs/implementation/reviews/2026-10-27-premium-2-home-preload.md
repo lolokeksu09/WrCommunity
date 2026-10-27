@@ -19,3 +19,22 @@ Run unchanged `tests/e2e/premium-lcp-phases.spec.ts` plus exact-head FULL and ex
 ## Release boundary / fallback
 
 Keep this experiment open and unmerged until metrics and all mandatory jobs succeed. If unchanged/worse, do not advance candidate to production; isolate larger JS entry / modulepreload hints instead. Automatic Desktop Chromium E2E stays disabled. Native Android 200% zoom/IME/picker, real screen-reader speech, field p75 and INP remain not tested. No production seed, merge or deployment.
+
+## First measured pre/post execution — isolated GitHub runners (2026-10-27)
+
+**Unchanged reference**: [PR #53 run 40477491737](https://github.com/lolokeksu09/WrCommunity/actions/runs/40477491737), source `78be68e4aae4d907c97cb6a67c27f54c22bc9956`. **Preload candidate**: [run 40478515862](https://github.com/lolokeksu09/WrCommunity/actions/runs/40478515862), source `57fc44dbffacb2fa111b19adb70b89649dd9808c`. Both used the unchanged Playwright `premium-lcp-phases.spec.ts` on separate isolated runners. Both ran 44 mobile tests with success; FULL jobs API, mobile browser, browser-tests, integration, docker smoke and quality-gate passed on their respective heads.
+
+| Metric | Reference PR #53 | Candidate PR #54 | Difference |
+|---|---:|---:|---:|
+| Actual isolated 20-post LCP (2 samples), median | 5558 ms | 5066 ms | -492 ms (-8.9%) |
+| Browser-only empty response LCP (2 samples), median | 5078 ms | 4710 ms | -368 ms (-7.2%) |
+| Actual DCL, median | 3948 ms | 3949 ms | +1 ms |
+| Actual first post DOM time | 5539 / 5482 ms | 4913 / 5137 ms | both candidate samples earlier |
+| Last JS resource response, actual | 4872 / 4898 ms | 4352 / 4474 ms | both candidate samples earlier |
+| Total JS network bytes, each run | 636697 | 636839 | +142 bytes |
+| Actual feed records | 20 / 20 | 20 / 20 | same count, first copy length not always same |
+| Empty-control feed records | 0 / 0 | 0 / 0 | synthetic browser interception |
+
+**Interpretation:** advancing the same existing route module to bootstrap is consistent with faster JS availability and first post DOM/LCP in these runs. DCL remained approximately stable; the change did not reduce bundle size. Because sample sizes are **two per variant per build**, runs execute on **different GitHub machines**, and other E2E tests share the disposable backend, these are directional lab data rather than a reproducible statistical effect, causal proof, or production Core Web Vitals improvement. `post-list` as region in empty control is a classifier artifact: no post cards existed.
+
+**Next evidence:** a second full run after documentation handoff on the new exact SHA can check whether the benefit survives runner variability. A measured regression on that rerun must override this promising preliminary result. Only after repeated data and source review should this be considered as one feature of a cumulative release. Neither a `main` merge nor VDS deploy is authorized.
