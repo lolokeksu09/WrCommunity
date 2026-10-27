@@ -127,7 +127,7 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
 .discoveries .hero-next { width: 44px; height: 44px; }
 .discoveries .hero-controls { min-height: 32px; }
 .discoveries .hero-dots button { min-height: 44px; min-width: 44px; }
-.post-list { display: grid; gap: 12px; }
+.post-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .post-list > .post {
   position: relative;
   padding: 18px 19px 12px;
@@ -167,6 +167,9 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
   font-weight: 730;
   border-radius: 5px;
 }
+/* Prevent long unbroken user text from expanding the grid's min-content width. */
+.post-list > .post { min-width: 0; }
+.post-list > .post .copy { overflow-wrap: anywhere; }
 .post-list > .post .post-body { margin-top: 15px; }
 .post-list > .post .copy {
   color: #e0e8f3;
