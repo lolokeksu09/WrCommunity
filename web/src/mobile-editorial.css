@@ -457,6 +457,9 @@
   .mobile-header .brand { font-size: 15px; gap: 6px; }
   .mobile-header .brand img { width: 27px; height: 27px; }
   .mobile-header .icon-button { min-width: 38px; min-height: 44px; }
+  /* Reserve the full label width for the two secondary routes at 320 CSS px. */
+  .rift-signal .discoveries-shortcuts a:nth-child(2),
+  .rift-signal .discoveries-shortcuts a:nth-child(3) { padding-inline: 5px; gap: 2px; }
   .home-stage-index span:last-child { display: none; }
   .home-stage { padding-inline: 13px; }
   .page-content { padding-inline: 10px; }
