@@ -83,7 +83,8 @@ try {
           await page.waitForTimeout(350);
           const facts=await page.evaluate(()=>{
             const root=document.documentElement;
-            const brokenImages=[...document.images].filter(img=>img.complete&&!img.naturalWidth).map(img=>img.currentSrc||img.src);
+            // Preserve the number of broken images without leaking potentially private media URLs into CI artifacts.
+            const brokenImages=[...document.images].filter(img=>img.complete&&!img.naturalWidth).map(()=>'[redacted]');
             return {scrollWidth:root.scrollWidth,viewportWidth:innerWidth,brokenImages,
               performance:window.__wrcPerformance??null,
               interactiveCount:document.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled])').length,
