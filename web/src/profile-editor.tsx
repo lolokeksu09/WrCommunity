@@ -104,12 +104,26 @@ function Editor({profile:loadedProfile,mode}:{profile:Profile;mode:Mode}){
     {mode==='edit'&&<>
      <Field label="Имя" name="display_name" required maxLength={80} defaultValue={profile.display_name}/>
      <Field label="О себе" name="biography" type="textarea" maxLength={2000} defaultValue={profile.biography}/>
-     <Field label="Аватар" name="avatar"><input type="file" name="avatar" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={event=>{void upload(event,'avatar');}}/></Field>
-     {avatarId?<><img className="upload-preview" src={mediaUrl(avatarId)} alt="Аватар" width={75} height={75}/><button className="secondary" type="button" disabled={uploading} onClick={()=>setAvatarId(null)}>Убрать аватар</button></>:<p className="muted">Аватар не выбран.</p>}
-     {avatarId!==profile.avatar_id&&<button className="text-control" type="button" disabled={uploading} onClick={()=>setAvatarId(profile.avatar_id)}>Вернуть сохранённый аватар</button>}
-     <Field label="Обложка" name="cover"><input type="file" name="cover" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={event=>{void upload(event,'cover');}}/></Field>
-     {coverId?<><img className="upload-preview wide" src={mediaUrl(coverId)} alt="Обложка" width={640} height={140}/><button className="secondary" type="button" disabled={uploading} onClick={()=>setCoverId(null)}>Убрать обложку</button></>:<p className="muted">Обложка не выбрана.</p>}
-     {coverId!==profile.cover_id&&<button className="text-control" type="button" disabled={uploading} onClick={()=>setCoverId(profile.cover_id)}>Вернуть сохранённую обложку</button>}
+     <section className="profile-media-section" aria-label="Настройка аватара">
+      <div className="profile-media-picker"><Field label="Аватар" name="avatar"><input type="file" name="avatar" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={event=>{void upload(event,'avatar');}}/></Field><p className="fine-print">Допустимые форматы: JPG, PNG, WebP.</p></div>
+      <div className="profile-media-content">
+       {avatarId?<img className="upload-preview" src={mediaUrl(avatarId)} alt="Аватар" width={75} height={75}/>:<span className="profile-media-empty">Аватар не выбран</span>}
+       <div className="profile-media-actions">
+        {avatarId&&<button className="text-control" type="button" disabled={uploading} onClick={()=>setAvatarId(null)}>Убрать аватар</button>}
+        {avatarId!==profile.avatar_id&&<button className="text-control" type="button" disabled={uploading} onClick={()=>setAvatarId(profile.avatar_id)}>Вернуть сохранённый аватар</button>}
+       </div>
+      </div>
+     </section>
+     <section className="profile-media-section" aria-label="Настройка обложки">
+      <div className="profile-media-picker"><Field label="Обложка" name="cover"><input type="file" name="cover" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={event=>{void upload(event,'cover');}}/></Field><p className="fine-print">Широкое изображение для шапки профиля. JPG, PNG, WebP.</p></div>
+      <div className="profile-media-content cover">
+       {coverId?<img className="upload-preview wide" src={mediaUrl(coverId)} alt="Обложка" width={640} height={140}/>:<span className="profile-media-empty">Обложка не выбрана</span>}
+       <div className="profile-media-actions">
+        {coverId&&<button className="text-control" type="button" disabled={uploading} onClick={()=>setCoverId(null)}>Убрать обложку</button>}
+        {coverId!==profile.cover_id&&<button className="text-control" type="button" disabled={uploading} onClick={()=>setCoverId(profile.cover_id)}>Вернуть сохранённую обложку</button>}
+       </div>
+      </div>
+     </section>
     </>}
     {mode==='game'&&<>
      <div className="info-note"><Gamepad2 size={20}/><p>Указано игроком. Мы не проверяем данные через игровые API.</p></div>
