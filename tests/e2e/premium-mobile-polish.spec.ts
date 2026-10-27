@@ -32,6 +32,12 @@ test('Premium 2.1: пустые черновики, компактные мед�
   await expect(ui.page.getByRole('button',{name:'Опубликовать'})).toBeDisabled();
   await noOverflow(ui.page);
   await ui.page.screenshot({path:testInfo.outputPath('premium21-post-editor-390.png'),fullPage:true,animations:'disabled'});
+  for(const width of [320,430,1440]){
+   await ui.page.setViewportSize({width,height:844});
+   await noOverflow(ui.page);
+   await expect(ui.page.getByLabel('Текст публикации')).toBeVisible();
+   if(width!==430)await ui.page.screenshot({path:testInfo.outputPath('premium21-post-editor-'+width+'.png'),fullPage:true,animations:'disabled'});
+  }
   expect(ui.errors).toEqual([]);
  }finally{await ui.context.close();await person.context.dispose();}
 });
@@ -62,6 +68,12 @@ test('Premium 2.1: клуб без обложки получает декора�
    await expect(cover.locator('img')).toHaveCount(0);
    await noOverflow(ui.page);
    await ui.page.screenshot({path:testInfo.outputPath('premium21-club-fallback-390.png'),fullPage:true,animations:'disabled'});
+   for(const width of [320,430,1440]){
+    await ui.page.setViewportSize({width,height:844});
+    await noOverflow(ui.page);
+    await expect(card.locator('.club-cover-placeholder')).toBeVisible();
+    if(width!==430)await ui.page.screenshot({path:testInfo.outputPath('premium21-club-fallback-'+width+'.png'),fullPage:true,animations:'disabled'});
+   }
    expect(ui.errors).toEqual([]);
   }finally{await ui.context.close();}
  }finally{await owner.context.dispose();}
