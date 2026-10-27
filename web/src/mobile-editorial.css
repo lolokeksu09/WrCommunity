@@ -144,10 +144,7 @@
   .feed-head h2 { font-size: 25px; letter-spacing: -.065em; font-weight: 825; }
   .feed-head h2::after { width: 26px; bottom: -6px; background: var(--m-signal); }
   .page-content > .tabs, .home-stream > .tabs { border-color: #2a3849; }
-  .home-stream > .tabs { order: 1; }
-  .home-stream > .discoveries { order: 0; }
-  .home-stream > .post-list, .home-stream > .empty, .home-stream > .feedback, .home-stream > .load-more { order: 2; }
-  .home-stream > .feed-head { order: 0; }
+  /* Preserve DOM and focus order: feed tabs, routes, then publications. */
   .home-stream > .tabs {
     margin-bottom: 11px;
     gap: 20px;
