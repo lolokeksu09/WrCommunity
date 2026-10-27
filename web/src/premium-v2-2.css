@@ -1,0 +1,285 @@
+/* Rift Signal | original WrCommunity identity. Additive layer; no remote assets. */
+:root {
+  --rift-void: #080b12;
+  --rift-basalt: #111722;
+  --rift-lane: #1b2a3d;
+  --rift-violet: #a78bfa;
+  --rift-cyan: #5de1d2;
+  --rift-ice: #eaf2ff;
+}
+
+/* A small, consistent signature mark; the feed remains content-first. */
+.feed-head h2 {
+  position: relative;
+}
+.feed-head h2::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -7px;
+  width: 34px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--rift-violet) 0 62%, var(--rift-cyan) 62% 100%);
+}
+
+.discoveries.rift-signal {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-color: #3b4b62;
+  background: linear-gradient(108deg, #101722 0%, #121a29 53%, #0e1a22 100%);
+  box-shadow: inset 0 1px #ffffff08;
+}
+.discoveries.rift-signal::before {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  left: 17px;
+  top: 0;
+  width: 36px;
+  height: 2px;
+  background: var(--rift-violet);
+  box-shadow: 18px 0 0 var(--rift-cyan);
+}
+.rift-signal-art {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: .82;
+}
+.rift-map {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.rift-map-compact {
+  position: absolute;
+  inset: 0;
+}
+.rift-map-contours path {
+  fill: none;
+  stroke: #7186a7;
+  stroke-width: .8;
+  stroke-linecap: round;
+  opacity: .2;
+}
+.rift-map-route-shadow,
+.rift-map-route,
+.rift-map-route-highlight {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rift-map-route-shadow {
+  stroke: #080c12;
+  stroke-width: 11;
+  opacity: .78;
+}
+.rift-map-route {
+  stroke: var(--rift-violet);
+  stroke-width: 2.2;
+  stroke-dasharray: 700;
+  stroke-dashoffset: 700;
+  animation: rift-route-draw 1.25s cubic-bezier(.2,.7,.2,1) .08s both;
+}
+.rift-map-route-highlight {
+  stroke: var(--rift-cyan);
+  stroke-width: 1;
+  stroke-dasharray: 3 10;
+  opacity: .8;
+}
+.rift-map-node-ring {
+  fill: #111722;
+  stroke: var(--rift-violet);
+  stroke-width: 1.5;
+}
+.rift-map-node-core {
+  fill: var(--rift-cyan);
+}
+.rift-map-node-tick {
+  fill: none;
+  stroke: var(--rift-ice);
+  stroke-width: .8;
+  stroke-linecap: round;
+  opacity: .72;
+}
+.rift-map-station-clubs .rift-map-node-ring { stroke: var(--rift-cyan); }
+.rift-map-station-team .rift-map-node-ring { stroke: var(--rift-ice); }
+@keyframes rift-route-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.rift-signal .discoveries-caption,
+.rift-signal .discoveries-shortcuts,
+.rift-signal .hero-shell,
+.rift-signal .hero-controls {
+  position: relative;
+  z-index: 1;
+}
+.rift-signal .discoveries-caption {
+  align-items: center;
+  gap: 10px;
+}
+.rift-signal .discoveries-caption > .rift-signal-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--rift-ice);
+  font-size: 14px;
+  font-weight: 760;
+  line-height: 1.25;
+  letter-spacing: -.025em;
+  text-transform: none;
+}
+.rift-signal-title::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 2px 50% 50%;
+  transform: rotate(45deg);
+  background: var(--rift-cyan);
+  box-shadow: 0 0 0 3px #a78bfa1a;
+}
+.rift-signal .discoveries-caption .text-control {
+  color: #d2dff0;
+  white-space: nowrap;
+}
+.rift-signal .discoveries-shortcuts {
+  gap: 8px;
+  margin-top: 3px;
+}
+.rift-signal .discoveries-shortcuts a {
+  position: relative;
+  overflow: hidden;
+  min-height: 44px;
+  padding-inline: 8px;
+  border: 1px solid #3a4a61;
+  border-radius: 8px 3px 8px 3px;
+  background: #0b121de8;
+  color: var(--rift-ice);
+  box-shadow: inset 0 1px #ffffff06;
+  transition: border-color 150ms ease, background-color 150ms ease, transform 150ms ease;
+}
+.rift-signal .discoveries-shortcuts a::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: var(--route-color, var(--rift-violet));
+  opacity: .95;
+}
+.rift-signal .discoveries-shortcuts a:nth-child(1) { --route-color: var(--rift-violet); }
+.rift-signal .discoveries-shortcuts a:nth-child(2) { --route-color: var(--rift-cyan); }
+.rift-signal .discoveries-shortcuts a:nth-child(3) { --route-color: var(--rift-ice); }
+.rift-signal .discoveries-shortcuts a svg:first-child {
+  color: var(--route-color, var(--rift-violet));
+}
+.rift-signal .discoveries-shortcuts a svg:last-child {
+  color: #a8b7d0;
+}
+.rift-signal .discoveries-shortcuts a:focus-visible {
+  outline-color: var(--rift-cyan);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .rift-signal .discoveries-shortcuts a:hover {
+    border-color: var(--route-color, var(--rift-violet));
+    background: #172435f5;
+    transform: translateY(-1px);
+  }
+}
+.rift-signal .hero {
+  border-color: #615b91;
+  background: #101722;
+  box-shadow: inset 0 0 0 1px #a78bfa12, 0 8px 28px #0004;
+}
+.rift-signal .hero::after {
+  background: linear-gradient(90deg, #0a101bf5 0%, #0b1321dc 36%, #101b3424 88%);
+}
+.rift-signal .hero-portal {
+  background: none;
+}
+.rift-signal .rift-map-hero {
+  position: absolute;
+  inset: 0;
+}
+.rift-signal .hero-action {
+  background: var(--rift-ice);
+  border: 1px solid var(--rift-ice);
+}
+.rift-signal .hero-action:hover {
+  background: #ffffff;
+}
+.rift-signal .hero-next {
+  border-color: #7a82a5;
+  color: var(--rift-ice);
+}
+
+.brand img {
+  border-color: #6f6aa1;
+  box-shadow: 0 0 0 1px #5de1d21a;
+}
+.bottom-nav a.active:not(.nav-create) {
+  box-shadow: inset 0 2px 0 var(--rift-violet);
+  background: linear-gradient(145deg, #24253c, #1d2b3b);
+}
+@media (min-width: 760px) {
+  .sidebar nav a.active {
+    box-shadow: inset 2px 0 0 var(--rift-violet), inset 4px 0 0 #5de1d255;
+  }
+  .discoveries.rift-signal {
+    padding: 14px 16px 16px;
+  }
+  .rift-signal .discoveries-caption > .rift-signal-title {
+    font-size: 15px;
+  }
+  .rift-signal .discoveries-shortcuts {
+    gap: 10px;
+    margin-top: 5px;
+  }
+  .rift-signal .discoveries-shortcuts a {
+    min-height: 46px;
+  }
+  .rift-signal-art { opacity: .94; }
+}
+@media (max-width: 759px) {
+  .rift-signal .discoveries-caption > .rift-signal-title {
+    font-size: 13px;
+  }
+  .rift-signal .discoveries-shortcuts {
+    gap: 6px;
+  }
+  .rift-signal .discoveries-shortcuts a {
+    font-size: 11px;
+    gap: 4px;
+  }
+  .rift-signal .discoveries-shortcuts a svg:first-child {
+    width: 14px;
+  }
+  .rift-signal .discoveries-shortcuts a svg:last-child {
+    width: 12px;
+  }
+  .rift-signal-art { opacity: .75; }
+}
+@media (max-width: 359px) {
+  .rift-signal .discoveries-shortcuts a {
+    padding-inline: 5px;
+    font-size: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rift-map-route {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .rift-signal .discoveries-shortcuts a {
+    transition: none;
+  }
+}
