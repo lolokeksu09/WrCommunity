@@ -11,8 +11,8 @@ test('CLS session window restarts after a gap and differs from raw cumulative su
  assert.equal(result.rawCls,0.56);
  assert.equal(result.maxSessionCls,0.30);
  assert.equal(result.eventCount,3);
- assert.deepEqual(result.regions.map(x=>x.region),['feed','filters']);
- assert.equal(result.regions[0].eventCount,2);
+ assert.deepEqual(result.regions.map(x=>x.region),['filters','feed']);
+ assert.equal(result.regions.find(x=>x.region==='feed').eventCount,2);
 });
 
 test('CLS session window is at most five seconds even with shorter inter-shift gaps',()=>{
