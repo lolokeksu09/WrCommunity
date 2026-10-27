@@ -3,7 +3,7 @@
    Deliberately mobile-only; do not change the existing desktop product. */
 @media (max-width: 759px) {
   :root {
-    --m-void: #05070b;
+    --m-void: #000000;
     --m-ground: #0c1017;
     --m-stage: #131b29;
     --m-panel: #101722;
