@@ -348,6 +348,60 @@
   .secondary { border-radius: 5px; border-color: #50667d; background: #182638; }
   .empty { background: #101923; border: 1px solid #30465b; border-radius: 4px 17px 4px 4px; }
   .club-cover,.profile-cover { border-radius: 4px 16px 4px 4px; }
+  /* Profile identity is treated as a player dossier, not another generic card. */
+  .profile-cover,.club-cover {
+    min-height: 156px;
+    border: 1px solid #455876;
+    background-color: #131f32;
+    background-image: linear-gradient(142deg, #172638 4%, #27314b 49%, #0d1925 100%);
+    box-shadow: inset 0 1px #ffffff10;
+  }
+  .profile-identity { position: relative; z-index: 1; }
+  .profile-identity .avatar.large {
+    width: 80px;
+    height: 80px;
+    border: 4px solid var(--m-void);
+    border-radius: 18px 5px 18px 5px;
+    box-shadow: 0 0 0 1px #5f8192;
+  }
+  .profile-name {
+    margin-block: 12px 2px;
+    font-size: 29px;
+    font-weight: 830;
+    line-height: 1.08;
+    letter-spacing: -.055em;
+    color: #f3f7ff;
+  }
+  .profile-actions {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    flex-wrap: wrap;
+    margin-block: 16px;
+  }
+  .profile-actions > .primary,.profile-actions > .secondary {
+    min-height: 46px;
+  }
+  .game-summary {
+    padding: 16px 14px;
+    background: #121b29;
+    border: 1px solid #3c5066;
+    border-radius: 4px 16px 4px 4px;
+    margin-top: 14px;
+  }
+  .game-summary h2 { margin-top: 0; font-size: 20px; letter-spacing: -.04em; }
+  .game-summary dl { min-width: 0; }
+  .game-summary dd { overflow-wrap: anywhere; }
+  .profile-media-section {
+    gap: 12px;
+    padding: 14px;
+  }
+  .profile-media-section .profile-media-picker input[type=file] {
+    border-style: solid;
+    border-radius: 5px;
+    border-color: #4e637b;
+    background: #0c1521;
+  }
   .profile-media-section .upload-preview { border-radius: 4px 13px 4px 4px; }
   .site-footer { margin-top: 6px; color: #8ca0b3; }
 }
