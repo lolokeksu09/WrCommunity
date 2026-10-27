@@ -235,6 +235,12 @@
       "name": "Premium lab: throttled isolated mobile guest feed records navigation LCP and CLS",
       "level": "L2",
       "area": "feed"
+    },
+    {
+      "file": "premium-lcp-attribution.spec.ts",
+      "name": "Premium lab: repeat three throttled mobile LCP navigations with element attribution",
+      "level": "L2",
+      "area": "feed"
     }
   ]
 }
