@@ -40,6 +40,9 @@ test('Rift Signal соединяет три реальных маршрута и
  for(const width of [320,360,390,430,1440]){
   await page.setViewportSize({width,height:900});
   await noOverflow(page);
+  for(const link of await shortcuts.getByRole('link').all()){
+   expect(await link.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+  }
   if(width===1440)await page.screenshot({path:testInfo.outputPath('rift-signal-wide-1440.png'),fullPage:true,animations:'disabled'});
  }
 });
