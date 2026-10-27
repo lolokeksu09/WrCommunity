@@ -17,8 +17,8 @@ export function MyProfile(){
   <div className="profile-actions"><Link className="primary" to="/posts/new">Написать пост</Link><Link className="secondary" to="/me/privacy"><Eye size={17}/> Приватность</Link></div>
   <FirstSteps key={profile.id} profile={profile} verified={user?.verified??false}/>
   <ProfileGamePreview profile={profile}/>
-  <section className="profile-menu-group"><h2 className="section-title">Твоя активность</h2><nav className="settings-menu" aria-label="Твоя активность"><MenuLink to="/me/posts">Мои публикации</MenuLink><MenuLink to="/me/drafts">Черновики</MenuLink><MenuLink to="/me/bookmarks">Закладки</MenuLink><MenuLink to="/me/following">Подписки</MenuLink><MenuLink to="/me/followers">Подписчики</MenuLink></nav></section>
-  <section className="profile-menu-group"><h2 className="section-title">Твоя компания</h2><nav className="settings-menu" aria-label="Твоя компания"><MenuLink to="/me/clubs">Мои клубы</MenuLink><MenuLink to="/me/lfg">Мои отклики LFG</MenuLink></nav></section>
+  <section className="profile-menu-group profile-activity"><h2 className="section-title">Твоя активность</h2><nav className="settings-menu profile-link-grid" aria-label="Твоя активность"><MenuLink to="/me/posts">Мои публикации</MenuLink><MenuLink to="/me/drafts">Черновики</MenuLink><MenuLink to="/me/bookmarks">Закладки</MenuLink><MenuLink to="/me/following">Подписки</MenuLink><MenuLink to="/me/followers">Подписчики</MenuLink></nav></section>
+  <section className="profile-menu-group profile-company"><h2 className="section-title">Твоя компания</h2><nav className="settings-menu profile-link-grid" aria-label="Твоя компания"><MenuLink to="/me/clubs">Мои клубы</MenuLink><MenuLink to="/me/lfg">Мои отклики LFG</MenuLink></nav></section>
   <nav className="settings-menu profile-settings" aria-label="Управление профилем"><MenuLink to="/me/settings" detail="Аккаунт, сессии и блокировки">Настройки</MenuLink>{user?.platform_role!=='member'&&<MenuLink to="/platform/moderation/reports">Модерация платформы</MenuLink>}</nav>
  </Gate>;
 }
