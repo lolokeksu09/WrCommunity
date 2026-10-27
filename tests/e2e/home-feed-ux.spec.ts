@@ -176,6 +176,9 @@ test('главная доступна с клавиатуры, раскрыти�
  test.skip(!isMobile,'Keyboard path on mobile navigation and focusable discovery');
  await page.setViewportSize({width:390,height:844});
  await page.goto('/');
+ // Wait for the root hydration fallback to be replaced by the real Shell.
+ await expect(page.getByRole('heading',{name:'Лента',exact:true})).toBeVisible();
+ await page.evaluate(()=>{if(document.activeElement instanceof HTMLElement)document.activeElement.blur();});
  await page.keyboard.press('Tab');
  await expect(page.getByRole('link',{name:'К содержимому'})).toBeFocused();
  await page.keyboard.press('Enter');
