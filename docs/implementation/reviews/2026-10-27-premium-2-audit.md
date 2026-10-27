@@ -92,3 +92,49 @@ Downloaded and inspected `browser-evidence-mobile-chromium` (artifact `126863237
 
 **Verification status:** retrieved existing source archive and real current RELEASE evidence; manually inspected captured screens; compared commit ranges and reviewed source; did **not** run app locally or claim new browser interaction. PR #43 remains Draft, docs-only and unmerged.
 
+
+
+## Isolated browser baseline — executed (2026-10-27)
+
+**Evidence, not an application patch.** The blocked ChatGPT container still lacks a supported Node 24/Docker/network configuration. To execute the requested local browser baseline, a **disposable GitHub-hosted Ubuntu 24.04 runner** launched the application on its own **`http://127.0.0.1:13000`**, with Node **24.22.1**, an isolated PostgreSQL **18.6** `wrcommunity_test`, Mailpit, `npm ci`, `npm run build`, `npm run migrate`, and headless Chromium. The runner used only the published `scripts/ci/premium-visual-baseline.mjs` in read-only mode; no live user account, VDS, production database or website was accessed.
+
+- Successful evidence run: [GitHub Actions 40447759826](https://github.com/lolokeksu09/WrCommunity/actions/runs/40447759826), commit `d6ed3b92e289f537ae401e7551b058203e0d9aef` on the audit branch. The runner's local app and browser both ran successfully. This SHA differs from `main` **only through documentation and a temporary audit workflow**, not product source changes.
+- Archive: workflow artifact `premium-2-isolated-baseline` (artifact **12709286063**) with `report.json`, `source-sha.txt` and **20 real full-page PNGs**. Recorded creation: `2026-10-27T04:05:50.162Z`. Workflow artifacts have limited retention; preserve the archive outside GitHub Actions if long-term screenshots are required.
+- Exact viewports: **360×800, 390×844, 430×932 and 1440×900**; guest routes **`/`**, **`/discover`**, **`/discover/lfg`**, **`/clubs`**, **`/login`**.
+- **20/20 captured, 0 script failures**. All tested screens rendered expected headings; no detected horizontal overflow (document `scrollWidth === innerWidth`), broken loaded images, or uncaught JS `pageerror`. This does *not* certify all assets, network/API errors or accessibility.
+- Baseline images depict **isolated empty test data**, not published production posts; the RELEASE 40395582321 images above independently confirm that the actual VDS feed was editorially populated.
+
+### Initial layout stability diagnosis
+
+The runner's PerformanceObserver returned the following **diagnostic** cumulative layout shift (CLS) values. Columns correspond to `feed / players / lfg / clubs / login` on the isolated **guest** instance, in that order.
+
+| Viewport | Feed CLS | Players CLS | LFG CLS | Clubs CLS | Login CLS |
+|---|---:|---:|---:|---:|---:|
+| 360×800 | 0.320 | 0.331 | 0.216 | 0.103 | 0.113 |
+| 390×844 | 0.256 | 0.243 | 0.157 | 0.098 | 0.108 |
+| 430×932 | 0.145 | 0.133 | 0.088 | 0.088 | 0.097 |
+| 1440×900 | 0.050 | 0.053 | 0.053 | 0.053 | 0.060 |
+
+**Finding P2-CLS-01 / P1:** **11 of 20** guest laboratory captures exceeded the proposed CLS **0.1** budget, especially feed, players and LFG at 360/390 px; **none** of the five 1440px captures did. The script observed unthrottled lab LCP values between **188 and 560 ms**; these values are timing hints, **not production p75 Core Web Vitals or audited Lighthouse scores**. INP was **not measured**. A single synthetic run cannot determine field CLS or definitively identify the layout-shift source. **Next implementation prerequisite:** instrument `layout-shift.sources`, examine transitions from `.route-loading` to populated route and responsive sticky navigation, rerun with CPU/network throttling and real-but-disposable fixture data before setting CSS fixes. Do not assert those elements caused the shifts without attribution evidence.
+
+### Visual review of the 20 PNGs
+
+- **Guest feed (390/1440):** large discovery banner and indicator sit above the feed title. With empty local data, the oversized empty-state card is the only primary content. On 1440px the side columns leave substantial functional whitespace; the right rail is mostly static.
+- **Guest discovery (390):** expanded multi-field filter occupies most of the visible screen and pushes the no-results panel below the fold; users cannot immediately assess results without scrolling. Default compact filter state remains a candidate.
+- **Guest LFG (390):** filter controls followed by large empty panel; the LFG-specific information hierarchy relies on copy/form rather than recognizable listing treatment.
+- **Login and clubs:** both rendered across all four sizes; their current empty/guest visual state is captured and can serve as a before-image, not as evidence for authenticated interactions.
+- **Safe-area/navigation:** bottom nav appears in the mobile captures and consumes vertical space. Horizontal width measurement passed; manual scrolling, virtual keyboard, 200% zoom and screen reader behavior remain **not run**.
+
+### Evidence gates after baseline
+
+| Gate | Outcome |
+|---|---|
+| Current-source UI and isolated PostgreSQL actually launched in real Chromium | **Pass on GitHub runner** (not ChatGPT local container) |
+| 5 routes × 4 viewports, real PNG artifacts and diagnostic report | **20/20 pass** |
+| Browser JS exceptions, horizontal overflow, broken completed images | **0 detected** in this script |
+| CLS ≤0.1 for all isolated guest captures | **Fail: 11/20 over target** (diagnostic, not release-performance guarantee) |
+| Fresh authenticated profile/editor and media flows on same isolated runner | **Not tested**; separate latest RELEASE E2E artifacts exist |
+| Manual keyboard, focus, zoom, screen reader and Lighthouse with throttling | **Not tested** |
+| Product changes / VDS changes / Desktop Chromium E2E | **None / none / stays disabled** |
+
+The temporary workflow used to collect this baseline is removed from the audit PR after the artifact is obtained, so the final PR is documentation-only. **Do not treat visual planning or this evidence as approval to implement/release Premium 2.0.**
