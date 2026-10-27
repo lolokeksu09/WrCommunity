@@ -46,6 +46,49 @@
 - Keep Desktop Chromium E2E disabled until explicit user authorization. Preserve required Mobile Chromium, API, Docker, integration, quality gate and public read-only release smoke tests.
 - No merge, deployment or application changes without review and explicit go-ahead.
 
-## Local browser verification
+## Second evidence pass — recovered source archive and current RELEASE (2026-10-27)
 
-**Pending.** No local clone/browser run has been completed at the time of this first commit. Findings above are based on user screenshots and source review only.
+**Scope:** evidence-only update on the same Draft PR #43. No React/CSS, API, SQL, environment, production content or deployment changes.
+
+### Exact revisions, provenance and local environment
+
+- The active base of PR #43 and the latest inspected `main` is **`1077824c8a4d7d7c20f60ca8652e28805dee61eb`**. It passed [RELEASE 40395582321](https://github.com/lolokeksu09/WrCommunity/actions/runs/40395582321): `api-tests`, `browser-project (mobile-chromium)`, `browser-tests`, `integration`, `docker-smoke`, `deploy` and `vds-status` all concluded success. `quality-gate` on main is expected to be skipped.
+- Git over HTTPS in the current sandbox was attempted and failed with `Could not resolve host: github.com`; direct API access from the sandbox likewise failed DNS. **A current Git clone was not obtained.**
+- Instead, retrieved and extracted the previously generated **full repository source archive** `wrc-premium-audit-source` from [workflow 40382179306](https://github.com/lolokeksu09/WrCommunity/actions/runs/40382179306) to an isolated local working directory. Its code revision is **`2ef65bd03bd139372bfb6ae543fa59cbd480e236`**, not the current main SHA; it is a `git archive` snapshot without `.git` metadata.
+- Verified [GitHub compare 2ef65bd… → 1077824…](https://github.com/lolokeksu09/WrCommunity/compare/2ef65bd03bd139372bfb6ae543fa59cbd480e236...1077824c8a4d7d7c20f60ca8652e28805dee61eb): 17 commits changed only documentation, `package.json`, smoke/CI scripts and tests. **No `web/src` or `server/` code changed across this range.** Thus the archived React/CSS sources are representative of current `main` UI code, but the archive is not an exact clean checkout of current main.
+- Reviewed the local extracted `web/src/main.tsx`, `social.tsx`, `clubs.tsx`, `lfg-events.tsx`, `profile-editor.tsx`, `search-filters.tsx` and `styles.css`, in addition to live GitHub `AGENTS.md`, `CONTINUATION.md`, `LOCAL-DEVELOPMENT.md`, `PREMIUM-V2-BASELINE.md`, candidate design contract, `package.json` and the PR state.
+- Local runtime has Node **22.16.0** and npm **10.9.2**, while `package.json` requires Node 24.19+ and npm 11; Docker and dependencies are absent, and external DNS is blocked. **No current local backend, PostgreSQL, Playwright site navigation, isolated accounts, local live viewport screenshots or Lighthouse run was executed.** The installed Chromium binary alone does not establish browser verification.
+
+### Current public site: actual RELEASE screenshot evidence
+
+Downloaded and visually inspected the **`deployed-public-site`** artifact (artifact `12687841175`) of [RELEASE 40395582321](https://github.com/lolokeksu09/WrCommunity/actions/runs/40395582321), produced **2026-10-26 20:43 UTC**. Files: `home-390.png` (390 px full-page), `home-1440.png` (1440 px full-page), `login-390.png`, `login-1440.png` and `report.json`. The report records HTTP 200, `feedRendered=true`, login form present, and `overflow=false` for both 390 and 1440. These are automation observations plus actual viewed screenshots, **not** direct interactive local browser inspection or field performance data.
+
+| ID | Priority | Confirmed current production visual finding | Implementation implication |
+|---|---|---|---|
+| P2-E01 | P1 | **The feed is no longer empty.** The 390/1440 screenshots show multiple substantive posts from accounts visibly labelled **«Редакция»** (for example `Центр · редакция`, `Штаб · редакция`). | Supersedes the original empty-feed assumption for this captured production state. Do not advertise editorial accounts as real members; preserve transparent labels and real backend data. |
+| P2-E02 | P1 | At 390px the expanded discovery carousel occupies a large area before the `Лента` heading; feed text starts substantially below header and banner. Desktop has the same discovery module before content. | Feed-first information hierarchy; retain discovery with compact entry and do not remove controls without an alternative. |
+| P2-E03 | P1 | Repeated text-dominant posts, uniform author monogram avatars and separators make the long page visually monotonous; even editorial, club and player materials share a similar visual rhythm. | Distinct editorial/article, club update and ordinary post layouts; varying hierarchy using authentic media only, without fake engagement or automated identity masking. |
+| P2-E04 | P2 | At 1440px the right sidebar emphasizes static slogans, repeated discovery links and signup prompts; it contributes little content-specific utility. | Contextual rail keyed to the route/data, with real LFG/club content only when present and permitted. |
+| P2-E05 | P2 | Login at 390px has functional labeled email/password inputs, primary action and recovery/signup links; large top spacing and persistent bottom navigation consume visible height. | Tighten spacing if supported by task testing, but retain labels, keyboard access, touch targets and auth/recovery behavior. |
+| P2-E06 | Verification | Latest public smoke no longer captured the unresolved loading screen: `feedRendered=true` and displayed posts in the artifact. | Historical QA-01 should be reported as **addressed in code and passing this smoke**, not newly unresolved; screenshot evidence alone does not prove network/user-performance reliability. |
+
+### Current isolated browser E2E evidence (not production accounts)
+
+Downloaded and inspected `browser-evidence-mobile-chromium` (artifact `12686323718`) from the **same** RELEASE. The artifact includes current test screenshots named `home-360.png`, `home-390.png`, `home-430.png`, `home-1440.png`, `compact-filters.png`, `profile-steps.png`, `clubs.png`, `club-feed.png`, plus loading/empty/error states and other scenarios. These images use **disposable E2E fixtures and generated account names**; screenshots in `docs/evidence/screens/` bundled alongside them are older checked-in fixtures and must not be misdated.
+
+- `profile-steps.png`: the onboarding panel is still expanded and visually prominent even at **«Готово: 2 из 2»**. The synthetic user has a visibly hidden profile; privacy indicators must remain intact.
+- `compact-filters.png`: filtering chips and controls appear ahead of a large empty-state card; screenshot confirms a valid filtered-no-results state, not a production failure. Preserve reset and transparent filter criteria.
+- `clubs.png` and `club-feed.png`: tests show functional club differentiation, actions, membership cues and repeated abstract/montage-style fallback images; custom covers should come from authorized club assets rather than implied real users.
+- Device screenshots include long-page/full-page captures or browser UI under automation; their apparent page length should not be confused with a single screen's viewport. No claim of keyboard, accessibility or quantitative performance pass from merely viewing them.
+
+### Corrections to the first audit and open release gates
+
+1. **Corrected evidence:** The first-stage concern about an empty publication feed was accurate for the supplied older screenshots, but **not for the 2026-10-26 20:43 UTC public RELEASE capture**. Prioritize content composition and hierarchy over artificial filling. Editorial data appears live; exact current database counts and ingestion method were **not** checked.
+2. **QA-01:** `scripts/live-site-check.mjs` now checks fully rendered content using `public-home-ready` logic; the current RELEASE evidence passed. Do not re-open the prior smoke defect without new failure evidence.
+3. **Current local-browser gap:** An actual localhost React/API run at `main` SHA, 20 scripted screenshots from `premium-visual-baseline.mjs` and first-hand authenticated interactions are still missing. A GitHub runner screenshot and a recovered older source archive partially answer the inspection request; they are **not a substitute** for the requested local live browser session.
+4. **Design direction:** `docs/design/premium-v2` contains a *candidate* visual contract/preview, not production UI. The product has **not** been redesigned. No decisions to alter ACL, moderation, protected data, CI Desktop E2E or live content are authorized by this audit.
+5. **Pre-implementation gates:** Obtain an actual isolated Node24/npm11/Postgres/Chromium baseline from exact latest main, record 360×800, 390×844, 430×932 and 1440×900 across the relevant states; capture authenticated profile/editor with disposable identities; perform interactive keyboard/zoom/ARIA checks and measured Lighthouse/CWV lab baseline. Then approve screen-by-screen changes and implement in bounded PRs with mobile CI, documented before/after screenshots and release verification.
+6. **Do not enable Desktop Chromium automatic E2E** until expressly requested. Manual 1440px visual inspection is not a change to that policy.
+
+**Verification status:** retrieved existing source archive and real current RELEASE evidence; manually inspected captured screens; compared commit ranges and reviewed source; did **not** run app locally or claim new browser interaction. PR #43 remains Draft, docs-only and unmerged.
+
