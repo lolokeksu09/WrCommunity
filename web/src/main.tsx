@@ -14,6 +14,7 @@ import {Empty,ErrorView,PageHeading,resetFormDrafts} from './ui';
 import './styles.css';
 import './premium-v2.css';
 import './premium-v2-1.css';
+import './premium-v2-2.css';
 
 function lazyNamed<M,K extends keyof M>(load:()=>Promise<M>,name:K):LazyExoticComponent<Extract<M[K],ComponentType<any>>>{
  return lazy(async()=>({default:(await load())[name] as Extract<M[K],ComponentType<any>>}));
