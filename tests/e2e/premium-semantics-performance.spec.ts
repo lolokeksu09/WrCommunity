@@ -67,7 +67,7 @@ test('Premium lab: throttled isolated mobile guest feed records navigation LCP a
     new PerformanceObserver(list=>{
      for(const item of list.getEntries()){
       const entry=item as PerformanceEntry & {value?:number;hadRecentInput?:boolean};
-      if(entry.hadRecentInput||!Number.isFinite(entry.value))continue;
+      if(entry.hadRecentInput||typeof entry.value!=='number'||!Number.isFinite(entry.value))continue;
       lab.shiftEvents.push({startTime:entry.startTime,value:entry.value!});
      }
     }).observe({type:'layout-shift',buffered:true});
