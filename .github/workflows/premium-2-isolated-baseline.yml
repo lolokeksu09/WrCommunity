@@ -54,6 +54,8 @@ jobs:
           npm ci
           npm run build
           npm run migrate
+      - name: Diagnostic unit regressions
+        run: node --test tests/premium-cls-diagnostics.test.mjs tests/premium-baseline-guard.test.mjs
       - name: Install local Chromium
         run: npx playwright install chromium
       - name: Start local API and verify readiness
