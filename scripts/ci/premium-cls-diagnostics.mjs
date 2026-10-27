@@ -1,6 +1,6 @@
 // Local-only CLS diagnostics: accepts sanitized geometry, never DOM text or dynamic identifiers.
 // W3C Layout Instability: session gap <=1s; maximum session duration <=5s.
-const REGIONS=new Set(['route-loading','header','discoveries','feed','post-list','filters','preferences','clubs','profile','empty','navigation','page-heading','main','other']);
+const REGIONS=new Set(['route-loading','header','discoveries','feed','post-list','filters','preferences','clubs','profile','empty','navigation','page-heading','main','footer','shell','column','root','document','other']);
 const round=(number)=>Math.round(number*100000)/100000;
 function safeRect(rect){
  if(!rect||typeof rect!=='object')return null;
