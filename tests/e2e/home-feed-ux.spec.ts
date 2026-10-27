@@ -120,19 +120,19 @@ test('редакционная метка и оформление видны в 
  try{
   const body='Редакционный визуальный тест '+randomUUID();
   const post=await api<{id:string}>(player.context,'/posts','POST',{body});
-  // This is a synthetic response fixture, not a real editorial account or a database mutation.
-  // Preserve every real server field except the existing author.editorial flag.
+  const fixture=await api<{id:string;author?:Record<string,unknown>}>(player.context,'/posts/'+post.id);
+  // Deterministic, request-scoped editorial fixture: concurrent E2E writers may
+  // push the test post outside the first public feed page. Never change the DB.
   let transformed=0;
   await page.route('**/api/v1/feed*',async route=>{
    const response=await route.fetch();
    if(!response.ok()){await route.fulfill({response});return;}
    const data=await response.json() as {items?:Array<{id:string;author?:Record<string,unknown>}>};
    if(!Array.isArray(data.items)){await route.fulfill({response});return;}
-   data.items=data.items.map(item=>{
-    if(item.id!==post.id)return item;
-    transformed++;
-    return {...item,author:{...item.author,editorial:true}};
-   });
+   const otherPosts=data.items.filter(item=>item.id!==post.id);
+   const visibleCount=Math.max(data.items.length,1);
+   data.items=[{...fixture,author:{...fixture.author,editorial:true}},...otherPosts].slice(0,visibleCount);
+   transformed++;
    await route.fulfill({response,json:data});
   });
   for(const width of [390,1440]){
