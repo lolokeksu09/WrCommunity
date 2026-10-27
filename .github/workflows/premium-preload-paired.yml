@@ -19,7 +19,7 @@ jobs:
           node-version: 24.22.1
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install chromium
       - name: Compare both production Vite builds with identical synthetic feed
         run: node scripts/ci/premium-preload-paired.mjs
       - uses: actions/upload-artifact@v4.6.2
