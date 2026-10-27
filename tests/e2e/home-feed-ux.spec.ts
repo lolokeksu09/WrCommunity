@@ -41,7 +41,8 @@ test('Rift Signal соединяет три реальных маршрута и
   await page.setViewportSize({width,height:900});
   await noOverflow(page);
   for(const link of await shortcuts.getByRole('link').all()){
-   expect(await link.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+   const metrics=await link.evaluate(el=>({fits:el.scrollWidth<=el.clientWidth,scrollWidth:el.scrollWidth,clientWidth:el.clientWidth,label:el.innerText}));
+   expect(metrics.fits,`At ${width}px, route "${metrics.label}" clips: ${metrics.scrollWidth}px content in ${metrics.clientWidth}px`).toBe(true);
   }
   if(width===1440)await page.screenshot({path:testInfo.outputPath('rift-signal-wide-1440.png'),fullPage:true,animations:'disabled'});
  }
