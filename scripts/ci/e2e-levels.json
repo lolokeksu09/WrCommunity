@@ -223,6 +223,18 @@
       "name": "Premium accessibility: reduced motion leaves discovery usable from the keyboard",
       "level": "L2",
       "area": "navigation"
+    },
+    {
+      "file": "premium-semantics-performance.spec.ts",
+      "name": "Premium evidence: profile editor fields expose keyboard focus and accessible labels",
+      "level": "L3",
+      "area": "editor"
+    },
+    {
+      "file": "premium-semantics-performance.spec.ts",
+      "name": "Premium lab: throttled isolated mobile guest feed records navigation LCP and CLS",
+      "level": "L2",
+      "area": "feed"
     }
   ]
 }
