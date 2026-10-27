@@ -38,7 +38,9 @@ try {
               ['.filter-panel','filters'],['.search-preferences','preferences'],
               ['.club-card, .club-cover','clubs'],['.profile-cover, .profile-identity','profile'],
               ['.empty','empty'],['.bottom-nav, .sidebar, .right-rail','navigation'],
-              ['.page-heading','page-heading'],['#main-content','main']
+              ['.page-heading','page-heading'],['#main-content','main'],
+              ['.site-footer','footer'],['.main-column','column'],
+              ['.app-shell','shell'],['#root','root'],['body, html','document']
             ];
             const region=node=>{
               if(!node||typeof node.closest!=='function')return 'other';
