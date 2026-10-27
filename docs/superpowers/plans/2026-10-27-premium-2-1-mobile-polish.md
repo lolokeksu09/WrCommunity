@@ -25,3 +25,11 @@ Base: `fc3e92f20e6396cc22ac42e708c518af57077ff6` (released Premium 2.0). Working
 Prior `player-journey.spec.ts` assumes preferences initially expanded; revise regression path to expand explicitly, preserving existing role-pick/submit behavior. If filters collapse, ensure direct query parameters and modes stay in URL and selected chips remain visible.
 
 **Next action:** add regression tests and implement scoped UI polish on this branch.
+
+## Реализация и тесты, 27.10.2026
+
+- Создан [PR #57](https://github.com/lolokeksu09/WrCommunity/pull/57), база `main` исходного Premium 2.0. Выполнены все шесть одобренных визуальных исправлений в React и отдельном `premium-v2-1.css`. Изменений backend, рабочей базы, deployment workflow или SMTP нет.
+- Первый точный прогон исходников на SHA `4f7778ad79bfc0a10a11b42951a8b5b98be6b758`: [Application CI #40488181646](https://github.com/lolokeksu09/WrCommunity/actions/runs/40488181646) **success**, `api-tests`, `browser-project (mobile-chromium)`, `browser-tests`, `integration`, `docker-smoke`, `quality-gate` successful. Mobile Chromium **46/46 passed**. Browser screenshot artifact: `browser-evidence-mobile-chromium` ID `12726546054`.
+- После первого зелёного результата дополнительно расширено проверочное покрытие новых клубов и редактора поста на CSS viewport `320×844`, `430×844`, `1440×844` (всё в том же проекте mobile-chromium). Финальный точный HEAD после этих изменений и документации **требует повторного FULL**.
+- Ни один из артефактов PNG не просматривался вручную в графическом интерфейсе ChatGPT, а реальный Android picker / IME / TalkBack не проверялся. Пользовательские снимки — визуальный референс предыдущей версии.
+- После зелёного exact-head FULL — оставить PR открытым для просмотра владельцем; отдельное разрешение требуется перед merge и VDS.
