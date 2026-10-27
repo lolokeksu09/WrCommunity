@@ -247,6 +247,18 @@
       "name": "Premium lab: compare mobile LCP timing phases with actual and empty synthetic feed",
       "level": "L2",
       "area": "feed"
+    },
+    {
+      "file": "premium-mobile-polish.spec.ts",
+      "name": "Premium 2.1: пустые черновики, компактные медиаблоки и редактор публикации",
+      "level": "L2",
+      "area": "forms"
+    },
+    {
+      "file": "premium-mobile-polish.spec.ts",
+      "name": "Premium 2.1: клуб без обложки получает декоративный фон, реальная обложка сохраняется",
+      "level": "L2",
+      "area": "clubs"
     }
   ]
 }
