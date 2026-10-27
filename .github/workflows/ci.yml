@@ -1,0 +1,46 @@
+name: Closed project integrity
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify active repository contains no application
+        run: |
+          set -euo pipefail
+          test -f README.md
+          test -f .github/workflows/ci.yml
+          test "$(git ls-files | wc -l)" -eq 2
+          echo "WrCommunity application and deployment source are absent."
+  docker-smoke:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify container deployment definition has been removed
+        run: |
+          set -euo pipefail
+          test ! -e compose.yml
+          test ! -e compose.local.yml
+          test ! -e Dockerfile
+          test ! -e scripts
+          test ! -e web
+          test ! -e server
+          echo "No Docker deployment is present in this branch."
+  quality-gate:
+    if: always()
+    needs: [integration, docker-smoke]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require closure checks
+        env:
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+          DOCKER_SMOKE_RESULT: ${{ needs.docker-smoke.result }}
+        run: |
+          test "$INTEGRATION_RESULT" = success
+          test "$DOCKER_SMOKE_RESULT" = success
+          echo "Repository closure is internally consistent."
