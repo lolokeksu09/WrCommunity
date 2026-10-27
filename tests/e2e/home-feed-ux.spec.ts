@@ -64,6 +64,13 @@ test('первая публичная публикация читаема и в�
   const rect=await card.boundingBox();
   expect(rect).not.toBeNull();
   expect(rect!.y).toBeLessThan(560);
+  // The card heading alone is insufficient: the first readable lines must fit
+  // into the *initial* 390x844 viewport without scrolling.
+  const textRect=await card.locator('.copy').first().boundingBox();
+  expect(textRect).not.toBeNull();
+  expect(textRect!.height).toBeGreaterThan(0);
+  expect(textRect!.y).toBeGreaterThanOrEqual(0);
+  expect(textRect!.y+Math.min(48,textRect!.height)).toBeLessThanOrEqual(844);
   await expect(card).toHaveClass(/player-post/);
   await page.screenshot({path:testInfo.outputPath('premium2-populated-390.png'),fullPage:true});
   await noOverflow(page);
