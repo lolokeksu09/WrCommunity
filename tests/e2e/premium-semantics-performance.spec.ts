@@ -108,6 +108,8 @@ test('Premium lab: throttled isolated mobile guest feed records navigation LCP a
    notes:'One uncalibrated lab sample; no benchmark thresholds, p75, INP or proof of real Android zoom.',
   };
   await writeFile(testInfo.outputPath('premium-throttled-guest-390.json'),JSON.stringify(report,null,2)+'\n');
+  // Numeric-only CI summary can be verified without downloading the short-lived artifact.
+  console.log('PREMIUM_LAB_SUMMARY '+JSON.stringify({domContentLoadedMs:observed.navDomContentLoadedEndMs,lcpMs:report.metrics.largestObservedLcpMs,cls:report.metrics.diagnosticMaxSessionCls,layoutShiftCount:observed.layoutShifts.length}));
   await page.screenshot({path:testInfo.outputPath('premium-throttled-guest-390.png'),fullPage:false,animations:'disabled'});
   expect(observed.navDomContentLoadedEndMs).not.toBeNull();
   expect(observed.finalScrollWidth).toBeLessThanOrEqual(observed.finalViewportWidth);
