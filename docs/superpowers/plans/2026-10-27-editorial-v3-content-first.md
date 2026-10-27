@@ -2,7 +2,7 @@
 Date: 2026-10-27
 Base main: `1345bc2bc7b3bd7ef3aa53cbb46e778985a8975e`
 Work branch: `feat/editorial-v3-content-first-2026-10-27`
-PR: add after creating review request.
+PR: https://github.com/lolokeksu09/WrCommunity/pull/60 (Draft initially; exact SHA checks required).
 
 ## Owner decision
 Implement the proposed improvements inspired by FACEIT's club structure, E-Pal's player-first discovery, and concise mobile social navigation, **without copying their branding, layouts or artwork**. This is a concrete continuation of released PR #59, not a new color skin.
