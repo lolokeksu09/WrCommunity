@@ -41,12 +41,18 @@ test('Premium audit: authenticated hidden profile, editor, privacy and responsiv
     await ui.page.goto(screen.path);
     await expect(ui.page.getByRole('heading',{name:screen.heading,exact:true}).first()).toBeVisible();
     await expect(ui.page.locator('.route-loading')).toHaveCount(0);
+    // Normalize to the first viewport after previous full-page captures.
+    // Chromium may retain a nonzero scroll offset during the same-page test session.
+    const retainedScroll=await ui.page.evaluate(()=>window.scrollY);
+    await ui.page.evaluate(()=>window.scrollTo({top:0,left:0,behavior:'instant'}));
+    await expect.poll(()=>ui.page.evaluate(()=>window.scrollY)).toBe(0);
     const layout=await ui.page.evaluate(()=>{
      const skip=document.querySelector('.skip-link');
      const header=document.querySelector('.mobile-header');
      return {overflow:document.documentElement.scrollWidth>window.innerWidth,head:document.querySelector('h1,h2')?.textContent??'',scrollY:window.scrollY,skipLinkFocused:document.activeElement===skip,skipLinkTop:skip?.getBoundingClientRect().top??null,headerTop:header?.getBoundingClientRect().top??null};
     });
     report.push({width:viewport.width,route:screen.key,...layout,heading:layout.head});
+    if(retainedScroll>0)console.log('Full-page evidence restored nonzero scroll before next route:',screen.key,viewport.width,retainedScroll);
     if(viewport.width===390||viewport.width===1440){
      // A true first-viewport capture separates page UI from full-page sticky screenshot artifacts.
      await ui.page.screenshot({path:testInfo.outputPath('premium-auth-'+screen.key+'-'+viewport.width+'-viewport.png'),fullPage:false,animations:'disabled'});
@@ -65,6 +71,8 @@ test('Premium audit: authenticated hidden profile, editor, privacy and responsiv
   await ui.page.setViewportSize({width:320,height:700});
   await ui.page.goto('/me/edit');
   await expect(ui.page.getByRole('heading',{name:'Редактировать профиль'})).toBeVisible();
+  await ui.page.evaluate(()=>window.scrollTo({top:0,left:0,behavior:'instant'}));
+  await expect.poll(()=>ui.page.evaluate(()=>window.scrollY)).toBe(0);
   const reflow=await ui.page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth}));
   await ui.page.screenshot({path:testInfo.outputPath('premium-auth-editor-reflow-320-viewport.png'),fullPage:false});
   await ui.page.screenshot({path:testInfo.outputPath('premium-auth-editor-reflow-320.png'),fullPage:true});
