@@ -1,4 +1,0 @@
-Local configuration created. Start: docker compose -f compose.local.yml up -d --build
-Generated environment parses; required values and mode0600 verified.
-Existing .env preserved. Check POSTGRES_PASSWORD, COOKIE_SECRET and LFG_CONTACT_KEY, then start compose.local.yml.
-EXISTING_ENV_PRESERVED_EXIT=0
