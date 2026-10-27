@@ -167,3 +167,14 @@
 - The working environment cannot clone/run full app (outbound DNS to GitHub blocked; local Node22 and no Docker/Postgres). Real build, browser screenshots, mobile CSS overflow and production behavior **not yet independently verified**. Do not claim visual review or successful CI until exact-HEAD Actions results.
 - No server, API, database, migrations, auth/ACL or deployment changes. No VDS update authorized by PR creation.
 - **Next action:** inspect exact PR #59 Draft FAST then Ready FULL and Chromium screenshots; correct any failing visual/functional regressions before requesting merge/deploy approval.
+
+
+## 27.10.2026 — Editorial V3 content-first mobile refinement (working snapshot)
+
+- User provided real Android screenshots of released PR #59 and requested implementation and documentation of content-first refinements inspired by FACEIT, E-Pal and Discord/INGAME. No third-party images/code reused.
+- Source base is protected main `1345bc2bc7b3bd7ef3aa53cbb46e778985a8975e`; branch `feat/editorial-v3-content-first-2026-10-27`. PR link belongs in design [plan](../superpowers/plans/2026-10-27-editorial-v3-content-first.md) when opened. Full decisions in [screen contracts](../design/editorial-v3/README.md).
+- Structural code: `web/src/lfg-events.tsx` exposes independent quick player search before collapsible advanced filters, preserves URL search terms, mode and role/server; `web/src/search-filters.tsx` accepts route-specific initial expanded state without changing other callers. `web/src/auth.tsx` groups existing activity/club links into a mobile grid. `web/src/clubs.tsx` groups cover, membership and actions as a dossier without changing ACL. `web/src/mobile-editorial.css` refines the same existing layer (no fourth theme override) and reduces home masthead.
+- New `tests/e2e/editorial-v3.spec.ts` exercises the quick search and param preservation, collapsed/expanded filters, authenticated profile links and owner club actions; registered as L2 in `scripts/ci/e2e-levels.json`.
+- No API, migrations, production content/DB, privacy, server configuration, synthetic metrics or desktop automated Chromium changes.
+- **Verification pending** at this snapshot. No local app/Chromium screenshot claim; GitHub Draft FAST/Ready FULL are the planned isolated environment. Production remains PR #59 release `1345bc2b`.
+- **One next action:** review Draft FAST exact-head CI, repair failures, promote to Ready FULL, inspect real Chromium evidence, then request release authorization.
