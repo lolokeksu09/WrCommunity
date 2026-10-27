@@ -205,6 +205,12 @@
       "name": "главная доступна с клавиатуры, раскрытие карусели управляется стрелками",
       "level": "L2",
       "area": "navigation"
+    },
+    {
+      "file": "premium-auth-visual.spec.ts",
+      "name": "Premium audit: authenticated hidden profile, editor, privacy and responsive visual evidence",
+      "level": "L3",
+      "area": "editor"
     }
   ]
 }
