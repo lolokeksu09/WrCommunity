@@ -28,3 +28,23 @@
 - **Stacked PR ordering:** docs #43 → diagnostics #44 → shell #45 → this UI PR #46. Do not merge this branch directly into main before the parents; all final Ready FULL/API/mobile Chromium/integration/docker-smoke/quality-gate jobs are mandatory before approved merge.
 
 **Next action:** remove the temporary one-shot workflow, verify clean PR diff and latest FAST; subsequently add an **authorized isolated** editorial-author screenshot case and manual keyboard/zoom checks, then consider Ready FULL. No deployment until review.
+
+## Addendum — editorial fixture and keyboard accessibility (2026-10-27)
+
+### Verified execution and immutable evidence
+- Isolated [workflow 40453786018](https://github.com/lolokeksu09/WrCommunity/actions/runs/40453786018), HEAD `4f69959b7a597ad63a481003aa4465d718aff217` (code includes two new scenarios and registered E2E levels). Disposable PostgreSQL/Mailpit, Node 24 and enabled `mobile-chromium`; local URL `http://127.0.0.1:13000`.
+- Actual targeted `npx playwright test --config scripts/playwright.config.ts --project=mobile-chromium tests/e2e/home-feed-ux.spec.ts`: **6 passed**. Includes prior four behaviors plus editorial rendering/keyboard checks.
+- Then `node scripts/ci/premium-visual-baseline.mjs`: **20 screens, zero failures**. All 20 session-window CLS diagnostic values equal zero, zero detected overflow, broken completed images or uncaught browser page exceptions.
+- Evidence archive: artifact **12712031295**, `premium-2-isolated-baseline`, with 20 guest viewport PNGs, `report.json`, `source-sha.txt`, a 390px populated ordinary-post image, and **`premium2-editorial-fixture-390.png`**, **`premium2-editorial-fixture-1440.png`**.
+- Manually inspected both editorial image files: original author display text remains a synthetic player name, but the prominent `Редакция` badge, lavender border rail and clear body typography display properly at both viewports. Ordinary posts remain separately styled.
+
+### Fixture boundaries and tested keyboard behavior
+- The editorial case creates a **disposable verified public player/post only on the isolated runner**. Its browser intercepts `/api/v1/feed*`, returning the server response unchanged **except** that the exact test post's `author.editorial` Boolean is `true`. This exercises React post variants and labeling but **does not validate the real editorial seed SQL, production editorial records or backend editorial eligibility**. No fake identity was published.
+- Each editorial card's post text had a computed foreground/background **WCAG contrast ratio >=4.5:1** on both 390 and 1440 captures. This is a component-specific result, **not** a sitewide WCAG audit or screen-reader certification.
+- Keyboard E2E confirms the skip link receives focus **after hydration**, can jump to `#main-content`, the expansion toggles by Enter, expanded carousel advances via ArrowRight, collapsing via Enter updates aria-expanded, post action menu opens with Enter, closes with Escape and restores focus. A 320px narrow-viewport run detected no horizontal overflow; this is a reflow proxy **not an actual 200% browser zoom test**.
+- The first trial [run 40453602978](https://github.com/lolokeksu09/WrCommunity/actions/runs/40453602978) exposed missing registry entries and a premature Tab before root hydration; a new `test_e2e_classification.py` failure also correctly blocked FAST. Both are now corrected: the two scenarios are in `scripts/ci/e2e-levels.json`, and the keyboard test waits for the real `Лента` heading before tab traversal. Re-runs passed in the successful evidence run.
+- Automatic desktop-chromium E2E remains **disabled**. A 1440px layout was captured by resizing the enabled mobile Chromium browser, which does not constitute a dedicated desktop browser project test.
+
+### Remaining readiness conditions
+- A real, non-mutating backend editorial seed/ACL verification against disposable authored data is a distinct future task. Manual assistive technology and genuine 200% browser zoom still remain unverified; do not assert full WCAG compliance.
+- Remove one-off workflow before the final PR diff, rerun FAST on the resulting exact SHA and complete **Ready FULL** in proper stacked parent order before considering any merge. Do not deploy to production from a Draft PR.
