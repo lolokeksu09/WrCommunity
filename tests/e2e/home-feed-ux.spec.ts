@@ -79,6 +79,8 @@ test('длинный и многострочный пост разворачив
   const long=await api(player.context,'/posts','POST',{body:longBody});
   await api(player.context,'/posts','POST',{body:multiBody});
   await api(player.context,'/posts','POST',{body:'Короткая публикация'});
+  const unbroken='НеразрывнаяСтрока'.repeat(60);
+  await api(player.context,'/posts','POST',{body:unbroken});
   await ui.page.setViewportSize({width:isMobile?360:1440,height:900});
   await ui.page.goto('/users/'+player.id);
   const card=ui.page.locator('.post').filter({hasText:'Конец длинной публикации'});
@@ -104,7 +106,11 @@ test('длинный и многострочный пост разворачив
   const multi=ui.page.locator('.post').filter({hasText:'Строка 10'});
   await multi.getByRole('button',{name:'Читать полностью',exact:true}).click();
   await expect(multi.getByRole('button',{name:'Свернуть текст',exact:true})).toHaveAttribute('aria-expanded','true');
-  await noOverflow(ui.page);
+  await expect(ui.page.locator('.post').filter({hasText:unbroken.slice(0,28)})).toBeVisible();
+  for(const width of [360,390,430,1440]){
+   await ui.page.setViewportSize({width,height:900});
+   await noOverflow(ui.page);
+  }
   await card.getByRole('link',{name:'Открыть публикацию',exact:true}).click();
   await expect(ui.page).toHaveURL('/posts/'+long.id);
   await expect(ui.page.locator('.post.detail .copy')).toHaveText(longBody);
