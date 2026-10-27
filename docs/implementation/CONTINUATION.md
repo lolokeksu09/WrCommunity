@@ -44,3 +44,11 @@
 - Details, per-screen metric matrix, provenance and remaining blockers: [Premium 2.0 audit](reviews/2026-10-27-premium-2-audit.md#isolated-browser-baseline--executed-2026-10-27).
 - **Still open before approval of implementation:** isolate the sources of CLS, manual keyboard/zoom/a11y checks, fully authenticated 360/390/430/1440 states with test profiles and media, and repeatable controlled Lighthouse. Existing successful production RELEASE screenshots are independent, not the isolated baseline.
 - **One next action:** prepare a design implementation plan that prioritizes verified CLS/viewport issues and preserves privacy and all existing functional states; request owner approval before modifying app source. Keep the Draft PR docs-only, do not enable Desktop Chromium E2E.
+
+
+## 27.10.2026 — Premium 2.0 implementation roadmap saved
+
+- Executable roadmap saved **before product-code changes** in [`2026-10-27-premium-2-implementation.md`](../superpowers/plans/2026-10-27-premium-2-implementation.md), part of Draft [PR #43](https://github.com/lolokeksu09/WrCommunity/pull/43). Audit evidence and one-shot isolated guest baseline remain in [2026-10-27-premium-2-audit.md](reviews/2026-10-27-premium-2-audit.md).
+- Roadmap P2-0 → P2-6: CLS attribution; shell and tokens; home/editorial; discovery/LFG; clubs; profile/uploads; accessibility/performance/release. All product/ACL/data/desktop-E2E safeguards from `AGENTS.md` remain binding.
+- A **separate, unmerged Draft [PR #44](https://github.com/lolokeksu09/WrCommunity/pull/44)** is implementing **P2-0 only**: privacy-safe shift-report instrumentation and unit regressions. Its baseline and newest checks are not approved as a production fix merely because the PR exists. Confirm actual evidence and checks on the exact latest head.
+- **This PR #43 stays docs-only.** It does not install candidate tokens, modify React, deploy to VDS or approve Premium visuals. The one next action is to complete PR #44 diagnostics, verify a browser report on the exact commit, and record observed shift sources before introducing CSS changes.
