@@ -186,6 +186,56 @@
     font-size: clamp(9px, 2.7vw, 12px);
   }
   .rift-signal .discoveries-shortcuts a::before { bottom: 6px; top: 6px; width: 2px; }
+  /* Actual information architecture: one primary search destination and two
+     secondary destinations. No fake activity counters or decorative actions. */
+  .rift-signal .discoveries-shortcuts {
+    display: grid;
+    grid-template-columns: minmax(0, 1.06fr) minmax(0, 1fr);
+    grid-template-rows: repeat(2, minmax(47px, auto));
+    align-items: stretch;
+    gap: 7px;
+  }
+  .rift-signal .discoveries-shortcuts a:first-child {
+    grid-row: 1 / span 2;
+    min-height: 101px;
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: center;
+    padding: 15px 13px;
+    gap: 9px;
+    font-size: 15px;
+    font-weight: 810;
+    background: linear-gradient(132deg,#24364c,#172435 75%);
+    border-color: #607b91;
+    border-radius: 4px 15px 4px 4px;
+  }
+  .rift-signal .discoveries-shortcuts a:first-child svg:first-child {
+    width: 23px;
+    height: 23px;
+    color: var(--m-signal);
+  }
+  .rift-signal .discoveries-shortcuts a:first-child svg:last-child {
+    display: block;
+    position: absolute;
+    right: 13px;
+    top: 14px;
+    width: 15px;
+    height: 15px;
+  }
+  .rift-signal .discoveries-shortcuts a:nth-child(2),
+  .rift-signal .discoveries-shortcuts a:nth-child(3) {
+    min-height: 47px;
+    justify-content: flex-start;
+    padding: 7px 10px;
+    font-size: 12px;
+    line-height: 1.25;
+  }
+  .rift-signal .discoveries-shortcuts a:nth-child(2) svg:first-child,
+  .rift-signal .discoveries-shortcuts a:nth-child(3) svg:first-child {
+    display: block;
+    width: 15px;
+    height: 15px;
+  }
   .rift-signal .discoveries-shortcuts a:nth-child(2) { background: #13272b; }
   .rift-signal .discoveries-shortcuts a:nth-child(3) { background: #202035; }
   .rift-signal .hero { height: 150px; border-radius: 5px 15px 5px 5px; }
