@@ -10,7 +10,7 @@ import type {Club,ClubMember,Revision} from './clubs';
 import {resetPostDrafts} from './post-drafts';
 import type {Application,ClubEvent,Lfg} from './lfg-events';
 import type {Notification} from './notifications';
-import {Empty,ErrorView,PageHeading,Skeleton,resetFormDrafts} from './ui';
+import {Empty,ErrorView,PageHeading,resetFormDrafts} from './ui';
 import './styles.css';
 
 function lazyNamed<M,K extends keyof M>(load:()=>Promise<M>,name:K):LazyExoticComponent<Extract<M[K],ComponentType<any>>>{
