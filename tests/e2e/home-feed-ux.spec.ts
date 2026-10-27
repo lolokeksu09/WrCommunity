@@ -6,6 +6,15 @@ test('свёрнутая карусель остаётся свёрнутой п
  test.skip(!isMobile,'Проверка компактной мобильной главной');
  await page.goto('/');
  const nav=page.getByRole('navigation',{name:'Основная мобильная навигация'});
+ // Compact by default, with real shortcuts visible before the first post.
+ await expect(page.getByRole('button',{name:'Развернуть'})).toBeVisible();
+ await expect(page.locator('.hero')).toHaveCount(0);
+ const shortcuts=page.getByRole('navigation',{name:'Быстрые переходы'});
+ await expect(shortcuts.getByRole('link',{name:/Игроки/})).toHaveAttribute('href','/discover');
+ await expect(shortcuts.getByRole('link',{name:/Клубы/})).toHaveAttribute('href','/clubs');
+ await expect(shortcuts.getByRole('link',{name:/Ищу команду/})).toHaveAttribute('href','/discover/lfg');
+ await page.getByRole('button',{name:'Развернуть'}).click();
+ await expect(page.locator('.hero')).toBeVisible();
  await page.getByRole('button',{name:'Свернуть'}).click();
  await expect(page.locator('.hero')).toHaveCount(0);
  await nav.getByRole('link',{name:'Клубы'}).click();
@@ -19,6 +28,7 @@ test('свёрнутая карусель остаётся свёрнутой п
 test('вертикальный жест не перелистывает карусель, горизонтальный листает',async({page,isMobile})=>{
  test.skip(!isMobile,'Касания нужны только на мобильном устройстве');
  await page.goto('/');
+ await page.getByRole('button',{name:'Развернуть'}).click();
  await expect(page.getByText('1 из 3')).toBeVisible();
  await page.locator('.hero').evaluate(hero=>{
   const start=new Touch({identifier:1,target:hero,clientX:200,clientY:180});
