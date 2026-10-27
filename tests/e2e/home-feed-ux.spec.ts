@@ -238,6 +238,8 @@ test('главная доступна с клавиатуры, раскрыти�
 
 test('Mobile editorial hub keeps reading and club navigation usable at narrow widths',async({page,isMobile},testInfo)=>{
  test.skip(!isMobile,'Mobile-only editorial layout');
+ const owner=await account();
+ const club=await api<{id:string}>(owner.context,'/clubs','POST',{name:'Дизайн '+randomUUID().slice(0,8),description:'Открытая команда для проверки настоящих карточек сообщества',join_mode:'open',feed_visibility:'public'});
  for(const width of [320,360,390,430]){
   await page.setViewportSize({width,height:900});
   await page.goto('/');
@@ -251,6 +253,11 @@ test('Mobile editorial hub keeps reading and club navigation usable at narrow wi
   if(width===390)await page.screenshot({path:testInfo.outputPath('mobile-editorial-home-390.png'),fullPage:true,animations:'disabled'});
   await shortcuts.getByRole('link',{name:/Клубы/}).click();
   await expect(page.getByRole('heading',{name:'Клубы',exact:true})).toBeVisible();
+  const card=page.locator('.club-list .club-card[href="/clubs/'+club.id+'"]');
+  await expect(card).toBeVisible();
+  const layout=await card.evaluate(el=>({display:getComputedStyle(el).display,columns:getComputedStyle(el).gridTemplateColumns}));
+  expect(layout.display).toBe('grid');
+  expect(layout.columns.split(' ').length).toBe(2);
   await noOverflow(page);
   if(width===390)await page.screenshot({path:testInfo.outputPath('mobile-editorial-clubs-390.png'),fullPage:true,animations:'disabled'});
  }
