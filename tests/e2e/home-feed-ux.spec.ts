@@ -234,3 +234,24 @@ test('главная доступна с клавиатуры, раскрыти�
  await page.setViewportSize({width:320,height:800});
  await noOverflow(page);
 });
+
+
+test('Mobile editorial hub keeps reading and club navigation usable at narrow widths',async({page,isMobile},testInfo)=>{
+ test.skip(!isMobile,'Mobile-only editorial layout');
+ for(const width of [320,360,390,430]){
+  await page.setViewportSize({width,height:900});
+  await page.goto('/');
+  const stage=page.getByRole('region',{name:'Сообщество за пределами матча'});
+  await expect(stage).toBeVisible();
+  await expect(stage.getByRole('heading',{name:/В игре — матч/})).toBeVisible();
+  await expect(page.locator('.home-stream .feed-head')).toBeVisible();
+  const shortcuts=page.getByRole('navigation',{name:'Быстрые переходы'});
+  await expect(shortcuts.getByRole('link',{name:/Ищу команду/})).toHaveAttribute('href','/discover/lfg');
+  await noOverflow(page);
+  if(width===390)await page.screenshot({path:testInfo.outputPath('mobile-editorial-home-390.png'),fullPage:true,animations:'disabled'});
+  await shortcuts.getByRole('link',{name:/Клубы/}).click();
+  await expect(page.getByRole('heading',{name:'Клубы',exact:true})).toBeVisible();
+  await noOverflow(page);
+  if(width===390)await page.screenshot({path:testInfo.outputPath('mobile-editorial-clubs-390.png'),fullPage:true,animations:'disabled'});
+ }
+});
