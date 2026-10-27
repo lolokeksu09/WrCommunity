@@ -55,7 +55,7 @@ jobs:
           npm run build
           npm run migrate
       - name: Install local Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
       - name: Start local API and verify readiness
         run: |
           node dist/server/index.js > /tmp/wrc-premium-server.log 2>&1 &
