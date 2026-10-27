@@ -8,7 +8,7 @@ test('Premium audit: authenticated hidden profile, editor, privacy and responsiv
  // All data belongs to a disposable isolated E2E account, never production.
  const person=await account({hidden:true});
  const ui=await browserPerson(browser,person);
- const report:{width:number;route:string;overflow:boolean;heading:string}[]=[];
+ const report:{width:number;route:string;overflow:boolean;heading:string;scrollY:number;skipLinkFocused:boolean;skipLinkTop:number|null;headerTop:number|null}[]=[];
  try {
   const initial=await api(person.context,'/me/profile');
   await api(person.context,'/me/profile','PATCH',{
@@ -41,8 +41,16 @@ test('Premium audit: authenticated hidden profile, editor, privacy and responsiv
     await ui.page.goto(screen.path);
     await expect(ui.page.getByRole('heading',{name:screen.heading,exact:true}).first()).toBeVisible();
     await expect(ui.page.locator('.route-loading')).toHaveCount(0);
-    const layout=await ui.page.evaluate(()=>({overflow:document.documentElement.scrollWidth>window.innerWidth,head:document.querySelector('h1,h2')?.textContent??''}));
-    report.push({width:viewport.width,route:screen.key,overflow:layout.overflow,heading:layout.head});
+    const layout=await ui.page.evaluate(()=>{
+     const skip=document.querySelector('.skip-link');
+     const header=document.querySelector('.mobile-header');
+     return {overflow:document.documentElement.scrollWidth>window.innerWidth,head:document.querySelector('h1,h2')?.textContent??'',scrollY:window.scrollY,skipLinkFocused:document.activeElement===skip,skipLinkTop:skip?.getBoundingClientRect().top??null,headerTop:header?.getBoundingClientRect().top??null};
+    });
+    report.push({width:viewport.width,route:screen.key,...layout,heading:layout.head});
+    if(viewport.width===390||viewport.width===1440){
+     // A true first-viewport capture separates page UI from full-page sticky screenshot artifacts.
+     await ui.page.screenshot({path:testInfo.outputPath('premium-auth-'+screen.key+'-'+viewport.width+'-viewport.png'),fullPage:false,animations:'disabled'});
+    }
     await ui.page.screenshot({path:testInfo.outputPath('premium-auth-'+screen.key+'-'+viewport.width+'.png'),fullPage:true,animations:'disabled'});
     await noOverflow(ui.page);
     if(screen.key==='profile'){
@@ -58,6 +66,7 @@ test('Premium audit: authenticated hidden profile, editor, privacy and responsiv
   await ui.page.goto('/me/edit');
   await expect(ui.page.getByRole('heading',{name:'Редактировать профиль'})).toBeVisible();
   const reflow=await ui.page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth}));
+  await ui.page.screenshot({path:testInfo.outputPath('premium-auth-editor-reflow-320-viewport.png'),fullPage:false});
   await ui.page.screenshot({path:testInfo.outputPath('premium-auth-editor-reflow-320.png'),fullPage:true});
   await writeFile(testInfo.outputPath('premium-auth-report.json'),JSON.stringify({source:'isolated mobile Chromium resized viewport, synthetic verified hidden account',screens:report,reflow,jsErrors:ui.errors},null,2));
   expect(ui.errors).toEqual([]);
