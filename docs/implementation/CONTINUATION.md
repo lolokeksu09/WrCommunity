@@ -103,3 +103,10 @@
 - Source: validated [PR #51](https://github.com/lolokeksu09/WrCommunity/pull/51) `3c29907cc65528f50433492ab8ecc6ffbcef047c`, one throttled 390px lab sample LCP 5808ms, not production metrics.
 - Branch `audit/premium-2-lcp-attribution-2026-10-27`. Added three-run isolated 390x844 CDP 150ms / 200000 download B/s / 4x CPU performance test, static element-region metadata and numeric timing without private DOM/URLs; exact L2 registry entry. Plan [here](../superpowers/plans/2026-10-27-premium-2-lcp-attribution.md); [audit](reviews/2026-10-27-premium-2-lcp-attribution.md).
 - **Required next action:** complete exact-head PR FULL and read actual evidence values; document any unavailable metric or failure. No `main` merge, deployment, production user/data modification or Desktop Chromium E2E. Manual Android/zoom/screen-reader and field CWV remain open.
+
+## 27.10.2026 — LCP phase attribution after PR #52
+
+- Recovered [PR #52 FULL 40474595135](https://github.com/lolokeksu09/WrCommunity/actions/runs/40474595135) logs: three isolated mobile feed LCPs **5768/6364/5784 ms**, median **5784 ms**; same `p` inside `post-list`; DCL 4005/4039/3935 ms. All 43 mobile E2E passed on SHA `a68f94f0d244039a646971b7d9032d3e8a249a62`. Production CWV and root cause remain unmeasured.
+- Current branch `audit/premium-2-lcp-phases-2026-10-27` stacked on #52, **test/docs only**: plan [here](../superpowers/plans/2026-10-27-premium-2-lcp-phases.md), audit [here](reviews/2026-10-27-premium-2-lcp-phases.md), and new L2/feed diagnostic. Four cold browser contexts alternate real isolated feed and browser-only empty synthetic response to inspect navigation, JS/API timing buckets, first text mount, LCP and summary lengths without content/URLs.
+- CI FULL on **exact final new head required**. No merge/main/production DB/site change or VDS. Desktop Chromium E2E stays disabled. Native 200% zoom, Android keyboard/picker, screen reader and field CWV/INP remain outstanding.
+- **One next action:** read actual new `PREMIUM_LCP_PHASES` metrics from GitHub browser logs and decide if a narrow product performance fix is justified; avoid optimizing based solely on one lab number.
