@@ -416,3 +416,15 @@
     animation: none;
   }
 }
+
+/* Keep the document's content stage anchored when the first heading has a top
+   margin. A flow root prevents that margin from escaping and moving <main>. */
+.page-content {
+  display: flow-root;
+  min-height: calc(100dvh - 64px);
+}
+@media (min-width: 760px) {
+  .page-content {
+    min-height: 100dvh;
+  }
+}
