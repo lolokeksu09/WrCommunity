@@ -10,6 +10,10 @@ test('Editorial V3: compact home and quick player search preserve active filters
  const masthead=await page.locator('.home-stage').boundingBox();
  expect(masthead?.height).toBeLessThan(205);
  await noOverflow(page);
+ await page.screenshot({path:testInfo.outputPath('editorial-v3-home-390.png'),fullPage:true,animations:'disabled'});
+ await page.goto('/discover');
+ await expect(page.getByRole('button',{name:'Фильтры',exact:true})).toHaveAttribute('aria-expanded','false');
+ await page.screenshot({path:testInfo.outputPath('editorial-v3-discovery-compact-390.png'),fullPage:true,animations:'disabled'});
  await page.goto('/discover?server=EU&role=mid');
  const quick=page.getByRole('search');
  await expect(quick.getByLabel('Поиск по имени или нику')).toBeVisible();
