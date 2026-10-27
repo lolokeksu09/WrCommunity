@@ -41,6 +41,11 @@ const ClubSettings=lazyNamed(()=>import('./clubs'),'ClubSettings');
 const ClubTransfer=lazyNamed(()=>import('./clubs'),'ClubTransfer');
 const TransferAccept=lazyNamed(()=>import('./clubs'),'TransferAccept');
 const Home=lazyNamed(()=>import('./social'),'Home');
+// Fetch the home route chunk during bootstrap, overlapping root/session and feed loaders.
+// Keep unrelated routes lazy and keep Home's normal Suspense/error behavior on failure.
+if(typeof window!=='undefined'&&window.location.pathname==='/'){
+ void import('./social').catch(()=>{/* Speculative preload only; route render retains its error boundary. */});
+}
 const PeopleList=lazyNamed(()=>import('./social'),'PeopleList');
 const PostDetail=lazyNamed(()=>import('./social'),'PostDetail');
 const PostEditor=lazyNamed(()=>import('./social'),'PostEditor');
