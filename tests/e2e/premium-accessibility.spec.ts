@@ -55,7 +55,7 @@ test('Premium accessibility: reduced motion leaves discovery usable from the key
  await expand.focus();
  await page.keyboard.press('Enter');
  await expect(page.locator('.hero')).toBeVisible();
- const animationNames=await page.locator('.hero-portal > div, .hero-portal i, .hero-portal b').evaluateAll(elements=>
+ const animationNames=await page.locator('.hero-portal .rift-map-route').evaluateAll(elements=>
   elements.map(element=>getComputedStyle(element).animationName));
  expect(animationNames.length).toBeGreaterThan(0);
  expect(animationNames.every(name=>name==='none')).toBe(true);
