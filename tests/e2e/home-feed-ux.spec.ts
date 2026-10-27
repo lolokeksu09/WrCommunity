@@ -47,7 +47,7 @@ test('вертикальный жест не перелистывает кару
  await noOverflow(page);
 });
 
-test('первая публичная публикация читаема и видна без прокрутки на 390px',async({page,isMobile})=>{
+test('первая публичная публикация читаема и видна без прокрутки на 390px',async({page,isMobile},testInfo)=>{
  test.skip(!isMobile,'Проверка мобильной плотности ленты');
  const player=await account();
  try{
@@ -64,6 +64,8 @@ test('первая публичная публикация читаема и в�
   const rect=await card.boundingBox();
   expect(rect).not.toBeNull();
   expect(rect!.y).toBeLessThan(560);
+  await expect(card).toHaveClass(/player-post/);
+  await page.screenshot({path:testInfo.outputPath('premium2-populated-390.png'),fullPage:true});
   await noOverflow(page);
  }finally{await player.context.dispose();}
 });
