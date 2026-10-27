@@ -271,6 +271,18 @@
       "name": "Mobile editorial hub keeps reading and club navigation usable at narrow widths",
       "level": "L2",
       "area": "feed"
+    },
+    {
+      "file": "editorial-v3.spec.ts",
+      "name": "Editorial V3: compact home and quick player search preserve active filters",
+      "level": "L2",
+      "area": "lfg"
+    },
+    {
+      "file": "editorial-v3.spec.ts",
+      "name": "Editorial V3: real club dossier and own-profile shortcut grid preserve routes",
+      "level": "L2",
+      "area": "clubs"
     }
   ]
 }
