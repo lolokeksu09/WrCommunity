@@ -272,6 +272,57 @@
   .club-list .club-info > span { font-size: 12px; line-height: 1.4; color: #b7c7d8; }
   .club-list .club-info > small { margin-top: 2px; font-size: 10px; line-height: 1.5; }
   .club-list .club-membership { margin-top: 6px; }
+  /* Actual player-search cards are .person, not .player-card. */
+  .page-content > .person {
+    display: grid;
+    grid-template-columns: 50px minmax(0, 1fr) 44px;
+    align-items: start;
+    gap: 11px;
+    min-width: 0;
+    padding: 15px 12px;
+    margin: 10px 0;
+    border: 1px solid #34485d;
+    border-radius: 4px 15px 4px 4px;
+    background: #121b29;
+  }
+  .page-content > .person > .avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 11px 4px 11px 4px;
+    border-color: #506b85;
+  }
+  .page-content > .person .person-copy {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+    align-content: start;
+  }
+  .page-content > .person .person-copy .author {
+    font-size: 15px;
+    line-height: 1.3;
+    font-weight: 780;
+    color: #f0f7ff;
+  }
+  .page-content > .person .person-copy small {
+    overflow-wrap: anywhere;
+    line-height: 1.45;
+    color: #b3c5d7;
+  }
+  .page-content > .person > .icon-button {
+    align-self: center;
+    color: var(--m-signal);
+  }
+  .page-content > .person .match-reasons {
+    color: #a5f4df;
+  }
+  .page-content > .search-form {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    min-width: 0;
+  }
+  .page-content > .search-form .field { flex: 1 1 auto; min-width: 0; }
+  .page-content > .search-form .secondary { flex: 0 0 auto; }
   .lfg-card,.event-card,.player-card {
     border: 1px solid #324456;
     background: #111a26;
