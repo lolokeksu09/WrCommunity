@@ -31,6 +31,9 @@ test('первые шаги и собственные фильтры не рас
   await ui.page.goto('/discover?mode=recommended&q='+target.handle);
   const preset=ui.page.getByRole('region',{name:'Свои настройки поиска'});
   await expect(preset).toContainText('EU');
+  // Premium 2.1: compact by default, opened explicitly for editing.
+  await expect(preset.getByRole('button',{name:'Изменить мои настройки'})).toHaveAttribute('aria-expanded','false');
+  await preset.getByRole('button',{name:'Изменить мои настройки'}).click();
   await expect(preset.getByRole('option',{name:'ДлиннаяРоль'.repeat(5),exact:true})).toHaveCount(0);
   await preset.getByLabel('Роль из моей карточки').selectOption('Тактик');
   await preset.getByRole('button',{name:'Использовать мои настройки'}).click();
@@ -50,6 +53,7 @@ test('первые шаги и собственные фильтры не рас
   await ui.page.getByRole('link',{name:'Сбросить фильтры'}).click();
   await expect(ui.page).toHaveURL(/\/discover\?mode=recommended$/);
   await ui.page.goto('/discover/lfg');
+  await ui.page.getByRole('region',{name:'Свои настройки поиска'}).getByRole('button',{name:'Изменить мои настройки'}).click();
   await ui.page.getByRole('region',{name:'Свои настройки поиска'}).getByLabel('Роль из моей карточки').selectOption('support');
   await ui.page.getByRole('button',{name:'Использовать мои настройки'}).click();
   await expect.poll(()=>new URL(ui.page.url()).searchParams.get('role')).toBe('support');
