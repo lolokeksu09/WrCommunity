@@ -37,7 +37,6 @@ export function SearchPreferences({profile}:{profile:Profile|null}){
  const storedRoles=profile&&Array.isArray(profile.game.roles?.value)?canonicalRoles(profile.game.roles.value):[];
  const current=canonicalRole(params.get('role')??'');
  const [role,setRole]=useState(own.roles.includes(current)?current:own.roles[0]??'');
- const applied=Boolean((own.server||own.roles.length)&&(params.get('server')??'')===own.server&&(!current||own.roles.includes(current))&&(params.has('server')||params.has('role')));
  // Keep a populated preset compact so results appear sooner on mobile.
  const [expanded,setExpanded]=useState(!(own.server||own.roles.length));
  const id=useId();if(!profile)return null;
