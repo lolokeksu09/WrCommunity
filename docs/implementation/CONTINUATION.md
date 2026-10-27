@@ -34,3 +34,13 @@
 - **Not checked:** isolated local UI interactions, editable/authenticated states from personal testing, 20-shot localhost baseline, Lighthouse/CWV and manual a11y. E2E fixture screenshots are not production users.
 - **Constraints:** no app/server/database/production changes, no new editorial accounts or synthetic engagement, do not merge Draft #43, do not re-enable automated Desktop Chromium E2E.
 - **One next action:** obtain reproducible browser baseline from an isolated supported environment at exact current `main` SHA and append screenshot paths/measurements to the audit before authorizing screen implementation.
+
+
+## 27.10.2026 — Isolated Premium 2.0 browser baseline complete
+
+- Baseline actual Chromium runner: [Actions 40447759826](https://github.com/lolokeksu09/WrCommunity/actions/runs/40447759826) on audit-only SHA `d6ed3b92e289f537ae401e7551b058203e0d9aef`. Same product sources as main `1077824c8a4d7d7c20f60ca8652e28805dee61eb`. Temporary runner workflow is deleted from PR after capturing evidence.
+- Disposable runner: Ubuntu 24.04, Node 24.22.1, PostgreSQL 18.6 (`wrcommunity_test`), Mailpit, local backend at `http://127.0.0.1:13000`, real headless Chromium. No production accounts/data or VDS access.
+- Artifact `premium-2-isolated-baseline` **12709286063** contains 20 actual full-page PNG screenshots and `report.json`. All 20 passed render/overflow/broken-loaded-image/pageerror checks across five guest screens and 360/390/430/1440 widths. **11/20** diagnostic CLS readings exceeded 0.1 on the isolated guest instance; screenshots/metrics were manually inspected. INP and throttled field metrics not measured.
+- Details, per-screen metric matrix, provenance and remaining blockers: [Premium 2.0 audit](reviews/2026-10-27-premium-2-audit.md#isolated-browser-baseline--executed-2026-10-27).
+- **Still open before approval of implementation:** isolate the sources of CLS, manual keyboard/zoom/a11y checks, fully authenticated 360/390/430/1440 states with test profiles and media, and repeatable controlled Lighthouse. Existing successful production RELEASE screenshots are independent, not the isolated baseline.
+- **One next action:** prepare a design implementation plan that prioritizes verified CLS/viewport issues and preserves privacy and all existing functional states; request owner approval before modifying app source. Keep the Draft PR docs-only, do not enable Desktop Chromium E2E.
