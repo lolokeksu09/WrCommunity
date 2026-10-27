@@ -1,6 +1,0 @@
-npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
-
-> wrcommunity@1.0.0 migrate
-> node --env-file-if-exists=.env --import tsx server/db/migrate.ts
-
-.env not found. Continuing without it.

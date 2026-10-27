@@ -1,303 +1,46 @@
-name: Application CI
+name: Closed project integrity
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      operation:
-        type: choice
-        options: [status]
-        default: status
-        description: Read the VDS technical status; does not deploy
 permissions:
   contents: read
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  fast:
-    name: fast
-    if: github.event_name == 'pull_request' && github.event.pull_request.draft == true
-    runs-on: ubuntu-24.04
-    timeout-minutes: 8
-    steps:
-      - uses: actions/checkout@v5.0.0
-      - uses: actions/setup-node@v5.0.0
-        with:
-          node-version: 24.22.1
-          cache: npm
-      - run: npm run test:l1
-      - run: npm ci
-      - run: npm run test:l2 -- --list
-      - run: npm run test:l3 -- --list
-      - name: Plan affected E2E areas from the complete PR diff
-        env:
-          WRC_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          git fetch --no-tags --depth=1 origin "$WRC_BASE_SHA"
-          npm run test:affected -- --base="$WRC_BASE_SHA"
-      - run: npm run check:secrets
-      - run: npm run check:ui
-      - run: npm run typecheck
-      - run: npm run build
-  api-tests:
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    services:
-      postgres:
-        image: postgres:18.6-bookworm
-        env:
-          POSTGRES_USER: wrcommunity
-          POSTGRES_PASSWORD: integration-only-password
-          POSTGRES_DB: wrcommunity_test
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U wrcommunity -d wrcommunity_test"
-          --health-interval 5s --health-timeout 5s --health-retries 20
-      mailpit:
-        image: axllent/mailpit:v1.31.5
-        ports: ['1025:1025', '8025:8025']
-    env:
-      NODE_ENV: test
-      DATABASE_URL: postgresql://wrcommunity:integration-only-password@localhost:5432/wrcommunity_test
-      APP_ORIGIN: http://localhost:3000
-      COOKIE_SECRET: ci-only-cookie-secret-at-least-thirty-two-characters
-      LFG_CONTACT_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-      SMTP_HOST: localhost
-      SMTP_PORT: 1025
-      SMTP_SECURE: false
-      SMTP_FROM: WrCommunity CI <no-reply@example.invalid>
-      MEDIA_STORAGE_DIR: /tmp/wrc-ci-media
-      MEDIA_DIR: /tmp/wrc-ci-media
-      WEB_ROOT: dist/web
-      E2E_MAILPIT_URL: http://localhost:8025
-    steps:
-      - uses: actions/checkout@v5.0.0
-      - uses: actions/setup-node@v5.0.0
-        with:
-          node-version: 24.22.1
-          cache: npm
-      - run: npm ci
-      - run: npm run check:secrets
-      - run: npm run check:ui
-      - run: npm run typecheck
-      - run: npm run build
-      - run: npm run test:l1
-      - run: npm run migrate
-      - run: npm test
-      - run: npm run backup:verify
-        env:
-          PG_CLIENT_CONTAINER: true
-  browser-project:
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        # Temporarily mobile-only per owner decision (2026-10-26); do not restore desktop without explicit request.
-        project: [mobile-chromium]
-    services:
-      postgres:
-        image: postgres:18.6-bookworm
-        env:
-          POSTGRES_USER: wrcommunity
-          POSTGRES_PASSWORD: integration-only-password
-          POSTGRES_DB: wrcommunity_test
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U wrcommunity -d wrcommunity_test"
-          --health-interval 5s --health-timeout 5s --health-retries 20
-      mailpit:
-        image: axllent/mailpit:v1.31.5
-        ports: ['1025:1025', '8025:8025']
-    env:
-      NODE_ENV: test
-      DATABASE_URL: postgresql://wrcommunity:integration-only-password@localhost:5432/wrcommunity_test
-      APP_ORIGIN: http://localhost:3000
-      COOKIE_SECRET: ci-only-cookie-secret-at-least-thirty-two-characters
-      LFG_CONTACT_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-      SMTP_HOST: localhost
-      SMTP_PORT: 1025
-      SMTP_SECURE: false
-      SMTP_FROM: WrCommunity CI <no-reply@example.invalid>
-      MEDIA_STORAGE_DIR: /tmp/wrc-ci-media
-      MEDIA_DIR: /tmp/wrc-ci-media
-      WEB_ROOT: dist/web
-      E2E_MAILPIT_URL: http://localhost:8025
-    steps:
-      - uses: actions/checkout@v5.0.0
-      - uses: actions/setup-node@v5.0.0
-        with:
-          node-version: 24.22.1
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - run: npm run migrate
-      - run: npx playwright install --with-deps chromium
-      - name: Browser acceptance checks
-        env:
-          WRC_E2E_WORKERS: '3'
-        run: |
-          npm run start:worker > /tmp/wrc-worker.log 2>&1 &
-          npm run test:e2e -- --project="${{ matrix.project }}"
-      - uses: actions/upload-artifact@v4.6.2
-        if: always()
-        with:
-          name: browser-evidence-${{ matrix.project }}
-          path: |
-            playwright-report/
-            test-results/
-            docs/evidence/screens/
-          if-no-files-found: ignore
-          retention-days: 7
-  browser-tests:
-    name: browser-tests
-    needs: [browser-project]
-    if: always() && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false))
-    runs-on: ubuntu-24.04
-    timeout-minutes: 3
-    steps:
-      - name: Require enabled mobile Playwright project to complete successfully
-        env:
-          BROWSER_PROJECT_RESULT: ${{ needs.browser-project.result }}
-        shell: bash
-        run: |
-          if [[ "$BROWSER_PROJECT_RESULT" != "success" ]]; then
-            echo "::error::FULL requires the enabled mobile Playwright suite to succeed."
-            exit 1
-          fi
-          echo "Mobile browser project passed (desktop suite temporarily disabled by owner)."
-
   integration:
-    name: integration
-    needs: [api-tests, browser-tests]
-    if: always() && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false))
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
     steps:
-      - name: Require complete API and browser suites on the same SHA
-        env:
-          API_RESULT: ${{ needs.api-tests.result }}
-          BROWSER_RESULT: ${{ needs.browser-tests.result }}
-        shell: bash
+      - uses: actions/checkout@v4
+      - name: Verify active repository contains no application
         run: |
-          if [[ "$API_RESULT" != "success" || "$BROWSER_RESULT" != "success" ]]; then
-            echo "::error::FULL requires both API and browser jobs to succeed."
-            exit 1
-          fi
-          echo "FULL API and browser checks passed."
-
+          set -euo pipefail
+          test -f README.md
+          test -f .github/workflows/ci.yml
+          test "$(git ls-files | wc -l)" -eq 2
+          echo "WrCommunity application and deployment source are absent."
   docker-smoke:
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5.0.0
-      - name: Validate Compose configurations
-        env:
-          DOMAIN: ci.example.invalid
-          APP_ORIGIN: https://ci.example.invalid
-          DATABASE_URL: postgresql://wrcommunity:ci-disposable-only@postgres:5432/wrcommunity
-          POSTGRES_PASSWORD: ci-disposable-only
-          COOKIE_SECRET: ci-disposable-cookie-secret-at-least-thirty-two-characters
-          LFG_CONTACT_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-          SMTP_HOST: smtp.example.invalid
-          SMTP_USER: ci-placeholder
-          SMTP_PASS: ci-placeholder-not-used
-          SMTP_FROM: WrCommunity CI <no-reply@example.invalid>
+      - uses: actions/checkout@v4
+      - name: Verify container deployment definition has been removed
         run: |
-          docker compose -f compose.yml config --quiet
-          docker compose -f compose.dev.yml config --quiet
-          docker compose -f compose.local.yml config --quiet
-      - run: sh scripts/docker-smoke.sh
-      - name: Verify Caddy and private Mailpit published ports
-        run: bash scripts/local-compose-smoke.sh
-      - name: Deployment controller regression tests
-        run: |
-          python3 -m unittest discover -s scripts/deployment -p 'test_*.py' -v
-          bash -n scripts/deployment/install-access.sh
-          bash -n scripts/run-deployment-ssh.sh
+          set -euo pipefail
+          test ! -e compose.yml
+          test ! -e compose.local.yml
+          test ! -e Dockerfile
+          test ! -e scripts
+          test ! -e web
+          test ! -e server
+          echo "No Docker deployment is present in this branch."
   quality-gate:
-    name: quality-gate
-    if: always() && github.event_name == 'pull_request'
-    needs: [fast, integration, docker-smoke]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 3
-    steps:
-      - name: Require the checks appropriate to the current PR stage
-        env:
-          PR_DRAFT: ${{ github.event.pull_request.draft }}
-          FAST_RESULT: ${{ needs.fast.result }}
-          INTEGRATION_RESULT: ${{ needs.integration.result }}
-          DOCKER_RESULT: ${{ needs.docker-smoke.result }}
-        shell: bash
-        run: |
-          if [[ "$PR_DRAFT" == "true" ]]; then
-            if [[ "$FAST_RESULT" == "success" && "$INTEGRATION_RESULT" == "skipped" && "$DOCKER_RESULT" == "skipped" ]]; then
-              echo "Draft PR: FAST passed. Full checks are deferred until ready_for_review."
-              exit 0
-            fi
-          else
-            if [[ "$FAST_RESULT" == "skipped" && "$INTEGRATION_RESULT" == "success" && "$DOCKER_RESULT" == "success" ]]; then
-              echo "Ready PR: FULL integration and Docker smoke passed."
-              exit 0
-            fi
-          fi
-          echo "::error::PR stage does not have the required successful checks."
-          exit 1
-  deploy:
+    if: always()
     needs: [integration, docker-smoke]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.WRC_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    concurrency:
-      group: wrcommunity-vds-deployment
-      cancel-in-progress: false
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false
-      - name: Deploy the exact commit that passed both required jobs
+      - name: Require closure checks
         env:
-          WRC_DEPLOY_HOST: ${{ vars.WRC_DEPLOY_HOST }}
-          WRC_DEPLOY_KEY: ${{ secrets.WRC_DEPLOY_KEY }}
-          WRC_DEPLOY_KNOWN_HOSTS: ${{ secrets.WRC_DEPLOY_KNOWN_HOSTS }}
-          WRC_TARGET_SHA: ${{ github.sha }}
-          WRC_RUN_ID: ${{ github.run_id }}
-        run: bash scripts/run-deployment-ssh.sh deploy "$WRC_TARGET_SHA" "$WRC_RUN_ID"
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        with:
-          node-version: 24.22.1
-          cache: npm
-      - run: npm ci --ignore-scripts
-      - run: npx playwright install --with-deps chromium
-      - name: Verify the live site in a browser with strict TLS
-        env:
-          WRC_PUBLIC_ORIGIN: ${{ vars.WRC_PUBLIC_ORIGIN }}
-        run: node scripts/live-site-check.mjs
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always()
-        with:
-          name: deployed-public-site
-          path: live-site-evidence/
-          if-no-files-found: ignore
-          retention-days: 7
-  vds-status:
-    needs: [deploy]
-    if: always() && github.ref == 'refs/heads/main' && vars.WRC_DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 3
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          persist-credentials: false
-      - name: Read technical status without application logs or secrets
-        env:
-          WRC_DEPLOY_HOST: ${{ vars.WRC_DEPLOY_HOST }}
-          WRC_DEPLOY_KEY: ${{ secrets.WRC_DEPLOY_KEY }}
-          WRC_DEPLOY_KNOWN_HOSTS: ${{ secrets.WRC_DEPLOY_KNOWN_HOSTS }}
-        run: bash scripts/run-deployment-ssh.sh status
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+          DOCKER_SMOKE_RESULT: ${{ needs.docker-smoke.result }}
+        run: |
+          test "$INTEGRATION_RESULT" = success
+          test "$DOCKER_SMOKE_RESULT" = success
+          echo "Repository closure is internally consistent."
