@@ -283,13 +283,15 @@
     display: none;
   }
 }
-@media (max-width: 359px) {
-  /* The team label is the longest; remove its redundant icon and reclaim 4px. */
-  .rift-signal .discoveries-shortcuts a {
-    padding-inline: 3px;
-  }
+@media (max-width: 390px) {
+  /* The team label is longest; its map node already supplies the visual cue. */
   .rift-signal .discoveries-shortcuts a:nth-child(3) svg:first-child {
     display: none;
+  }
+}
+@media (max-width: 359px) {
+  .rift-signal .discoveries-shortcuts a {
+    padding-inline: 3px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
