@@ -211,6 +211,18 @@
       "name": "Premium audit: authenticated hidden profile, editor, privacy and responsive visual evidence",
       "level": "L3",
       "area": "editor"
+    },
+    {
+      "file": "premium-accessibility.spec.ts",
+      "name": "Premium accessibility: authenticated 320px reflow and keyboard privacy without publishing",
+      "level": "L3",
+      "area": "editor"
+    },
+    {
+      "file": "premium-accessibility.spec.ts",
+      "name": "Premium accessibility: reduced motion leaves discovery usable from the keyboard",
+      "level": "L2",
+      "area": "navigation"
     }
   ]
 }
