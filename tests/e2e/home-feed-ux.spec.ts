@@ -25,6 +25,25 @@ test('свёрнутая карусель остаётся свёрнутой п
  await expect(page.locator('.hero')).toBeVisible();
 });
 
+test('Rift Signal соединяет три реальных маршрута и сохраняет адаптивность',async({page,isMobile},testInfo)=>{
+ test.skip(!isMobile,'Проверка сигнатуры маршрутов выполняется в мобильном Chromium');
+ await page.setViewportSize({width:390,height:844});
+ await page.goto('/');
+ const signal=page.locator('.rift-signal');
+ await expect(signal).toBeVisible();
+ await expect(signal.locator('.rift-map-compact')).toHaveAttribute('aria-hidden','true');
+ const shortcuts=signal.getByRole('navigation',{name:'Быстрые переходы'});
+ await expect(shortcuts.getByRole('link',{name:/Игроки/})).toHaveAttribute('href','/discover');
+ await expect(shortcuts.getByRole('link',{name:/Клубы/})).toHaveAttribute('href','/clubs');
+ await expect(shortcuts.getByRole('link',{name:/Ищу команду/})).toHaveAttribute('href','/discover/lfg');
+ await page.screenshot({path:testInfo.outputPath('rift-signal-390.png'),fullPage:true,animations:'disabled'});
+ for(const width of [320,360,390,430,1440]){
+  await page.setViewportSize({width,height:900});
+  await noOverflow(page);
+  if(width===1440)await page.screenshot({path:testInfo.outputPath('rift-signal-wide-1440.png'),fullPage:true,animations:'disabled'});
+ }
+});
+ 
 test('вертикальный жест не перелистывает карусель, горизонтальный листает',async({page,isMobile})=>{
  test.skip(!isMobile,'Касания нужны только на мобильном устройстве');
  await page.goto('/');
