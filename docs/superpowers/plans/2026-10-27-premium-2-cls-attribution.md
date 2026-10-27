@@ -13,10 +13,10 @@ Smallest technical first step: extend **manual, localhost-only** `scripts/ci/pre
 - [x] Isolate CLS session math and source filtering in `scripts/ci/premium-cls-diagnostics.mjs`.
 - [x] Add regression tests for session boundaries, recent-input exclusion, untrusted DOM strings and bounded payloads in `tests/premium-cls-diagnostics.test.mjs`.
 - [x] Instrument `scripts/ci/premium-visual-baseline.mjs` with simple whitelisted regions and rects; preserve original screenshot routes and guard against external URLs.
-- [ ] Run unit tests and FAST on exact PR head.
-- [ ] Run real local-site Chromium via disposable GitHub runner with isolated test PostgreSQL, document exact artifact/SHA, manually inspect shift report and PNG.
+- [x] Run diagnostic unit tests and Draft FAST during development (unit run 40449771048 and FAST run 40449689054 passed). Recheck FAST on final head after cleanup.
+- [x] Run isolated real Chromium: [40449771048](https://github.com/lolokeksu09/WrCommunity/actions/runs/40449771048), SHA bd28e55b20125a50395783bf86af27019e263638, artifact 12709559163; 20/20 screenshots, no script failures, inspected PNGs/JSON. See [results](../../implementation/reviews/2026-10-27-premium-2-cls-attribution.md).
 - [ ] Remove temporary audit-only workflow from final PR; confirm diff contains only diagnostics/tests/documentation.
-- [ ] Attribute top shifts from observed region/timeline before any CSS fix. Do not assert region overlap alone proves causal source.
+- [x] Classify observed sources: first `document`, then `main` + `footer`, aligned with initial fallback and route-loader transitions; no CSS fix or categorical causation claim. See evidence report.
 
 ## Verification and rollout
 
