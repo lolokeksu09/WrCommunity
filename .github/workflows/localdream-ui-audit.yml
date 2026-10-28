@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
           repository: lolokeksu09/LocalDream-Enhanced
-          ref: ec06b13f1da9b552adcde0824196fa5edef27b52
+          ref: 2a8f4f4d45d17cb3544f3984288d65de5c18f36a
           persist-credentials: false
       - name: Configure Java
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
@@ -232,6 +232,11 @@ jobs:
           tap_node(first, text="Anime")
           second = snapshot("10-anime-second")
           if field(first) == field(second): raise AssertionError("Anime did not change on repeat tap")
+          tap_node(second, text="Undo quick prompt")
+          undone = snapshot("10a-undo-quick")
+          if field(undone) != field(first): raise AssertionError("Undo did not restore previous prompt")
+          tap_node(undone, text="Anime")
+          second = snapshot("10b-after-undo")
           tap_node(second, text="Auto")
           menu = snapshot("11-format-menu")
           tap_node(menu, text="Tags")
@@ -262,6 +267,92 @@ jobs:
           tap_node(dark, text="Prompt")
           snapshot("20-prompt-dark")
           print("Completed style cycling, tags, keyboard, scrolling, tabs and dark theme checks.")
+          PY
+      - name: Compare two synthetic history records
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          PKG=io.github.xororz.localdream.preview
+          adb shell am force-stop "$PKG"
+          adb exec-out run-as "$PKG" cat databases/local_dream.db > audit-output/fixture.db
+          adb exec-out run-as "$PKG" cat databases/local_dream.db-wal > audit-output/fixture.db-wal || true
+          adb exec-out run-as "$PKG" cat databases/local_dream.db-shm > audit-output/fixture.db-shm || true
+          [ -s audit-output/fixture.db-wal ] || rm -f audit-output/fixture.db-wal
+          [ -s audit-output/fixture.db-shm ] || rm -f audit-output/fixture.db-shm
+          python3 - <<'PY'
+          import sqlite3
+          db = sqlite3.connect("audit-output/fixture.db")
+          db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+          sql = """INSERT INTO generation_history
+              (modelId,timestamp,imagePath,width,height,mode,denoiseStrength,upscalerId,steps,cfg,seed,prompt,negativePrompt,generationTime,scheduler,runOnCpu,useOpenCL,favorite)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+          db.execute(sql, ("UIAuditModel", 1700000001000, "history/UIAuditModel/compare1.png", 512,512,"txt2img",None,None,8,1.0,123,"a moonlit forest","blurry",None,"dpm",1,0,0))
+          db.execute(sql, ("UIAuditModel", 1700000002000, "history/UIAuditModel/compare2.png", 512,512,"txt2img",None,None,12,1.0,123,"a sunlit forest","blurry",None,"dpm",1,0,0))
+          db.commit()
+          db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+          db.close()
+          PY
+          adb push audit-output/fixture.db /data/local/tmp/compare-fixture.db
+          adb push audit-output/02-model-list.png /data/local/tmp/compare-fixture.png
+          adb shell run-as "$PKG" mkdir -p files/history/UIAuditModel
+          adb shell run-as "$PKG" cp /data/local/tmp/compare-fixture.png files/history/UIAuditModel/compare1.png
+          adb shell run-as "$PKG" cp /data/local/tmp/compare-fixture.png files/history/UIAuditModel/compare2.png
+          adb shell run-as "$PKG" rm -f databases/local_dream.db-wal databases/local_dream.db-shm
+          adb shell run-as "$PKG" cp /data/local/tmp/compare-fixture.db databases/local_dream.db
+          adb shell am start -n "$PKG/io.github.xororz.localdream.MainActivity"
+          sleep 15
+          python3 - <<'PY'
+          import re, subprocess, time, xml.etree.ElementTree as ET
+          from pathlib import Path
+          out = Path("audit-output")
+          def adb(*args):
+              return subprocess.run(["adb", *args], check=True, stdout=subprocess.PIPE).stdout
+          def snapshot(name):
+              time.sleep(3)
+              adb("shell", "uiautomator", "dump", "/sdcard/compare.xml")
+              adb("pull", "/sdcard/compare.xml", str(out / (name + ".xml")))
+              (out / (name + ".png")).write_bytes(adb("exec-out", "screencap", "-p"))
+              return ET.parse(out / (name + ".xml")).getroot()
+          def center(node):
+              b = list(map(int, re.findall(r"\d+", node.attrib.get("bounds", ""))))
+              if len(b) != 4: raise AssertionError("Missing bounds")
+              return str((b[0]+b[2])//2), str((b[1]+b[3])//2)
+          def find(root, text=None, desc=None):
+              for n in root.iter("node"):
+                  if text is not None and n.attrib.get("text") != text: continue
+                  if desc is not None and n.attrib.get("content-desc") != desc: continue
+                  return n
+              raise AssertionError("Missing UI control: " + str(text or desc))
+          root = snapshot("compare-home")
+          x,y = center(find(root, text="UIAuditModel"))
+          adb("shell", "input", "tap", x, y)
+          time.sleep(10)
+          root = snapshot("compare-prompt")
+          x,y = center(find(root, text="History"))
+          adb("shell", "input", "tap", x, y)
+          root = snapshot("compare-history")
+          images = [n for n in root.iter("node") if n.attrib.get("content-desc") == "Generated image"]
+          if len(images) < 2: raise AssertionError("Two fixture images not visible")
+          x,y = center(images[0])
+          adb("shell", "input", "swipe", x, y, x, y, "1100")
+          root = snapshot("compare-one-selected")
+          images = [n for n in root.iter("node") if n.attrib.get("content-desc") == "Generated image"]
+          x,y = center(images[1])
+          adb("shell", "input", "tap", x, y)
+          root = snapshot("compare-two-selected")
+          x,y = center(find(root, desc="Compare selected results"))
+          adb("shell", "input", "tap", x, y)
+          root = snapshot("compare-dialog")
+          texts = [n.attrib.get("text", "") for n in root.iter("node")]
+          if "Compare results" not in texts: raise AssertionError("Comparison not opened")
+          if "a moonlit forest" not in texts or "a sunlit forest" not in texts: raise AssertionError("Saved prompts are missing")
+          if "Different" not in texts: raise AssertionError("Difference status missing")
+          x,y = center(find(root, text="Close"))
+          adb("shell", "input", "tap", x, y)
+          root = snapshot("compare-closed")
+          find(root, desc="Compare selected results")
+          print("Compared two synthetic history items and closed the dialog.")
           PY
       - name: Upload diagnostic screenshots
         if: always()
