@@ -117,6 +117,29 @@ jobs:
               subprocess.run(["adb", "shell", "uiautomator", "dump", "/sdcard/window.xml"], check=True)
               subprocess.run(["adb", "pull", "/sdcard/window.xml", "audit-output/model-list.xml"], check=True)
               root = ET.parse("audit-output/model-list.xml").getroot()
+          def click_text(root, text):
+              for node in root.iter("node"):
+                  if node.attrib.get("text") == text:
+                      x1,y1,x2,y2 = map(int, re.findall(r"\d+", node.attrib["bounds"]))
+                      subprocess.run(["adb", "shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2)], check=True)
+                      import time
+                      time.sleep(3)
+                      return
+              raise SystemExit("Control missing: " + text)
+          def capture(name):
+              subprocess.run(["adb", "shell", "uiautomator", "dump", "/sdcard/catalog.xml"], check=True)
+              subprocess.run(["adb", "pull", "/sdcard/catalog.xml", "audit-output/" + name + ".xml"], check=True)
+              with open("audit-output/" + name + ".png", "wb") as out:
+                  subprocess.run(["adb", "exec-out", "screencap", "-p"], check=True, stdout=out)
+              return ET.parse("audit-output/" + name + ".xml").getroot()
+          click_text(root, "NPU Models")
+          root = capture("02a-npu")
+          click_text(root, "CPU Models")
+          root = capture("02b-cpu")
+          click_text(root, "Pinned")
+          root = capture("02c-pinned")
+          click_text(root, "All")
+          root = capture("02d-all")
           for node in root.iter("node"):
               if "UIAuditModel" not in node.attrib.get("text", ""):
                   continue
