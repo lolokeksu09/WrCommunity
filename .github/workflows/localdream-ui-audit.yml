@@ -114,6 +114,63 @@ jobs:
           adb shell settings put system font_scale 1.3
           sleep 8
           adb exec-out screencap -p > audit-output/04-large-font.png
+          adb shell settings put system font_scale 1.0
+          sleep 5
+          python3 - <<'PY'
+          import re, subprocess, time, xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          out = Path("audit-output")
+          def adb(*args):
+              return subprocess.run(["adb", *args], check=True, stdout=subprocess.PIPE).stdout
+          def snapshot(name):
+              adb("shell", "uiautomator", "dump", "/sdcard/audit.xml")
+              adb("pull", "/sdcard/audit.xml", str(out / (name + ".xml")))
+              (out / (name + ".png")).write_bytes(adb("exec-out", "screencap", "-p"))
+              return ET.parse(out / (name + ".xml")).getroot()
+          def tap_node(root, *, text=None, clazz=None):
+              for node in root.iter("node"):
+                  if text is not None and node.attrib.get("text") != text: continue
+                  if clazz is not None and node.attrib.get("class") != clazz: continue
+                  b = list(map(int, re.findall(r"\d+", node.attrib.get("bounds", ""))))
+                  if len(b) == 4:
+                      adb("shell", "input", "tap", str((b[0]+b[2])//2), str((b[1]+b[3])//2))
+                      time.sleep(3)
+                      return
+              raise RuntimeError("control not visible: " + str(text or clazz))
+          def field(root):
+              return next(n.attrib.get("text", "") for n in root.iter("node") if n.attrib.get("class") == "android.widget.EditText")
+          root = snapshot("05-before")
+          tap_node(root, text="Anime")
+          first = snapshot("06-anime-first")
+          tap_node(first, text="Anime")
+          second = snapshot("07-anime-second")
+          if field(first) == field(second): raise AssertionError("Anime did not change on repeat tap")
+          tap_node(second, text="Tags")
+          tags = snapshot("08-tags-selected")
+          tap_node(tags, text="Anime")
+          tagged = snapshot("09-anime-tags")
+          tap_node(tagged, clazz="android.widget.EditText")
+          snapshot("10-keyboard")
+          adb("shell", "input", "keyevent", "4")
+          time.sleep(2)
+          adb("shell", "input", "swipe", "510", "1600", "510", "700", "500")
+          time.sleep(2)
+          snapshot("11-lower-prompt")
+          adb("shell", "input", "swipe", "510", "500", "510", "1500", "500")
+          time.sleep(2)
+          root = snapshot("12-after-scroll")
+          tap_node(root, text="Result")
+          result = snapshot("13-result")
+          tap_node(result, text="History")
+          history = snapshot("14-history")
+          adb("shell", "cmd", "uimode", "night", "yes")
+          time.sleep(8)
+          dark = snapshot("15-history-dark")
+          tap_node(dark, text="Prompt")
+          snapshot("16-prompt-dark")
+          print("Completed style cycling, tags, keyboard, scrolling, tabs and dark theme checks.")
+          PY
       - name: Upload diagnostic screenshots
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
