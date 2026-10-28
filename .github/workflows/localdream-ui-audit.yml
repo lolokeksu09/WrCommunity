@@ -32,7 +32,14 @@ jobs:
           set +o pipefail
           yes | "$SDKMANAGER" --licenses >/dev/null
           set -o pipefail
-          "$SDKMANAGER" --install "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
+          for attempt in 1 2 3; do
+            if "$SDKMANAGER" --install "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"; then
+              break
+            fi
+            echo "SDK download failed, attempt $attempt of 3"
+            sleep 5
+          done
+          test -f "$ANDROID_HOME/system-images/android-35/google_apis/x86_64/system.img"
       - name: Build exact revision with its pinned upstream runtime
         shell: bash
         run: |
