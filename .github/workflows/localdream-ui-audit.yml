@@ -1,0 +1,120 @@
+name: LocalDream UI audit (isolated)
+on:
+  push:
+    branches: [test/localdream-ui-audit]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact LocalDream revision
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+        with:
+          repository: lolokeksu09/LocalDream-Enhanced
+          ref: 4af3e500ac93bd44d9c654d1b40e188bf4490e5b
+          persist-credentials: false
+      - name: Configure Java
+        uses: actions/setup-java@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Prepare emulator and SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          set +o pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null
+          set -o pipefail
+          "$SDKMANAGER" --install "platforms;android-37.0" "build-tools;37.0.0" "emulator" "system-images;android-35;google_apis;x86_64"
+          echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force -n audit_phone -k "system-images;android-35;google_apis;x86_64" -d pixel_2
+      - name: Build exact revision with its pinned upstream runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 "https://github.com/xororz/local-dream/releases/download/v3.0.0-alpha.6/LocalDream_armv8a_3.0.0-alpha.6.apk" --output "$RUNNER_TEMP/upstream.apk"
+          echo "bec75b588200eb83aedd82b0a26ed8c5de4cfd923d0f51e1e65d241fccc11f82  $RUNNER_TEMP/upstream.apk" | sha256sum --check
+          python3 - "$RUNNER_TEMP/upstream.apk" <<'PY'
+          import sys, zipfile
+          from pathlib import Path
+          root = Path("app/src/main")
+          with zipfile.ZipFile(sys.argv[1]) as z:
+              for name in z.namelist():
+                  if name.startswith("lib/arm64-v8a/") and name.endswith(".so"):
+                      target = root / "jniLibs" / name.removeprefix("lib/")
+                  elif name.startswith(("assets/qnnlibs/", "assets/ditlibs/", "assets/licenses/qnn-2.51.0.260929/")) and not name.endswith("/"):
+                      target = root / name
+                  else:
+                      continue
+                  if root.resolve() not in target.resolve().parents:
+                      raise ValueError(name)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(z.read(name))
+          PY
+          keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/audit.jks" -storetype JKS -storepass audit-password -keypass audit-password -alias audit -keyalg RSA -keysize 2048 -validity 2 -dname "CN=Local UI Audit"
+          ./gradlew --no-daemon -PPREVIEW_BUILD=true -PRELEASE_STORE_FILE="$RUNNER_TEMP/audit.jks" -PRELEASE_STORE_PASSWORD=audit-password -PRELEASE_KEY_ALIAS=audit -PRELEASE_KEY_PASSWORD=audit-password :app:assembleBasicDebug
+      - name: Launch and capture app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p audit-output
+          "$ANDROID_HOME/emulator/emulator" -avd audit_phone -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot > audit-output/emulator.log 2>&1 &
+          adb wait-for-device
+          for attempt in $(seq 1 120); do
+            if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then break; fi
+            sleep 5
+          done
+          test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1
+          adb shell input keyevent 82
+          adb shell getprop ro.product.cpu.abilist | tee audit-output/abis.txt
+          APK_PATH="$(find app/build/outputs/apk/basic/debug -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          adb install "$APK_PATH"
+          adb shell pm grant io.github.xororz.localdream.preview android.permission.POST_NOTIFICATIONS || true
+          adb shell am start -n io.github.xororz.localdream.preview/io.github.xororz.localdream.MainActivity
+          sleep 20
+          adb shell uiautomator dump /sdcard/window.xml
+          adb pull /sdcard/window.xml audit-output/initial.xml
+          adb exec-out screencap -p > audit-output/01-home.png
+          adb shell am force-stop io.github.xororz.localdream.preview
+          adb shell run-as io.github.xororz.localdream.preview mkdir -p files/models/UIAuditModel
+          adb shell run-as io.github.xororz.localdream.preview touch files/models/UIAuditModel/finished
+          adb shell am start -n io.github.xororz.localdream.preview/io.github.xororz.localdream.MainActivity
+          sleep 20
+          adb shell uiautomator dump /sdcard/window.xml
+          adb pull /sdcard/window.xml audit-output/model-list.xml
+          adb exec-out screencap -p > audit-output/02-model-list.png
+          python3 - <<'PY'
+          import re, subprocess, xml.etree.ElementTree as ET
+          root = ET.parse("audit-output/model-list.xml").getroot()
+          for node in root.iter("node"):
+              if "UIAuditModel" not in node.attrib.get("text", ""):
+                  continue
+              bounds = re.findall(r"\d+", node.attrib.get("bounds", ""))
+              if len(bounds) == 4:
+                  x1,y1,x2,y2 = map(int, bounds)
+                  subprocess.run(["adb", "shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2)], check=True)
+                  break
+          else:
+              raise SystemExit("Synthetic test model not visible; see model-list.xml and screenshot.")
+          PY
+          sleep 15
+          adb shell uiautomator dump /sdcard/window.xml
+          adb pull /sdcard/window.xml audit-output/prompt.xml
+          adb exec-out screencap -p > audit-output/03-prompt.png
+          adb shell settings put system font_scale 1.3
+          sleep 8
+          adb exec-out screencap -p > audit-output/04-large-font.png
+      - name: Upload diagnostic screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: localdream-ui-audit
+          path: audit-output/
+          if-no-files-found: warn
+          retention-days: 7
