@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
           repository: lolokeksu09/LocalDream-Enhanced
-          ref: 41ad16af96b1c31842acd01fc6fd9a2affad369f
+          ref: cf3f4692bc40eaa2e8251d2b422b050c8c4f4ba3
           persist-credentials: false
       - name: Configure Java
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
@@ -136,6 +136,7 @@ jobs:
           root = capture("02a-npu")
           click_text(root, "CPU Models")
           root = capture("02b-cpu")
+          if not any(n.attrib.get("text") == "1024×1024" for n in root.iter("node")): raise AssertionError("SDXL canvas size missing")
           search = next(n for n in root.iter("node") if n.attrib.get("class") == "android.widget.EditText")
           x1,y1,x2,y2 = map(int, re.findall(r"\d+", search.attrib["bounds"]))
           subprocess.run(["adb", "shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2)], check=True)
@@ -148,6 +149,8 @@ jobs:
           root = capture("02c-search-cleared")
           click_text(root, "Pinned")
           root = capture("02c-pinned")
+          texts = [n.attrib.get("text", "") for n in root.iter("node")]
+          if "No pinned models" not in texts or "Touch and hold an installed model, then tap the pin icon." not in texts: raise AssertionError("Pinned empty state or hint missing")
           click_text(root, "All")
           root = capture("02d-all")
           for node in root.iter("node"):
