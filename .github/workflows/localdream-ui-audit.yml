@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
           repository: lolokeksu09/LocalDream-Enhanced
-          ref: 4af3e500ac93bd44d9c654d1b40e188bf4490e5b
+          ref: 671d12cb8aa43966305e65868102677484d0a769
           persist-credentials: false
       - name: Configure Java
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
@@ -148,34 +148,44 @@ jobs:
           def field(root):
               return next(n.attrib.get("text", "") for n in root.iter("node") if n.attrib.get("class") == "android.widget.EditText")
           root = snapshot("05-before")
+          original = field(root)
           tap_node(root, text="Anime")
-          first = snapshot("06-anime-first")
+          dialog = snapshot("06-confirm-style")
+          tap_node(dialog, text="Cancel")
+          cancelled = snapshot("07-cancelled")
+          if field(cancelled) != original: raise AssertionError("Cancel changed the prompt")
+          tap_node(cancelled, text="Anime")
+          dialog = snapshot("08-confirm-again")
+          tap_node(dialog, text="Replace")
+          first = snapshot("09-anime-first")
           tap_node(first, text="Anime")
-          second = snapshot("07-anime-second")
+          second = snapshot("10-anime-second")
           if field(first) == field(second): raise AssertionError("Anime did not change on repeat tap")
-          tap_node(second, text="Tags")
-          tags = snapshot("08-tags-selected")
+          tap_node(second, text="Auto")
+          menu = snapshot("11-format-menu")
+          tap_node(menu, text="Tags")
+          tags = snapshot("12-tags-selected")
           tap_node(tags, text="Anime")
-          tagged = snapshot("09-anime-tags")
+          tagged = snapshot("13-anime-tags")
           tap_node(tagged, clazz="android.widget.EditText")
-          snapshot("10-keyboard")
+          snapshot("14-keyboard")
           adb("shell", "input", "keyevent", "4")
           time.sleep(2)
           adb("shell", "input", "swipe", "510", "1600", "510", "700", "500")
           time.sleep(2)
-          snapshot("11-lower-prompt")
+          snapshot("15-lower-prompt")
           adb("shell", "input", "swipe", "510", "500", "510", "1500", "500")
           time.sleep(2)
-          root = snapshot("12-after-scroll")
+          root = snapshot("16-after-scroll")
           tap_node(root, text="Result")
-          result = snapshot("13-result")
+          result = snapshot("17-result")
           tap_node(result, text="History")
-          history = snapshot("14-history")
+          history = snapshot("18-history")
           adb("shell", "cmd", "uimode", "night", "yes")
           time.sleep(8)
-          dark = snapshot("15-history-dark")
+          dark = snapshot("19-history-dark")
           tap_node(dark, text="Prompt")
-          snapshot("16-prompt-dark")
+          snapshot("20-prompt-dark")
           print("Completed style cycling, tags, keyboard, scrolling, tabs and dark theme checks.")
           PY
       - name: Upload diagnostic screenshots
