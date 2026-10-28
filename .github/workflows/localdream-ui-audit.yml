@@ -95,6 +95,11 @@ jobs:
           adb shell am force-stop io.github.xororz.localdream.preview
           adb shell run-as io.github.xororz.localdream.preview mkdir -p files/models/UIAuditModel
           adb shell run-as io.github.xororz.localdream.preview touch files/models/UIAuditModel/finished
+          adb shell run-as io.github.xororz.localdream.preview touch files/models/UIAuditModel/SDXL
+          adb shell run-as io.github.xororz.localdream.preview touch files/models/UIAuditModel/unet.mnn
+          printf '%s' '{"default_cfg":1,"default_steps":8}' > audit-output/fixture-config.json
+          adb push audit-output/fixture-config.json /data/local/tmp/localdream-audit-config.json
+          adb shell run-as io.github.xororz.localdream.preview cp /data/local/tmp/localdream-audit-config.json files/models/UIAuditModel/config.json
           adb shell am start -n io.github.xororz.localdream.preview/io.github.xororz.localdream.MainActivity
           sleep 20
           adb shell uiautomator dump /sdcard/window.xml
@@ -188,6 +193,10 @@ jobs:
           root = snapshot("16-after-scroll")
           tap_node(root, text="Result")
           result = snapshot("17-result")
+          tap_node(result, text="Import image for UltraFix")
+          imported = snapshot("17a-import-dialog")
+          tap_node(imported, text="Cancel")
+          result = snapshot("17b-after-import-cancel")
           tap_node(result, text="History")
           history = snapshot("18-history")
           adb("shell", "cmd", "uimode", "night", "yes")
