@@ -33,7 +33,6 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null
           set -o pipefail
           "$SDKMANAGER" --install "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
-          echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force -n audit_phone -k "system-images;android-35;google_apis;x86_64" -d pixel_2
       - name: Build exact revision with its pinned upstream runtime
         shell: bash
         run: |
@@ -65,8 +64,12 @@ jobs:
           set -euo pipefail
           mkdir -p audit-output
           export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/android-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo "no" | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force -n audit_phone -k "system-images;android-35;google_apis;x86_64" -d pixel_2
+          "$ANDROID_HOME/emulator/emulator" -list-avds | tee audit-output/avds.txt
           "$ANDROID_HOME/emulator/emulator" -avd audit_phone -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot > audit-output/emulator.log 2>&1 &
-          timeout 180s adb wait-for-device
+          timeout 120s adb wait-for-device
           for attempt in $(seq 1 120); do
             if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then break; fi
             sleep 5
