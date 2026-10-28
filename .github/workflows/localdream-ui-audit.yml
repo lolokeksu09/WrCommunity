@@ -103,6 +103,15 @@ jobs:
           python3 - <<'PY'
           import re, subprocess, xml.etree.ElementTree as ET
           root = ET.parse("audit-output/model-list.xml").getroot()
+          if any("Pixel Launcher isn't responding" in n.attrib.get("text", "") for n in root.iter("node")):
+              close = next(n for n in root.iter("node") if n.attrib.get("text") == "Close app")
+              x1,y1,x2,y2 = map(int, re.findall(r"\d+", close.attrib["bounds"]))
+              subprocess.run(["adb", "shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2)], check=True)
+              import time
+              time.sleep(5)
+              subprocess.run(["adb", "shell", "uiautomator", "dump", "/sdcard/window.xml"], check=True)
+              subprocess.run(["adb", "pull", "/sdcard/window.xml", "audit-output/model-list.xml"], check=True)
+              root = ET.parse("audit-output/model-list.xml").getroot()
           for node in root.iter("node"):
               if "UIAuditModel" not in node.attrib.get("text", ""):
                   continue
