@@ -153,6 +153,25 @@ jobs:
           if "No pinned models" not in texts or "Touch and hold an installed model, then tap the pin icon." not in texts: raise AssertionError("Pinned empty state or hint missing")
           click_text(root, "All")
           root = capture("02d-all")
+          more = next(n for n in root.iter("node") if n.attrib.get("content-desc") == "More")
+          x1,y1,x2,y2 = map(int, re.findall(r"\d+", more.attrib["bounds"]))
+          subprocess.run(["adb", "shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2)], check=True)
+          root = capture("settings-menu")
+          click_text(root, "Settings")
+          root = capture("settings-top")
+          subprocess.run(["adb", "shell", "settings", "put", "system", "font_scale", "1.3"], check=True)
+          import time
+          time.sleep(5)
+          root = capture("settings-large-font")
+          subprocess.run(["adb", "shell", "settings", "put", "system", "font_scale", "1.0"], check=True)
+          time.sleep(5)
+          for i in range(1, 5):
+              subprocess.run(["adb", "shell", "input", "swipe", "500", "1500", "500", "550", "500"], check=True)
+              time.sleep(2)
+              root = capture("settings-scroll-" + str(i))
+          subprocess.run(["adb", "shell", "input", "keyevent", "4"], check=True)
+          time.sleep(3)
+          root = capture("settings-back")
           for node in root.iter("node"):
               if "UIAuditModel" not in node.attrib.get("text", ""):
                   continue
