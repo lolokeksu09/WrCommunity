@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
           repository: lolokeksu09/LocalDream-Enhanced
-          ref: dafd73951c2f7fbc1771faf435997a32da36c627
+          ref: fc56b197818afd528b7a068b0b132680987fd333
           persist-credentials: false
       - name: Configure Java
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
@@ -249,7 +249,18 @@ jobs:
           time.sleep(2)
           adb("shell", "input", "swipe", "510", "1600", "510", "700", "500")
           time.sleep(2)
-          snapshot("15-lower-prompt")
+          root = snapshot("15-lower-prompt")
+          if not any(n.attrib.get("text") == "Lock seed" for n in root.iter("node")):
+              adb("shell", "input", "swipe", "510", "1600", "510", "700", "500")
+              root = snapshot("15a-seed-control")
+          tap_node(root, text="Lock seed")
+          fixed = snapshot("15b-seed-fixed")
+          if not any(n.attrib.get("text", "").startswith("Fixed seed: ") for n in fixed.iter("node")):
+              raise AssertionError("Seed was not fixed")
+          tap_node(fixed, text="Use random seed")
+          random = snapshot("15c-seed-random")
+          if not any(n.attrib.get("text") == "Lock seed" for n in random.iter("node")):
+              raise AssertionError("Seed was not cleared")
           adb("shell", "input", "swipe", "510", "500", "510", "1500", "500")
           time.sleep(2)
           root = snapshot("16-after-scroll")
@@ -365,7 +376,20 @@ jobs:
           adb("shell", "input", "tap", x, y)
           root = snapshot("compare-settings-applied")
           find(root, text="a sunlit forest")
-          print("Compared two results, cancelled, and applied the first result's settings.")
+          adb("shell", "input", "swipe", "510", "1600", "510", "700", "500")
+          root = snapshot("seed-after-restore")
+          if not any(n.attrib.get("text") == "Fixed seed: 123" for n in root.iter("node")):
+              adb("shell", "input", "swipe", "510", "1600", "510", "700", "500")
+              root = snapshot("seed-after-restore-scroll")
+          find(root, text="Fixed seed: 123")
+          x,y = center(find(root, text="Use random seed"))
+          adb("shell", "input", "tap", x, y)
+          root = snapshot("seed-unlocked-after-restore")
+          x,y = center(find(root, text="Lock seed"))
+          adb("shell", "input", "tap", x, y)
+          root = snapshot("seed-lock-displayed-result")
+          find(root, text="Fixed seed: 123")
+          print("Compared results, applied settings, and locked the displayed result seed.")
           PY
       - name: Upload diagnostic screenshots
         if: always()
