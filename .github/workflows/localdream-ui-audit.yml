@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
           repository: lolokeksu09/LocalDream-Enhanced
-          ref: a40d67404698664d5a74521322d03466fcab3aa1
+          ref: 3eab5ab06790c9f3f34bc4b6d1e97cd6955e3fb1
           persist-credentials: false
       - name: Configure Java
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
@@ -367,6 +367,12 @@ jobs:
           x,y = center(find(root, text="History"))
           adb("shell", "input", "tap", x, y)
           root = snapshot("compare-history")
+          adb("shell", "settings", "put", "system", "font_scale", "1.3")
+          time.sleep(5)
+          snapshot("history-large-font")
+          adb("shell", "settings", "put", "system", "font_scale", "1.0")
+          time.sleep(5)
+          root = snapshot("compare-history-restored")
           images = [n for n in root.iter("node") if n.attrib.get("content-desc") == "Generated image"]
           if len(images) < 2: raise AssertionError("Two fixture images not visible")
           x,y = center(images[0])
