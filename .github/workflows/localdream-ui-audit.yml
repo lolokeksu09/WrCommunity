@@ -267,6 +267,9 @@ jobs:
           fixed = snapshot("15b-seed-fixed")
           if not any(n.attrib.get("text", "").startswith("Fixed seed: ") for n in fixed.iter("node")):
               raise AssertionError("Seed was not fixed")
+          if not any(n.attrib.get("text") == "Use random seed" for n in fixed.iter("node")):
+              adb("shell", "input", "swipe", "510", "1600", "510", "700", "500")
+              fixed = snapshot("15b-seed-fixed-scrolled")
           tap_node(fixed, text="Use random seed")
           random = snapshot("15c-seed-random")
           if not any(n.attrib.get("text") == "Lock seed" for n in random.iter("node")):
