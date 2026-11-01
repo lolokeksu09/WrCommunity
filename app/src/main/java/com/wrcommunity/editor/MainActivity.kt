@@ -274,17 +274,16 @@ private fun EditorScreen() {
                             }
                         }
                     }
-                    if (showReference && referenceBitmap != null) {
-                        if (referenceBitmap != null) {
-                            Image(
-                                bitmap = referenceBitmap,
-                                contentDescription = "Эталонное изображение персонажа",
-                                modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)
-                                    .size(116.dp).clip(RoundedCornerShape(12.dp))
-                                    .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp)),
-                                contentScale = ContentScale.Fit
-                            )
-                        }
+                    val image = referenceBitmap
+                    if (showReference && image != null) {
+                        Image(
+                            bitmap = image,
+                            contentDescription = "Эталонное изображение персонажа",
+                            modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)
+                                .size(116.dp).clip(RoundedCornerShape(12.dp))
+                                .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp)),
+                            contentScale = ContentScale.Fit
+                        )
                     }
                     if (busy) CircularProgressIndicator(Modifier.align(Alignment.Center))
                 }
