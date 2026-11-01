@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -41,6 +42,8 @@ import io.github.sceneview.rememberModelInstance
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private val Ink = Color(0xFF090A0E)
 private val PanelTone = Color(0xFF181A22)
@@ -76,6 +79,29 @@ private fun EditorScreen() {
     var referenceUri by remember { mutableStateOf<Uri?>(null) }
     var showReference by remember { mutableStateOf(true) }
     val edit = history.current
+
+    // A large reference photo must not freeze the rendering/gesture thread.
+    val referenceBitmap by produceState<ImageBitmap?>(null, referenceUri) {
+        val uri = referenceUri ?: return@produceState
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                context.contentResolver.openInputStream(uri)?.use {
+                    BitmapFactory.decodeStream(it, null, bounds)
+                }
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+                var sampleSize = 1
+                while (maxOf(bounds.outWidth, bounds.outHeight) / sampleSize > 768) {
+                    sampleSize *= 2
+                }
+                context.contentResolver.openInputStream(uri)?.use {
+                    BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply {
+                        inSampleSize = sampleSize
+                    })?.asImageBitmap()
+                }
+            }.getOrNull()
+        }
+    }
 
     val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -229,6 +255,10 @@ private fun EditorScreen() {
                             if (referenceUri == null) referencePicker.launch("image/*")
                             else showReference = !showReference
                         })
+                        if (referenceUri != null) {
+                            CompactAction("Сменить", description = "Выбрать другой референс",
+                                onClick = { referencePicker.launch("image/*") })
+                        }
                     }
                     if (showInfo) {
                         Surface(
@@ -244,14 +274,7 @@ private fun EditorScreen() {
                             }
                         }
                     }
-                    if (showReference && referenceUri != null) {
-                        val referenceBitmap = remember(referenceUri) {
-                            runCatching {
-                                context.contentResolver.openInputStream(referenceUri!!)?.use {
-                                    BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = 4 })
-                                }?.asImageBitmap()
-                            }.getOrNull()
-                        }
+                    if (showReference && referenceBitmap != null) {
                         if (referenceBitmap != null) {
                             Image(
                                 bitmap = referenceBitmap,
