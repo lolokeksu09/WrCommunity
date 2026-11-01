@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.sceneview.SceneView
+import io.github.sceneview.rememberCameraManipulator
 import io.github.sceneview.math.Position
 import io.github.sceneview.math.Rotation
 import io.github.sceneview.math.Scale
@@ -183,8 +184,18 @@ private fun EditorScreen() {
                         }
                     }
                 } else {
-                    key(modelLocation, cameraEpoch) {
-                        SceneView(modifier = Modifier.fillMaxSize()) {
+                    // SceneView swaps manipulators without rebuilding the 3D scene.
+                    val cameraManipulator = key(cameraEpoch) {
+                        rememberCameraManipulator(
+                            orbitHomePosition = Position(0f, 0f, 2.45f),
+                            targetPosition = Position(0f, 0f, 0f)
+                        )
+                    }
+                    key(modelLocation) {
+                        SceneView(
+                            modifier = Modifier.fillMaxSize(),
+                            cameraManipulator = cameraManipulator
+                        ) {
                             rememberModelInstance(
                                 modelLoader = modelLoader,
                                 fileLocation = modelLocation!!
