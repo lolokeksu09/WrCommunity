@@ -23,7 +23,7 @@ APK будет в `app/build/outputs/apk/debug/app-debug.apk`. CI также с�
 
 ## Рабочий стандарт
 
-Применяется **Project Workflow Standard 1.4-rc3** (адаптация ключевых правил): [AGENTS.md](AGENTS.md), [PROJECT.md](PROJECT.md), [TESTING-LEVELS.md](TESTING-LEVELS.md), [активный план](docs/PLAN.md). Полный исходный комплект стандарта — отдельный пользовательский архив `Project-Workflow-Standard-v1.4-rc3.zip`; не путать его с кодом приложения.
+Полная редакция **Project Workflow Standard 1.4-rc3** установлена без изменений в [standards/project-workflow-v1.4-rc3/](standards/project-workflow-v1.4-rc3/README.md). Корневые [AGENTS.md](AGENTS.md) и [TESTING-LEVELS.md](TESTING-LEVELS.md) содержат полные правила. [PROJECT.md](PROJECT.md) адаптирован к Android 3D Editor; [подробности интеграции](docs/STANDARD.md). Актуальный [план](docs/PLAN.md).
 
 ## Стек
 
