@@ -79,13 +79,23 @@ object GlbTransformExporter {
         return output.array()
     }
 
-    suspend fun export(context: Context, originalLocation: String, targetUri: Uri, edit: ModelEdit) =
-        withContext(Dispatchers.IO) {
+    suspend fun export(
+        context: Context,
+        originalLocation: String,
+        targetUri: Uri,
+        edit: ModelEdit,
+        visibleMaterials: Set<Int>? = null
+    ) = withContext(Dispatchers.IO) {
             val file = File(Uri.parse(originalLocation).path ?: throw IOException("Исходный GLB не найден."))
             if (!file.isFile || file.length() > GlbHeader.MAX_BYTES) {
                 throw IOException("Исходный GLB недоступен или слишком большой.")
             }
-            val data = transform(file.readBytes(), edit)
+            val original = file.readBytes()
+            // Filter the renderable primitives first; apply the global transform second.
+            // The underlying vertex buffers and textures remain binary-identical.
+            val layersCopy = if (visibleMaterials == null) original
+                else GlbLayers.filter(original, visibleMaterials)
+            val data = transform(layersCopy, edit)
             val stream = context.contentResolver.openOutputStream(targetUri, "w")
                 ?: throw IOException("Не удалось открыть файл для сохранения.")
             stream.use { it.write(data) }
