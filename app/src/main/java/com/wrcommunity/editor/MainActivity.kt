@@ -75,6 +75,7 @@ private enum class Tool(val label: String) {
     ROTATE("Поворот"), MOVE("Позиция"), SCALE("Масштаб")
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditorScreen() {
     val context = LocalContext.current
