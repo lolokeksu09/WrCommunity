@@ -3,6 +3,8 @@ package com.wrcommunity.editor
 import android.content.Context
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -128,7 +130,15 @@ object GlbLayers {
             val src = File(Uri.parse(sourceLocation).path ?: throw IOException("GLB недоступен."))
             val dst = File(context.cacheDir, "layer-view-${UUID.randomUUID()}.glb")
             try {
-                dst.writeBytes(filter(src.readBytes(), visible))
+                val filtered = filter(src.readBytes(), visible)
+                currentCoroutineContext().ensureActive()
+                dst.writeBytes(filtered)
+                // Bound cache usage without touching the user's original document.
+                context.cacheDir.listFiles()
+                    ?.filter { it.isFile && it.name.startsWith("layer-view-") && it.extension == "glb" }
+                    ?.sortedByDescending { it.lastModified() }
+                    ?.drop(4)
+                    ?.forEach { if (it != dst) it.delete() }
                 Uri.fromFile(dst).toString()
             } catch (e: Exception) {
                 dst.delete()
