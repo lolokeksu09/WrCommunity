@@ -1,30 +1,39 @@
-# Android 3D Editor — старт проекта
+# Android 3D Editor
 
-Минималистичное Android-приложение для работы с собственными 3D-моделями. Репозиторий `WrCommunity` используется повторно по решению владельца. Старое приложение Wild Rift Community в этой ветке не восстанавливается.
+Минималистичный 3D-редактор для Android, ориентированный на локальные файлы GLB. Проект развивается отдельно от закрытого ранее приложения Wild Rift Community, используя репозиторий `WrCommunity` только как новую основу.
 
-## Первый этап (v0.1, кандидат)
+## Возможности v0.2.0
 
-- Выбрать локальный файл `.glb` через системный файловый менеджер.
-- Проверить заголовок glTF 2.0 до передачи в 3D-движок.
-- Показать модель с материалами и вращением/масштабированием камеры.
-- Работать без аккаунта, сервера, аналитики и разрешения на полный доступ к памяти.
+- Импорт GLB 2.0 через Android Storage Access Framework с локальной копией модели.
+- Просмотр модели и камера с управлением жестами.
+- Изменение поворота, позиции и масштаба **всего объекта** по трём осям.
+- Undo/Redo (до 50 состояний), сброс правок и восстановление камеры.
+- Эталонное изображение поверх сцены (не отправляется на сервер).
+- Экспорт **нового GLB** со внесёнными трансформациями, без пересоздания мешей/материалов и перезаписи оригинала.
+- Полностью локальная работа: без аккаунта, телеметрии, Firebase и VDS.
 
-**Важно:** v0.1 — только просмотрщик и безопасная точка для последующего редактирования геометрии. Кисти, экспорт изменённой модели и ретопология ещё не реализованы. Не выдавать просмотр за редактирование.
+**Ограничение:** в этой версии отсутствуют точечная правка вершин, скульптинг лица, ретопология и редактирование отдельных мешей. Подробнее: [docs/EDITOR-v0.2.md](docs/EDITOR-v0.2.md).
 
-## Запуск
+## Сборка
 
-Android Studio с JDK 21 и SDK 36. Для CLI требуется Gradle 9.6.0:
+Требуются JDK 21, Android SDK 36 и Gradle 9.6:
 
 ```bash
-gradle :app:assembleDebug :app:testDebugUnitTest
+gradle :app:testDebugUnitTest :app:assembleDebug
 ```
 
-APK будет в `app/build/outputs/apk/debug/app-debug.apk`. CI также сохраняет APK как артефакт после успешной сборки.
+Debug APK доступен как артефакт GitHub Actions. Для обновления установленной v0.1.2 нужен **APK с тем же постоянным сертификатом**, а не стандартный debug APK GitHub Actions. Секретный ключ подписи никогда не хранится в репозитории.
 
-## Рабочий стандарт
+## Проверки
 
-Полная редакция **Project Workflow Standard 1.4-rc3** установлена без изменений в [standards/project-workflow-v1.4-rc3/](standards/project-workflow-v1.4-rc3/README.md). Корневые [AGENTS.md](AGENTS.md) и [TESTING-LEVELS.md](TESTING-LEVELS.md) содержат полные правила. [PROJECT.md](PROJECT.md) адаптирован к Android 3D Editor; [подробности интеграции](docs/STANDARD.md). Актуальный [план](docs/PLAN.md).
+- CI: компиляция Android, unit-тесты импорта/GLB-структуры/трансформаций и проверка Project Workflow Standard.
+- Перед релизом на устройстве: импорт настоящей GLB, поворот, импорт референса, Undo/Redo, экспорт и повторное открытие сохранённой GLB.
+- CI не заменяет проверки UI, графики, FPS и экспорта на Lenovo Legion Y70.
 
-## Стек
+## Стандарт разработки
 
-Kotlin, Jetpack Compose, [SceneView](https://github.com/sceneview/sceneview) / Filament для GLB. Никакого AR, Unity, WebView, VPN, Firebase или сервера.
+Полный неизменённый [Project Workflow Standard 1.4-rc3](standards/project-workflow-v1.4-rc3/README.md). Корневые [AGENTS.md](AGENTS.md) и [TESTING-LEVELS.md](TESTING-LEVELS.md) содержат основные правила, [PROJECT.md](PROJECT.md) — проектные ограничения, [план](docs/PLAN.md) — статус задач.
+
+## Технологии
+
+Kotlin, Jetpack Compose, [SceneView/Filament](https://github.com/sceneview/sceneview), Android SAF. Без Unity, AR, WebView или серверной части.
