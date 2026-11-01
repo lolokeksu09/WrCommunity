@@ -190,7 +190,7 @@ private fun EditorScreen() {
                                 fileLocation = modelLocation!!
                             )?.let { instance ->
                                 val node = remember(instance) {
-                                    ModelNode(instance, scaleToUnits = 1.0f, autoAnimate = false)
+                                    io.github.sceneview.node.ModelNode(instance, scaleToUnits = 1.0f, autoAnimate = false)
                                 }
                                 val baseScale = remember(instance) { node.scale.x }
                                 node.rotation = Rotation(edit.x.toFloat(), edit.y.toFloat(), edit.z.toFloat())
