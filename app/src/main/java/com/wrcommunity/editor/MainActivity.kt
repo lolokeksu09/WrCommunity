@@ -96,7 +96,7 @@ private fun EditorScreen() {
                 } else {
                     key(modelUri) {
                         SceneView(modifier = Modifier.fillMaxSize()) {
-                            rememberModelInstance(modelLoader, modelUri!!)?.let {
+                            rememberModelInstance(modelLoader = modelLoader, fileLocation = modelUri!!)?.let {
                                 ModelNode(modelInstance = it, scaleToUnits = 1.0f, autoAnimate = false)
                             }
                         }
