@@ -42,7 +42,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 private val Ink = Color(0xFF090A0E)
-private val Surface = Color(0xFF181A22)
+private val PanelTone = Color(0xFF181A22)
 private val Highlight = Color(0xFFC5B9FF)
 private val TextPrimary = Color(0xFFF3F0FB)
 private val TextSecondary = Color(0xFFB6B6C5)
@@ -136,7 +136,7 @@ private fun EditorScreen() {
             onPrimary = Color(0xFF20143F),
             background = Ink,
             onBackground = TextPrimary,
-            surface = Surface,
+            surface = PanelTone,
             onSurface = TextPrimary
         )
     ) {
@@ -261,7 +261,7 @@ private fun EditorScreen() {
 
             if (modelLocation != null) {
                 Column(
-                    Modifier.fillMaxWidth().background(Surface)
+                    Modifier.fillMaxWidth().background(PanelTone)
                         .padding(horizontal = 14.dp, vertical = 10.dp)
                 ) {
                     Row(
