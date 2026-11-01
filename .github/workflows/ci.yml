@@ -31,6 +31,37 @@ jobs:
           gradle-version: '9.6.0'
       - name: Build and unit tests
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Build release if signing secrets are configured
+        env:
+          EDITOR_KEYSTORE_B64: ${{ secrets.EDITOR_KEYSTORE_B64 }}
+          EDITOR_STORE_PASSWORD: ${{ secrets.EDITOR_STORE_PASSWORD }}
+          EDITOR_KEY_PASSWORD: ${{ secrets.EDITOR_KEY_PASSWORD }}
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          if [[ -z "$EDITOR_KEYSTORE_B64" || -z "$EDITOR_STORE_PASSWORD" || -z "$EDITOR_KEY_PASSWORD" ]]; then
+            echo "Signing secrets not installed: release build skipped."
+            exit 0
+          fi
+          printf '%s' "$EDITOR_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/editor-upload.jks"
+          chmod 600 "$RUNNER_TEMP/editor-upload.jks"
+          export ANDROID_SIGNING_KEYSTORE_PATH="$RUNNER_TEMP/editor-upload.jks"
+          export ANDROID_SIGNING_STORE_PASSWORD="$EDITOR_STORE_PASSWORD"
+          export ANDROID_SIGNING_KEY_PASSWORD="$EDITOR_KEY_PASSWORD"
+          gradle --no-daemon :app:assembleRelease
+      - name: Upload signed release
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-3d-editor-release
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: ignore
+      - name: Archive Android SDK apksigner for independent verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-3d-editor-apksigner
+          path: ${{ env.ANDROID_HOME }}/build-tools/36.0.0/lib/apksigner.jar
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: android-3d-editor-debug

@@ -3,7 +3,23 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val signingKeystorePath = providers.environmentVariable("ANDROID_SIGNING_KEYSTORE_PATH").orNull
+val signingStorePassword = providers.environmentVariable("ANDROID_SIGNING_STORE_PASSWORD").orNull
+val signingKeyPassword = providers.environmentVariable("ANDROID_SIGNING_KEY_PASSWORD").orNull
+val signingEnabled = !signingKeystorePath.isNullOrBlank() &&
+    !signingStorePassword.isNullOrBlank() && !signingKeyPassword.isNullOrBlank()
+
 android {
+    signingConfigs {
+        if (signingEnabled) {
+            create("privateRelease") {
+                storeFile = file(signingKeystorePath!!)
+                storePassword = signingStorePassword
+                keyAlias = "android-3d-editor"
+                keyPassword = signingKeyPassword
+            }
+        }
+    }
     namespace = "com.wrcommunity.editor"
     compileSdk = 36
 
@@ -11,8 +27,8 @@ android {
         applicationId = "com.wrcommunity.editor"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
     }
 
     compileOptions {
@@ -25,6 +41,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (signingEnabled) signingConfig = signingConfigs.getByName("privateRelease")
         }
     }
 }
