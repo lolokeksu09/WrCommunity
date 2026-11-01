@@ -13,7 +13,7 @@
 
 ## Запуск
 
-Android Studio с JDK 21 и SDK 37. Для CLI требуется Gradle 9.6.0:
+Android Studio с JDK 21 и SDK 36. Для CLI требуется Gradle 9.6.0:
 
 ```bash
 gradle :app:assembleDebug :app:testDebugUnitTest
