@@ -5,9 +5,10 @@ import android.content.Context
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileInputStream
 import java.io.IOException
 import java.io.InputStream
 import java.util.UUID
@@ -30,6 +31,7 @@ object GlbFileImporter {
                     val buffer = ByteArray(64 * 1024)
                     var total = 0L
                     while (true) {
+                        currentCoroutineContext().ensureActive()
                         val read = input.read(buffer)
                         if (read == -1) break
                         if (read == 0) continue
@@ -54,6 +56,13 @@ object GlbFileImporter {
             }
             GlbValidation.error(prefix, bytesRead)?.let { throw IOException(it) }
             if (!temporary.renameTo(target)) throw IOException("Не удалось сохранить импортированную модель.")
+            // Retain the current model and two recent imports; older cache copies
+            // are not user originals and otherwise accumulate indefinitely.
+            directory.listFiles()
+                ?.filter { it.isFile && it.extension == "glb" && it != target }
+                ?.sortedByDescending { it.lastModified() }
+                ?.drop(2)
+                ?.forEach { it.delete() }
             ImportedModel(Uri.fromFile(target).toString())
         } finally {
             temporary.delete()
