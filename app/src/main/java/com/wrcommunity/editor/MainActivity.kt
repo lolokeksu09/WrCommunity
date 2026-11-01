@@ -189,14 +189,19 @@ private fun EditorScreen() {
                                 modelLoader = modelLoader,
                                 fileLocation = modelLocation!!
                             )?.let { instance ->
-                                val node = remember(instance) {
-                                    io.github.sceneview.node.ModelNode(instance, scaleToUnits = 1.0f, autoAnimate = false)
+                                // SceneScope's composable Node/ModelNode attach themselves to
+                                // the actual Filament scene. A standalone class ModelNode does not.
+                                Node(
+                                    position = Position(edit.moveX, edit.moveY, edit.moveZ),
+                                    rotation = Rotation(edit.x.toFloat(), edit.y.toFloat(), edit.z.toFloat()),
+                                    scale = Scale(edit.scalePercent / 100f)
+                                ) {
+                                    ModelNode(
+                                        modelInstance = instance,
+                                        scaleToUnits = 1.5f,
+                                        autoAnimate = false
+                                    )
                                 }
-                                val baseScale = remember(instance) { node.scale.x }
-                                node.rotation = Rotation(edit.x.toFloat(), edit.y.toFloat(), edit.z.toFloat())
-                                node.position = Position(edit.moveX, edit.moveY, edit.moveZ)
-                                node.scale = Scale(baseScale * edit.scalePercent / 100f)
-                                node
                             }
                         }
                     }
