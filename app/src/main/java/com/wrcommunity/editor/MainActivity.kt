@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.sceneview.SceneView
+import io.github.sceneview.rememberModelInstance
 import io.github.sceneview.node.ModelNode
 import java.io.DataInputStream
 
