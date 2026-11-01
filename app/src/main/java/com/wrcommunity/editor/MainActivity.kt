@@ -16,6 +16,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -58,6 +59,18 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private enum class CameraView(val label: String) {
+    FRONT("Спереди"), RIGHT("Справа"), BACK("Сзади"), LEFT("Слева"), TOP("Сверху");
+
+    fun eye() = when (this) {
+        FRONT -> Position(0f, 0f, 2.45f)
+        RIGHT -> Position(2.45f, 0f, 0f)
+        BACK -> Position(0f, 0f, -2.45f)
+        LEFT -> Position(-2.45f, 0f, 0f)
+        TOP -> Position(0f, 2.45f, 0.01f)
+    }
+}
+
 private enum class Tool(val label: String) {
     ROTATE("Поворот"), MOVE("Позиция"), SCALE("Масштаб")
 }
@@ -67,6 +80,13 @@ private fun EditorScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var modelLocation by remember { mutableStateOf<String?>(null) }
+    var originalLocation by remember { mutableStateOf<String?>(null) }
+    var materialLayers by remember { mutableStateOf<List<MaterialLayer>>(emptyList()) }
+    var layerHistory by remember { mutableStateOf(LayerHistory()) }
+    var showLayers by remember { mutableStateOf(false) }
+    var layerBusy by remember { mutableStateOf(false) }
+    var cameraView by remember { mutableStateOf(CameraView.FRONT) }
+    var viewMenu by remember { mutableStateOf(false) }
     var modelName by remember { mutableStateOf("Нет модели") }
     var history by remember { mutableStateOf(EditHistory()) }
     var tool by remember { mutableStateOf(Tool.ROTATE) }
@@ -79,6 +99,29 @@ private fun EditorScreen() {
     var referenceUri by remember { mutableStateOf<Uri?>(null) }
     var showReference by remember { mutableStateOf(true) }
     val edit = history.current
+    val visibleMaterials = layerHistory.current
+
+    // A change in layer visibility creates an independent preview GLB.
+    // Cancellation prevents stale previews overwriting newer selections.
+    LaunchedEffect(originalLocation, visibleMaterials) {
+        val origin = originalLocation ?: return@LaunchedEffect
+        val allIds = materialLayers.map { it.id }.toSet()
+        if (visibleMaterials == allIds) {
+            modelLocation = origin
+            layerBusy = false
+            return@LaunchedEffect
+        }
+        layerBusy = true
+        try {
+            modelLocation = GlbLayers.preview(context.applicationContext, origin, visibleMaterials)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            message = e.message ?: "Не удалось изменить видимость слоёв."
+        } finally {
+            layerBusy = false
+        }
+    }
 
     // A large reference photo must not freeze the rendering/gesture thread.
     val referenceBitmap by produceState<ImageBitmap?>(null, referenceUri) {
@@ -112,11 +155,17 @@ private fun EditorScreen() {
                 message = null
                 try {
                     val loaded = GlbFileImporter.import(context.applicationContext, uri)
+                    val groups = GlbLayers.describe(context.applicationContext, loaded.fileLocation)
                     if (request == requestId) {
+                        materialLayers = groups
+                        layerHistory = LayerHistory(states = listOf(groups.map { it.id }.toSet()))
+                        originalLocation = loaded.fileLocation
                         modelLocation = loaded.fileLocation
                         modelName = displayName(context.contentResolver, uri) ?: "Модель GLB"
                         history = EditHistory()
                         cameraEpoch++
+                        cameraView = CameraView.FRONT
+                        showLayers = false
                         message = null
                     }
                 } catch (cancelled: CancellationException) {
@@ -132,13 +181,15 @@ private fun EditorScreen() {
     val exportPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("model/gltf-binary")
     ) { uri ->
-        if (uri != null && modelLocation != null) {
-            val location = modelLocation!!
+        if (uri != null && originalLocation != null) {
+            val location = originalLocation!!
             val snapshot = edit
+            val selectedMaterials = layerHistory.current
             scope.launch {
                 busy = true
                 try {
-                    GlbTransformExporter.export(context.applicationContext, location, uri, snapshot)
+                    GlbTransformExporter.export(context.applicationContext, location, uri, snapshot,
+                        selectedMaterials.takeIf { materialLayers.isNotEmpty() })
                     message = "GLB сохранён. Исходная модель не изменена."
                 } catch (cancelled: CancellationException) {
                     throw cancelled
@@ -211,9 +262,9 @@ private fun EditorScreen() {
                     }
                 } else {
                     // SceneView swaps manipulators without rebuilding the 3D scene.
-                    val cameraManipulator = key(cameraEpoch) {
+                    val cameraManipulator = key(cameraEpoch, cameraView) {
                         rememberCameraManipulator(
-                            orbitHomePosition = Position(0f, 0f, 2.45f),
+                            orbitHomePosition = cameraView.eye(),
                             targetPosition = Position(0f, 0f, 0f)
                         )
                     }
@@ -246,10 +297,30 @@ private fun EditorScreen() {
 
                 if (modelLocation != null) {
                     Row(
-                        modifier = Modifier.align(Alignment.TopEnd).padding(10.dp),
+                        modifier = Modifier.align(Alignment.TopEnd).fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()).padding(10.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        CompactAction("Камера", onClick = { cameraEpoch++ })
+                        Box {
+                            CompactAction("Вид", description = "Выбрать положение камеры",
+                                onClick = { viewMenu = true })
+                            DropdownMenu(expanded = viewMenu, onDismissRequest = { viewMenu = false }) {
+                                CameraView.entries.forEach { preset ->
+                                    DropdownMenuItem(
+                                        text = { Text(preset.label) },
+                                        onClick = {
+                                            cameraView = preset
+                                            cameraEpoch++
+                                            viewMenu = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        CompactAction("Сброс", description = "Сбросить положение камеры", onClick = { cameraEpoch++ })
+                        CompactAction("Слои", description = "Управление видимостью материалов",
+                            enabled = materialLayers.isNotEmpty(),
+                            onClick = { showLayers = true })
                         CompactAction("Инфо", onClick = { showInfo = !showInfo })
                         CompactAction("Реф.", onClick = {
                             if (referenceUri == null) referencePicker.launch("image/*")
@@ -285,7 +356,20 @@ private fun EditorScreen() {
                             contentScale = ContentScale.Fit
                         )
                     }
-                    if (busy) CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    if (busy || layerBusy) CircularProgressIndicator(Modifier.align(Alignment.Center))
+                }
+            }
+
+            if (materialLayers.isNotEmpty() && modelLocation != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().background(PanelTone)
+                        .padding(horizontal = 14.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Видно слоёв: ${layerHistory.current.size} / ${materialLayers.size}",
+                        style = MaterialTheme.typography.labelSmall, color = TextSecondary,
+                        modifier = Modifier.weight(1f))
+                    TextButton(onClick = { showLayers = true }) { Text("Управлять слоями") }
                 }
             }
 
@@ -295,6 +379,70 @@ private fun EditorScreen() {
                     color = if (message!!.startsWith("GLB сохранён")) Color(0xFF96DFBE) else Color(0xFFFFB4AB),
                     style = MaterialTheme.typography.bodySmall
                 )
+            }
+
+            if (showLayers && materialLayers.isNotEmpty()) {
+                ModalBottomSheet(
+                    onDismissRequest = { showLayers = false },
+                    containerColor = PanelTone
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("Слои модели", style = MaterialTheme.typography.titleLarge)
+                        Text("Скрывай материалы целиком, чтобы осматривать детали. Сетка и текстуры не изменяются.",
+                            style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                enabled = layerHistory.canUndo && !layerBusy,
+                                onClick = { layerHistory = layerHistory.undo() }
+                            ) { Text("Отменить") }
+                            OutlinedButton(
+                                enabled = layerHistory.canRedo && !layerBusy,
+                                onClick = { layerHistory = layerHistory.redo() }
+                            ) { Text("Повторить") }
+                            TextButton(onClick = {
+                                layerHistory = layerHistory.change(materialLayers.map { it.id }.toSet())
+                            }) { Text("Показать все") }
+                        }
+                        Column(Modifier.heightIn(max = 340.dp).verticalScroll(rememberScrollState())) {
+                            materialLayers.forEach { layer ->
+                                val visible = layer.id in layerHistory.current
+                                Row(
+                                    Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Checkbox(
+                                        checked = visible,
+                                        enabled = !layerBusy && (!visible || layerHistory.current.size > 1),
+                                        onCheckedChange = { checked ->
+                                            val next = layerHistory.current.toMutableSet()
+                                            if (checked) next.add(layer.id) else next.remove(layer.id)
+                                            layerHistory = layerHistory.change(next)
+                                        }
+                                    )
+                                    Column(Modifier.weight(1f)) {
+                                        Text(layer.name, maxLines = 2,
+                                            style = MaterialTheme.typography.bodyMedium)
+                                        Text("Поверхностей: ${layer.primitives}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = TextSecondary)
+                                    }
+                                    TextButton(
+                                        enabled = !layerBusy,
+                                        onClick = { layerHistory = layerHistory.change(setOf(layer.id)) }
+                                    ) { Text("Соло") }
+                                }
+                            }
+                        }
+                        Text("При сохранении скрытые части не отображаются в экспортированном GLB. Исходный файл остаётся без изменений.",
+                            style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        Button(onClick = { showLayers = false }, Modifier.fillMaxWidth()) { Text("Готово") }
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
             }
 
             if (modelLocation != null) {

@@ -35,3 +35,16 @@
 REQ-012: новую установку выполнить без удаления пользовательских данных предыдущего приложения. Изменён **только** Android applicationId с `com.wrcommunity.editor` на `com.wrcommunity.editor.stable`; Kotlin namespace остался прежним. Название лаунчера — `3D Editor Stable`, версия 0.2.2 (code 6). Приложения будут существовать независимо. Внутреннее состояние старой версии автоматически не мигрирует, внешние файлы GLB не удаляются. Будущие релизы должны сохранять стабильный applicationId и сертификат.
 
 Проверки: CI compile/unit; проверка фактического applicationId и подписи APK; установка рядом со старой версией на реальном Android остаётся неподтверждённой до устройства.
+
+## v0.3.0 — material layer workbench (PR: separate feature branch)
+
+| ID | Requirement | Acceptance | Status |
+|---|---|---|---|
+| REQ-013 | Material-group layer list on user GLBs | Read labels and primitive counts from GLB JSON | Code + unit tests |
+| REQ-014 | Hide / solo / show all with undo | At least one layer remains visible, history correct | Code + unit tests |
+| REQ-015 | Export GLB reflecting material visibility | Preserve BIN/geometry, only renderable primitive groups filtered | Code + unit tests |
+| REQ-016 | 3D camera view presets | Front/right/back/left/top; SceneView manipulator reused | Code; device test pending |
+| REQ-017 | Stable update | applicationId com.wrcommunity.editor.stable and same signing certificate | CI + apksigner; device pending |
+
+Not geometry sculpting: groups map to glTF material assignments (some material groups may include unrelated surfaces).
+Original user GLB is never overwritten. No VDS changes. Android screenshots/gestures and export round-trip still require hardware.
