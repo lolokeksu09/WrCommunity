@@ -23,6 +23,7 @@ internal object GlbNormals {
         oldAccessors: JSONArray,
         views: JSONArray,
         positions: FloatArray,
+        before: FloatArray,
         append: ByteArrayOutputStream,
         originalBinSize: Int
     ) {
@@ -46,8 +47,15 @@ internal object GlbNormals {
 
         val indices = indexSequence(glb, binStart, binByteLength,
             primitive, oldAccessors, views, count)
+        if (before.size != positions.size) throw IOException("Число вершин изменилось.")
+        val moved = BooleanArray(count) { v ->
+            (0..2).any { axis -> kotlin.math.abs(positions[v * 3 + axis] - before[v * 3 + axis]) > 1e-7f }
+        }
+        // Do not overwrite artistic/custom normals on untouched mesh regions.
+        if (!moved.any { it }) return
         val sums = DoubleArray(count * 3)
         val involved = BooleanArray(count)
+        val affected = BooleanArray(count)
         val p = positions
 
         for (i in indices.indices step 3) {
@@ -69,7 +77,9 @@ internal object GlbNormals {
             val length2 = nx * nx + ny * ny + nz * nz
             if (!length2.isFinite()) throw IOException("Повреждённая геометрия треугольников.")
             if (length2 < 1e-24) continue
+            val triangleAffected = moved[a] || moved[b] || moved[c]
             for (v in intArrayOf(a, b, c)) {
+                if (triangleAffected) affected[v] = true
                 sums[v * 3] += nx
                 sums[v * 3 + 1] += ny
                 sums[v * 3 + 2] += nz
@@ -96,7 +106,7 @@ internal object GlbNormals {
             val y = sums[off + 1]
             val z = sums[off + 2]
             val len = sqrt(x * x + y * y + z * z)
-            if (involved[v] && len > 1e-12 && len.isFinite()) {
+            if (affected[v] && involved[v] && len > 1e-12 && len.isFinite()) {
                 packed.putFloat((x / len).toFloat())
                 packed.putFloat((y / len).toFloat())
                 packed.putFloat((z / len).toFloat())
