@@ -687,7 +687,8 @@ private fun EditorScreen() {
                                     enabled = !layerBusy && !pickingBusy &&
                                         surfacePicker?.materialIds?.contains(partId) == true &&
                                         partId in visibleMaterials &&
-                                        partId !in partEdits,
+                                        partEdits.isEmpty() &&
+                                        sculptStrokes.isEmpty(),
                                     onClick = {
                                         suggestedStrokes = emptyList()
                                         isPickingBrushCenter = true
