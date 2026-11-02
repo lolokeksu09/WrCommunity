@@ -78,6 +78,7 @@ object GlbSculpt {
         val byMaterial = strokes.groupBy { it.materialId }
         val append = java.io.ByteArrayOutputStream()
         val cloned = mutableMapOf<Pair<Int,Int>,Int>()
+        val deformedPositions = mutableMapOf<Pair<Int,Int>,FloatArray>()
         var changed = 0
         for (mi in 0 until meshes.length()) {
             val primitives = meshes.optJSONObject(mi)?.optJSONArray("primitives") ?: continue
@@ -92,6 +93,8 @@ object GlbSculpt {
                 val key = mat to oldId
                 if (cloned.containsKey(key)) {
                     attrs.put("POSITION", cloned.getValue(key))
+                    GlbNormals.rebuild(input, binStart, declared, primitive, attrs,
+                        accessors, views, deformedPositions.getValue(key), append, originalBinSize)
                     changed++
                     continue
                 }
@@ -164,6 +167,9 @@ object GlbSculpt {
                 accessors.put(clone)
                 attrs.put("POSITION",newId)
                 cloned[key]=newId
+                deformedPositions[key]=vertices
+                GlbNormals.rebuild(input, binStart, declared, primitive, attrs,
+                    accessors, views, vertices, append, originalBinSize)
                 changed++
             }
         }
