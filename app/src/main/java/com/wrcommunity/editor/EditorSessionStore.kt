@@ -250,18 +250,21 @@ object EditorSessionStore {
 
     suspend fun restore(filesDir: File): EditorDraft? =
         withContext(Dispatchers.IO) {
-            val dir = folder(filesDir)
-            val manifest = File(dir, JSON_NAME)
-            if (!manifest.exists()) return@withContext null
-            if (!manifest.isFile || manifest.length() !in 2..MAX_JSON)
-                throw IOException("Файл черновика повреждён.")
-            val saved = try {
-                EditorDraft.decode(JSONObject(manifest.readText()), dir)
-            } catch (_: Exception) { throw IOException("Не удалось прочитать черновик.") }
-            if (!saved.source.file.isFile ||
-                saved.source.file.length() != saved.source.bytes ||
-                hash(saved.source.file) != saved.source.sha256)
-                throw IOException("Контрольная сумма исходной модели не совпадает.")
-            saved
+            // Do not read old metadata while a writer commits and reclaims its source.
+            writeMutex.withLock {
+                val dir = folder(filesDir)
+                val manifest = File(dir, JSON_NAME)
+                if (!manifest.exists()) return@withLock null
+                if (!manifest.isFile || manifest.length() !in 2..MAX_JSON)
+                    throw IOException("Файл черновика повреждён.")
+                val saved = try {
+                    EditorDraft.decode(JSONObject(manifest.readText()), dir)
+                } catch (_: Exception) { throw IOException("Не удалось прочитать черновик.") }
+                if (!saved.source.file.isFile ||
+                    saved.source.file.length() != saved.source.bytes ||
+                    hash(saved.source.file) != saved.source.sha256)
+                    throw IOException("Контрольная сумма исходной модели не совпадает.")
+                saved
+            }
         }
 }
