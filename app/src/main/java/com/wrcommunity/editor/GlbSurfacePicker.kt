@@ -34,7 +34,10 @@ class GlbSurfacePicker private constructor(private val parts: List<Part>) {
         val positions: FloatArray,
         val triangles: IntArray,
         val bounds: FloatArray // min x/y/z, max x/y/z
-    )
+    ) {
+        // Construction happens on Dispatchers.Default before the picker is exposed.
+        val tree = TriangleBvh(positions, triangles)
+    }
     val materialIds: Set<Int> = parts.mapTo(linkedSetOf()) { it.material }
 
     fun pick(ray: SurfaceRay, selectedMaterial: Int, visible: Set<Int>): SurfaceHit? {
@@ -49,31 +52,8 @@ class GlbSurfacePicker private constructor(private val parts: List<Part>) {
         var pz = 0f
         for (part in parts) {
             if (part.material !in visible || !boxMayHit(ray, part.bounds, nearest)) continue
-            val pos = part.positions
-            val tris = part.triangles
-            for (t in tris.indices step 3) {
-                val a = tris[t] * 3
-                val b = tris[t + 1] * 3
-                val c = tris[t + 2] * 3
-                val ax = pos[a]; val ay = pos[a + 1]; val az = pos[a + 2]
-                val e1x = pos[b] - ax; val e1y = pos[b + 1] - ay; val e1z = pos[b + 2] - az
-                val e2x = pos[c] - ax; val e2y = pos[c + 1] - ay; val e2z = pos[c + 2] - az
-                val hx = ray.dy * e2z - ray.dz * e2y
-                val hy = ray.dz * e2x - ray.dx * e2z
-                val hz = ray.dx * e2y - ray.dy * e2x
-                val determinant = e1x * hx + e1y * hy + e1z * hz
-                if (abs(determinant) < 1e-8f) continue
-                val inv = 1f / determinant
-                val sx = ray.ox - ax; val sy = ray.oy - ay; val sz = ray.oz - az
-                val u = (sx * hx + sy * hy + sz * hz) * inv
-                if (u < 0f || u > 1f) continue
-                val qx = sy * e1z - sz * e1y
-                val qy = sz * e1x - sx * e1z
-                val qz = sx * e1y - sy * e1x
-                val v = (ray.dx * qx + ray.dy * qy + ray.dz * qz) * inv
-                if (v < 0f || u + v > 1f) continue
-                val hit = (e2x * qx + e2y * qy + e2z * qz) * inv
-                if (hit <= 1e-6f || hit >= nearest || !hit.isFinite()) continue
+            val hit = part.tree.nearest(ray, nearest)
+            if (hit != null) {
                 nearest = hit
                 winner = part
                 px = ray.ox + ray.dx * hit
