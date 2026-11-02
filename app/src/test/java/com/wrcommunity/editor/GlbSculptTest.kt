@@ -77,4 +77,45 @@ class GlbSculptTest {
         try {GlbSculpt.apply(glb(),listOf(SculptStroke(42)));fail("material not found")}
         catch (_:IOException) {}
     }
+    @Test fun splitMaterialUsesSharedBoundsNotIndependentPrimitiveCenters() {
+        val bin = ByteBuffer.allocate(72).order(ByteOrder.LITTLE_ENDIAN)
+        listOf(0f,0f,0f, 1f,0f,0f, 0f,1f,0f,
+            10f,0f,0f, 11f,0f,0f, 10f,1f,0f).forEach { bin.putFloat(it) }
+        val json = """{"asset":{"version":"2.0"},"buffers":[{"byteLength":72}],
+            "bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36},
+                {"buffer":0,"byteOffset":36,"byteLength":36}],
+            "accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3",
+                "min":[0,0,0],"max":[1,1,0]},
+                {"bufferView":1,"componentType":5126,"count":3,"type":"VEC3",
+                "min":[10,0,0],"max":[11,1,0]}],
+            "materials":[{}],"meshes":[{"primitives":[
+                {"attributes":{"POSITION":0},"material":0},
+                {"attributes":{"POSITION":1},"material":0}]}],
+            "nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0}"""
+        val raw = json.toByteArray()
+        val pad = (raw.size + 3) and -4
+        val input = ByteBuffer.allocate(20 + pad + 8 + 72).order(ByteOrder.LITTLE_ENDIAN)
+            .putInt(0x46546C67).putInt(2).putInt(20 + pad + 8 + 72)
+            .putInt(pad).putInt(0x4E4F534A).put(raw)
+            .apply { repeat(pad - raw.size) { put(32.toByte()) } }
+            .putInt(72).putInt(0x004E4942).put(bin.array()).array()
+        val output = GlbSculpt.apply(input, listOf(SculptStroke(
+            materialId=0, centerX=5, centerY=0, centerZ=50,
+            radius=5, axis=3, strength=10)))
+        val doc = root(output)
+        val parts = doc.getJSONArray("meshes").getJSONObject(0).getJSONArray("primitives")
+        val accessors = doc.getJSONArray("accessors")
+        val views = doc.getJSONArray("bufferViews")
+        val data = ByteBuffer.wrap(output).order(ByteOrder.LITTLE_ENDIAN)
+        val start = 28 + data.getInt(12)
+        fun zOf(primitive: Int, vertex: Int): Float {
+            val accessorId = parts.getJSONObject(primitive).getJSONObject("attributes").getInt("POSITION")
+            val acc = accessors.getJSONObject(accessorId)
+            val view = views.getJSONObject(acc.getInt("bufferView"))
+            return data.getFloat(start + view.getInt("byteOffset") + vertex * 12 + 8)
+        }
+        assertTrue("near group should deform", zOf(0, 1) > 0.01f)
+        assertEquals("remote group should be untouched", 0f, zOf(1, 1), 1e-6f)
+    }
+
 }
