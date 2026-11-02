@@ -7,6 +7,8 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.pow
 
+enum class SculptMode { PUSH, SMOOTH }
+
 data class SculptStroke(
     val materialId: Int,
     val centerX: Int = 50,
@@ -14,7 +16,8 @@ data class SculptStroke(
     val centerZ: Int = 50,
     val radius: Int = 30,
     val axis: Int = 2, // +/-1 X, +/-2 Y, +/-3 Z
-    val strength: Int = 4
+    val strength: Int = 4,
+    val mode: SculptMode = SculptMode.PUSH
 ) {
     fun check() {
         if (centerX !in 0..100 || centerY !in 0..100 || centerZ !in 0..100 ||
@@ -182,15 +185,20 @@ object GlbSculpt {
                     val cy=centerMin[1]+(centerMax[1]-centerMin[1])*stroke.centerY/100f
                     val cz=centerMin[2]+(centerMax[2]-centerMin[2])*stroke.centerZ/100f
                     val r=span*stroke.radius/100f
-                    val d=span*stroke.strength/100f*(if(stroke.axis>0) 1f else -1f)
-                    val dest=kotlin.math.abs(stroke.axis)-1
-                    for (i in 0 until count) {
-                        val off=i*3
-                        val dx=vertices[off]-cx
-                        val dy=vertices[off+1]-cy
-                        val dz=vertices[off+2]-cz
-                        val q=(dx*dx+dy*dy+dz*dz)/(r*r)
-                        if (q < 1f) vertices[off+dest]+=d*(1f-q).pow(2)
+                    if (stroke.mode == SculptMode.SMOOTH) {
+                        GlbSmoothing.smooth(input, binStart, declared, primitive,
+                            accessors, views, vertices, cx, cy, cz, r, stroke.strength)
+                    } else {
+                        val d=span*stroke.strength/100f*(if(stroke.axis>0) 1f else -1f)
+                        val dest=kotlin.math.abs(stroke.axis)-1
+                        for (i in 0 until count) {
+                            val off=i*3
+                            val dx=vertices[off]-cx
+                            val dy=vertices[off+1]-cy
+                            val dz=vertices[off+2]-cz
+                            val q=(dx*dx+dy*dy+dz*dz)/(r*r)
+                            if (q < 1f) vertices[off+dest]+=d*(1f-q).pow(2)
+                        }
                     }
                 }
                 val packed=ByteBuffer.allocate(count*12).order(ByteOrder.LITTLE_ENDIAN)
