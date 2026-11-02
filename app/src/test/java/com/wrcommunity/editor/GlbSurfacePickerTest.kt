@@ -78,4 +78,22 @@ class GlbSurfacePickerTest {
             fail("Transformation is unsupported")
         } catch (_: IOException) { }
     }
+    @Test fun rebuildPickerAfterSculptSeesUpdatedTriangles() {
+        val source = fixture()
+        val before = GlbSurfacePicker.fromBytes(source)
+            .pick(forward, 0, setOf(0, 1))!!
+        val sculpted = GlbSculpt.apply(source,
+            listOf(SculptStroke(
+                materialId = 0,
+                centerX = 0, centerY = 0, centerZ = 0,
+                radius = 100, axis = 3, strength = 20
+            )))
+        val after = GlbSurfacePicker.fromBytes(sculpted)
+            .pick(forward, 0, setOf(0, 1))!!
+        assertTrue("Picker must follow the changed POSITION buffer", after.z > before.z + 0.03f)
+        assertEquals(0, after.materialId)
+        // The original source stays unchanged.
+        assertArrayEquals(fixture(), source)
+    }
+
 }
