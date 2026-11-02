@@ -22,6 +22,14 @@ data class BrushMaterialBounds(
     fun at(x: Float, y: Float, z: Float): BrushTarget? {
         val coords = listOf(x, y, z)
         if (coords.any { !it.isFinite() }) return null
+        // Reject taps outside the selected material's bounding region.
+        // A collision-shape hit does not identify the GLB material automatically.
+        if (coords.indices.any { axis ->
+                val width = max[axis] - min[axis]
+                val tolerance = maxOf(width * 0.10f, 1e-5f)
+                coords[axis] < min[axis] - tolerance ||
+                    coords[axis] > max[axis] + tolerance
+            }) return null
         val values = coords.indices.map { axis ->
             val width = max[axis] - min[axis]
             if (width <= 1e-7f) 50 else
