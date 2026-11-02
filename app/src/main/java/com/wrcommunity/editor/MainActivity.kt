@@ -22,6 +22,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -125,6 +127,34 @@ private fun EditorScreen() {
     val visibleMaterials = layerHistory.current
     val partEdits = partHistory.current
     val sculptStrokes = sculptHistory.current
+
+    // Flush the current edit immediately when Android backgrounds the editor.
+    // The background worker survives destruction of this Compose screen.
+    val pauseDraft = if (recoveryReady) savedSource?.let { source ->
+        EditorDraft(
+            source = source, name = modelName, global = edit,
+            visible = visibleMaterials, parts = partEdits,
+            strokes = sculptStrokes, selected = selectedPartId,
+            brush = sculptDraft, camera = cameraView.name
+        )
+    } else null
+    val currentPauseDraft by rememberUpdatedState(pauseDraft)
+    DisposableEffect(context) {
+        val lifecycle = (context as ComponentActivity).lifecycle
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> currentPauseDraft?.let {
+                    EditorSessionStore.saveWhenPaused(context.applicationContext.filesDir, it)
+                }
+                Lifecycle.Event.ON_RESUME -> EditorSessionStore.backgroundSaveError()?.let {
+                    autosaveProblem = it
+                }
+                else -> Unit
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
 
     // Restore the last unfinished edit from app-private persistent storage.
     // All expensive file reading and checksum work runs off the UI thread.

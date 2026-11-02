@@ -1,9 +1,16 @@
 package com.wrcommunity.editor
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -12,6 +19,8 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 /** Persist one private source GLB; store ongoing edits as small atomic JSON snapshots. */
 data class StoredModel(val file: File, val bytes: Long, val sha256: String)
@@ -117,6 +126,32 @@ object EditorSessionStore {
     private const val DIRECTORY = "editor-session"
     private const val JSON_NAME = "draft.json"
     private const val MAX_JSON = 65536L
+    // A foreground debounce and an ON_PAUSE flush must never commit out of order.
+    private val writeMutex = Mutex()
+    private val requestOrder = AtomicLong(0L)
+    // Guarded by writeMutex: a delayed worker must never replace a newer commit.
+    private var lastCommittedOrder = 0L
+    // Not tied to Activity/Compose cancellation: a pause flush can finish after onDestroy.
+    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val backgroundError = AtomicReference<String?>(null)
+
+    fun backgroundSaveError(): String? = backgroundError.get()
+
+    /** Best-effort immediate flush; never delay this behind the UI's debounce. */
+    fun saveWhenPaused(filesDir: File, draft: EditorDraft): Job {
+        // Reserve while ON_PAUSE is being handled, not when the IO worker starts.
+        val order = requestOrder.incrementAndGet()
+        return backgroundScope.launch {
+            try {
+                saveOrdered(filesDir, draft, order)
+                backgroundError.set(null)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                backgroundError.set(error.message ?: "Не удалось сохранить черновик при сворачивании.")
+            }
+        }
+    }
 
     internal fun folder(filesDir: File): File =
         File(filesDir, DIRECTORY).apply {
@@ -172,44 +207,64 @@ object EditorSessionStore {
         }
 
     suspend fun save(filesDir: File, draft: EditorDraft) =
+        saveOrdered(filesDir, draft, requestOrder.incrementAndGet())
+
+    private suspend fun saveOrdered(filesDir: File, draft: EditorDraft, order: Long) =
         withContext(Dispatchers.IO) {
-            val dir = folder(filesDir)
-            if (draft.source.file.parentFile?.canonicalFile != dir.canonicalFile ||
-                !draft.source.file.isFile || draft.source.file.length() != draft.source.bytes)
-                throw IOException("Исходный файл проекта недоступен.")
-            val json = draft.encode().toString().toByteArray(Charsets.UTF_8)
-            if (json.size > MAX_JSON) throw IOException("Черновик слишком большой.")
-            val temp = File(dir, ".draft-" + UUID.randomUUID() + ".tmp")
-            try {
-                FileOutputStream(temp).use { out ->
-                    out.write(json)
-                    out.fd.sync()
+            writeMutex.withLock {
+                if (order < lastCommittedOrder) return@withLock
+                val dir = folder(filesDir)
+                if (draft.source.file.parentFile?.canonicalFile != dir.canonicalFile ||
+                    !draft.source.file.isFile || draft.source.file.length() != draft.source.bytes)
+                    throw IOException("Исходный файл проекта недоступен.")
+                val json = draft.encode().toString().toByteArray(Charsets.UTF_8)
+                if (json.size > MAX_JSON) throw IOException("Черновик слишком большой.")
+
+                // Reclaim only the *previous committed* model. A newly imported
+                // source may still be waiting for its first metadata commit.
+                val manifest = File(dir, JSON_NAME)
+                val oldSource = if (manifest.isFile && manifest.length() in 2..MAX_JSON) {
+                    runCatching { JSONObject(manifest.readText()).getString("file") }
+                        .getOrNull()?.takeIf {
+                            it.matches(Regex("model-[a-f0-9-]{36}\\.glb"))
+                        }
+                } else null
+
+                val temp = File(dir, ".draft-" + UUID.randomUUID() + ".tmp")
+                try {
+                    FileOutputStream(temp).use { out ->
+                        out.write(json)
+                        out.fd.sync()
+                    }
+                    currentCoroutineContext().ensureActive()
+                    if (!temp.renameTo(manifest))
+                        throw IOException("Не удалось атомарно записать черновик.")
+                    lastCommittedOrder = order
+                    if (oldSource != null && oldSource != draft.source.file.name)
+                        File(dir, oldSource).delete()
+                } finally {
+                    temp.delete()
                 }
-                currentCoroutineContext().ensureActive()
-                if (!temp.renameTo(File(dir, JSON_NAME)))
-                    throw IOException("Не удалось атомарно записать черновик.")
-                // Clean only editor-owned copies; never modify user Downloads.
-                dir.listFiles()?.filter {
-                    it.isFile && it.name.matches(Regex("model-[a-f0-9-]{36}\\.glb")) &&
-                        it.name != draft.source.file.name
-                }?.forEach { it.delete() }
-            } finally { temp.delete() }
+            }
         }
 
     suspend fun restore(filesDir: File): EditorDraft? =
         withContext(Dispatchers.IO) {
-            val dir = folder(filesDir)
-            val manifest = File(dir, JSON_NAME)
-            if (!manifest.exists()) return@withContext null
-            if (!manifest.isFile || manifest.length() !in 2..MAX_JSON)
-                throw IOException("Файл черновика повреждён.")
-            val saved = try {
-                EditorDraft.decode(JSONObject(manifest.readText()), dir)
-            } catch (_: Exception) { throw IOException("Не удалось прочитать черновик.") }
-            if (!saved.source.file.isFile ||
-                saved.source.file.length() != saved.source.bytes ||
-                hash(saved.source.file) != saved.source.sha256)
-                throw IOException("Контрольная сумма исходной модели не совпадает.")
-            saved
+            // Do not read old metadata while a writer commits and reclaims its source.
+            writeMutex.withLock {
+                val dir = folder(filesDir)
+                val manifest = File(dir, JSON_NAME)
+                if (!manifest.exists()) return@withLock null
+                if (!manifest.isFile || manifest.length() !in 2..MAX_JSON)
+                    throw IOException("Файл черновика повреждён.")
+                val saved = try {
+                    EditorDraft.decode(JSONObject(manifest.readText()), dir)
+                } catch (_: Exception) { throw IOException("Не удалось прочитать черновик.") }
+                if (!saved.source.file.isFile ||
+                    saved.source.file.length() != saved.source.bytes ||
+                    hash(saved.source.file) != saved.source.sha256)
+                    throw IOException("Контрольная сумма исходной модели не совпадает.")
+                saved
+            }
         }
 }

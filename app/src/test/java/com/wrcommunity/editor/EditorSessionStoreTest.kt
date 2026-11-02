@@ -43,6 +43,70 @@ class EditorSessionStoreTest {
         } finally { root.deleteRecursively() }
     }
 
+    @Test fun pauseFlushPersistsNewestEditsWithoutWaitingForDebounce() = runBlocking {
+        val root = Files.createTempDirectory("editor-draft-pause").toFile()
+        try {
+            val input = File(root, "phone.glb").apply { writeBytes(ByteArray(48) { it.toByte() }) }
+            val source = EditorSessionStore.importSource(root, input)
+            val initial = draft(source)
+            EditorSessionStore.save(root, initial)
+            val justEdited = initial.copy(
+                global = initial.global.copy(moveX = 0.75f),
+                camera = "BACK"
+            )
+            EditorSessionStore.saveWhenPaused(root, justEdited).join()
+            val restored = EditorSessionStore.restore(root)!!
+            assertEquals(justEdited.global, restored.global)
+            assertEquals("BACK", restored.camera)
+            assertNull(EditorSessionStore.backgroundSaveError())
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun failedPauseFlushKeepsLastGoodDraft() = runBlocking {
+        val root = Files.createTempDirectory("editor-draft-pause-error").toFile()
+        try {
+            val input = File(root, "good.glb").apply { writeBytes(ByteArray(48) { 7 }) }
+            val source = EditorSessionStore.importSource(root, input)
+            EditorSessionStore.save(root, draft(source))
+            val missing = StoredModel(File(source.file.parentFile, "model-" +
+                java.util.UUID.randomUUID() + ".glb"), 48, source.sha256)
+            EditorSessionStore.saveWhenPaused(root, draft(missing)).join()
+            assertNotNull(EditorSessionStore.backgroundSaveError())
+            assertEquals(source.sha256, EditorSessionStore.restore(root)!!.source.sha256)
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun oldDraftSaveDoesNotDeleteAJustImportedUncommittedModel() = runBlocking {
+        val root = Files.createTempDirectory("editor-pending-import").toFile()
+        try {
+            val first = EditorSessionStore.importSource(root,
+                File(root, "first.glb").apply { writeBytes(ByteArray(40) { 1 }) })
+            EditorSessionStore.save(root, draft(first))
+            val pending = EditorSessionStore.importSource(root,
+                File(root, "second.glb").apply { writeBytes(ByteArray(40) { 2 }) })
+            // Re-saving the previous session may race with this new, uncommitted import.
+            EditorSessionStore.save(root, draft(first))
+            assertTrue("Uncommitted import must survive a stale autosave", pending.file.isFile)
+            EditorSessionStore.save(root, draft(pending))
+            assertEquals(pending.sha256, EditorSessionStore.restore(root)!!.source.sha256)
+            assertFalse("Previous committed source can now be reclaimed", first.file.exists())
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun delayedPauseFlushCannotReplaceNewerCommittedSnapshot() = runBlocking {
+        val root = Files.createTempDirectory("editor-save-order").toFile()
+        try {
+            val source = EditorSessionStore.importSource(root,
+                File(root, "model.glb").apply { writeBytes(ByteArray(48) { 3 }) })
+            val earlier = draft(source)
+            val newest = earlier.copy(global = earlier.global.copy(moveZ = 0.91f))
+            val pendingFlush = EditorSessionStore.saveWhenPaused(root, earlier)
+            EditorSessionStore.save(root, newest)
+            pendingFlush.join()
+            assertEquals(newest.global, EditorSessionStore.restore(root)!!.global)
+        } finally { root.deleteRecursively() }
+    }
+
     @Test fun modifiedSourceIsNeverSilentlyRestored() = runBlocking {
         val root=Files.createTempDirectory("editor-draft-hash").toFile()
         try {
