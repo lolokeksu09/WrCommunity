@@ -27,7 +27,8 @@ class GlbBrushTargetTest {
         assertEquals(setOf(0,1), groups.keys)
         assertEquals(BrushTarget(50,50,50), groups.getValue(0).at(0f,2f,0f))
         assertEquals(BrushTarget(100,0,50), groups.getValue(1).at(2f,0f,0f))
-        assertEquals(BrushTarget(0,100,100), groups.getValue(0).at(-100f,400f,100f))
+        assertNull(groups.getValue(0).at(-100f,400f,100f))
+        assertEquals(BrushTarget(0,100,100), groups.getValue(0).at(-1f,4f,2f))
     }
 
     @Test fun complexTransformsAreNotSilentlyMisMapped() {
