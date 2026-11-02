@@ -107,6 +107,78 @@ class EditorSessionStoreTest {
         } finally { root.deleteRecursively() }
     }
 
+    @Test fun corruptedCurrentDraftRestoresPreviousValidCheckpoint() = runBlocking {
+        val root = Files.createTempDirectory("editor-backup").toFile()
+        try {
+            val input = File(root, "input.glb").apply { writeBytes(ByteArray(48) { 11 }) }
+            val source = EditorSessionStore.importSource(root, input)
+            val previous = draft(source)
+            EditorSessionStore.save(root, previous)
+            EditorSessionStore.save(root, previous.copy(global = ModelEdit(moveX = 1.25f)))
+            val folder = EditorSessionStore.folder(root)
+            assertTrue(File(folder, "draft.backup.json").isFile)
+            File(folder, "draft.json").writeText("{malformed")
+            val recovered = EditorSessionStore.restoreWithStatus(root)!!
+            assertTrue(recovered.fromBackup)
+            assertEquals(previous.global, recovered.draft.global)
+            assertEquals(source.sha256, recovered.draft.source.sha256)
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun corruptedBackupCannotHideDestroyedPrimary() = runBlocking {
+        val root = Files.createTempDirectory("editor-backup-double").toFile()
+        try {
+            val source = EditorSessionStore.importSource(root,
+                File(root, "input.glb").apply { writeBytes(ByteArray(48) { 12 }) })
+            EditorSessionStore.save(root, draft(source))
+            EditorSessionStore.save(root, draft(source).copy(camera = "BACK"))
+            val folder = EditorSessionStore.folder(root)
+            File(folder, "draft.json").writeText("{broken")
+            File(folder, "draft.backup.json").writeText("{also broken")
+            try {
+                EditorSessionStore.restoreWithStatus(root)
+                fail("No corrupted draft can be loaded")
+            } catch (_: IOException) { }
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun backupFromPreviousModelIsNotUsedForNewModel() = runBlocking {
+        val root = Files.createTempDirectory("editor-backup-switch").toFile()
+        try {
+            val first = EditorSessionStore.importSource(root,
+                File(root, "first.glb").apply { writeBytes(ByteArray(40) { 1 }) })
+            EditorSessionStore.save(root, draft(first))
+            EditorSessionStore.save(root, draft(first).copy(camera = "LEFT"))
+            val second = EditorSessionStore.importSource(root,
+                File(root, "second.glb").apply { writeBytes(ByteArray(40) { 2 }) })
+            EditorSessionStore.save(root, draft(second))
+            val folder = EditorSessionStore.folder(root)
+            assertFalse("Backup from a different source must be invalidated",
+                File(folder, "draft.backup.json").exists())
+            assertFalse(first.file.exists())
+            File(folder, "draft.json").writeText("{broken")
+            try {
+                EditorSessionStore.restoreWithStatus(root)
+                fail("Must not restore a deleted previous model")
+            } catch (_: IOException) { }
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun modelTamperingInvalidatesBothPrimaryAndBackup() = runBlocking {
+        val root = Files.createTempDirectory("editor-backup-hash").toFile()
+        try {
+            val source = EditorSessionStore.importSource(root,
+                File(root, "input.glb").apply { writeBytes(ByteArray(40) { it.toByte() }) })
+            EditorSessionStore.save(root, draft(source))
+            EditorSessionStore.save(root, draft(source).copy(camera = "TOP"))
+            source.file.writeBytes(ByteArray(40) { 0 })
+            try {
+                EditorSessionStore.restoreWithStatus(root)
+                fail("Backup must not bypass source SHA-256 validation")
+            } catch (_: IOException) { }
+        } finally { root.deleteRecursively() }
+    }
+
     @Test fun modifiedSourceIsNeverSilentlyRestored() = runBlocking {
         val root=Files.createTempDirectory("editor-draft-hash").toFile()
         try {

@@ -122,9 +122,13 @@ data class EditorDraft(
     }
 }
 
+/** One restored snapshot and whether the primary manifest required fallback. */
+data class RestoredEditorDraft(val draft: EditorDraft, val fromBackup: Boolean)
+
 object EditorSessionStore {
     private const val DIRECTORY = "editor-session"
     private const val JSON_NAME = "draft.json"
+    private const val BACKUP_NAME = "draft.backup.json"
     private const val MAX_JSON = 65536L
     // A foreground debounce and an ON_PAUSE flush must never commit out of order.
     private val writeMutex = Mutex()
@@ -220,51 +224,95 @@ object EditorSessionStore {
                 val json = draft.encode().toString().toByteArray(Charsets.UTF_8)
                 if (json.size > MAX_JSON) throw IOException("Черновик слишком большой.")
 
-                // Reclaim only the *previous committed* model. A newly imported
-                // source may still be waiting for its first metadata commit.
+                // Validate the previous committed manifest before checkpointing it.
+                // Never replace a good checkpoint with malformed JSON.
                 val manifest = File(dir, JSON_NAME)
-                val oldSource = if (manifest.isFile && manifest.length() in 2..MAX_JSON) {
-                    runCatching { JSONObject(manifest.readText()).getString("file") }
-                        .getOrNull()?.takeIf {
-                            it.matches(Regex("model-[a-f0-9-]{36}\\.glb"))
-                        }
-                } else null
+                val backup = File(dir, BACKUP_NAME)
+                val previousBytes = if (manifest.isFile && manifest.length() in 2..MAX_JSON)
+                    manifest.readBytes() else null
+                val previous = previousBytes?.let { bytes ->
+                    runCatching { EditorDraft.decode(JSONObject(bytes.toString(Charsets.UTF_8)), dir) }
+                        .getOrNull()
+                }
+                val sameSource = previous?.source == draft.source
 
                 val temp = File(dir, ".draft-" + UUID.randomUUID() + ".tmp")
+                val backupTemp = File(dir, ".backup-" + UUID.randomUUID() + ".tmp")
                 try {
                     FileOutputStream(temp).use { out ->
                         out.write(json)
                         out.fd.sync()
                     }
                     currentCoroutineContext().ensureActive()
+
+                    // Checkpoint only within the same source model. A backup
+                    // pointing at a deleted source cannot recover a new project.
+                    if (sameSource && previousBytes != null) {
+                        FileOutputStream(backupTemp).use { out ->
+                            out.write(previousBytes)
+                            out.fd.sync()
+                        }
+                        currentCoroutineContext().ensureActive()
+                        if (!backupTemp.renameTo(backup))
+                            throw IOException("Не удалось сохранить резервный черновик.")
+                    }
+                    currentCoroutineContext().ensureActive()
                     if (!temp.renameTo(manifest))
                         throw IOException("Не удалось атомарно записать черновик.")
                     lastCommittedOrder = order
-                    if (oldSource != null && oldSource != draft.source.file.name)
-                        File(dir, oldSource).delete()
+
+                    if (!sameSource) backup.delete()
+                    val oldSource = previous?.source?.file
+                    if (oldSource != null && oldSource != draft.source.file)
+                        oldSource.delete()
                 } finally {
                     temp.delete()
+                    backupTemp.delete()
                 }
             }
         }
 
-    suspend fun restore(filesDir: File): EditorDraft? =
+    suspend fun restore(filesDir: File): EditorDraft? = restoreWithStatus(filesDir)?.draft
+
+    suspend fun restoreWithStatus(filesDir: File): RestoredEditorDraft? =
         withContext(Dispatchers.IO) {
-            // Do not read old metadata while a writer commits and reclaims its source.
+            // A read must not race the commit or source reclamation.
             writeMutex.withLock {
                 val dir = folder(filesDir)
                 val manifest = File(dir, JSON_NAME)
-                if (!manifest.exists()) return@withLock null
-                if (!manifest.isFile || manifest.length() !in 2..MAX_JSON)
-                    throw IOException("Файл черновика повреждён.")
-                val saved = try {
-                    EditorDraft.decode(JSONObject(manifest.readText()), dir)
-                } catch (_: Exception) { throw IOException("Не удалось прочитать черновик.") }
-                if (!saved.source.file.isFile ||
-                    saved.source.file.length() != saved.source.bytes ||
-                    hash(saved.source.file) != saved.source.sha256)
-                    throw IOException("Контрольная сумма исходной модели не совпадает.")
-                saved
+                val backup = File(dir, BACKUP_NAME)
+                if (!manifest.exists() && !backup.exists()) return@withLock null
+
+                fun readChecked(file: File): EditorDraft {
+                    if (!file.isFile || file.length() !in 2..MAX_JSON)
+                        throw IOException("Файл черновика повреждён.")
+                    val draft = try {
+                        EditorDraft.decode(JSONObject(file.readText(Charsets.UTF_8)), dir)
+                    } catch (_: Exception) {
+                        throw IOException("Не удалось прочитать черновик.")
+                    }
+                    if (!draft.source.file.isFile ||
+                        draft.source.file.length() != draft.source.bytes ||
+                        hash(draft.source.file) != draft.source.sha256)
+                        throw IOException("Контрольная сумма исходной модели не совпадает.")
+                    return draft
+                }
+
+                // A fully validated primary always wins. Backup is used only
+                // after a failed read, never as a way around the source hash.
+                val primary = runCatching { readChecked(manifest) }.getOrNull()
+                if (primary != null) {
+                    RestoredEditorDraft(primary, fromBackup = false)
+                } else if (backup.exists()) {
+                    val recovered = try {
+                        readChecked(backup)
+                    } catch (_: Exception) {
+                        throw IOException("Основной и резервный черновики повреждены.")
+                    }
+                    RestoredEditorDraft(recovered, fromBackup = true)
+                } else {
+                    throw IOException("Основной черновик повреждён; резервной копии нет.")
+                }
             }
         }
 }

@@ -161,7 +161,8 @@ private fun EditorScreen() {
     LaunchedEffect(Unit) {
         busy = true
         try {
-            val draft = EditorSessionStore.restore(context.applicationContext.filesDir)
+            val restored = EditorSessionStore.restoreWithStatus(context.applicationContext.filesDir)
+            val draft = restored?.draft
             if (draft != null) {
                 val location = Uri.fromFile(draft.source.file).toString()
                 val groups = GlbLayers.describe(context.applicationContext, location)
@@ -191,7 +192,11 @@ private fun EditorScreen() {
                 originalLocation = location
                 modelLocation = location
                 savedSource = draft.source
-                message = "Черновик восстановлен. Правки на месте."
+                message = if (restored.fromBackup) {
+                    "Основной черновик повреждён. Восстановлена резервная версия; последние правки могли не сохраниться. Для надёжного хранения экспортируйте GLB."
+                } else {
+                    "Черновик восстановлен. Правки на месте."
+                }
             }
         } catch (e: Exception) {
             message = e.message?.let { "Не удалось восстановить черновик: $it" }
