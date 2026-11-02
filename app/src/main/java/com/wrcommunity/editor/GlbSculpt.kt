@@ -76,6 +76,44 @@ object GlbSculpt {
         val accessors = root.optJSONArray("accessors") ?: throw IOException("Нет accessors.")
         val views = root.optJSONArray("bufferViews") ?: throw IOException("Нет bufferViews.")
         val byMaterial = strokes.groupBy { it.materialId }
+
+        // For materials split into several primitives, the picker works in
+        // the material's combined bounding box. Match that coordinate system
+        // when applying strokes instead of shifting each primitive separately.
+        val groupBounds = mutableMapOf<Int, Pair<FloatArray, FloatArray>>()
+        val unavailable = mutableSetOf<Int>()
+        for (mi in 0 until meshes.length()) {
+            val prims = meshes.optJSONObject(mi)?.optJSONArray("primitives") ?: continue
+            for (pi in 0 until prims.length()) {
+                val primitive = prims.optJSONObject(pi) ?: continue
+                val material = primitive.optInt("material", -1)
+                if (material !in byMaterial) continue
+                val id = primitive.optJSONObject("attributes")?.optInt("POSITION", -1) ?: -1
+                val acc = accessors.optJSONObject(id)
+                val lower = acc?.optJSONArray("min")
+                val upper = acc?.optJSONArray("max")
+                if (lower == null || upper == null ||
+                    lower.length() != 3 || upper.length() != 3) {
+                    unavailable.add(material)
+                    continue
+                }
+                val lowerValues = FloatArray(3) { lower.optDouble(it, Double.NaN).toFloat() }
+                val upperValues = FloatArray(3) { upper.optDouble(it, Double.NaN).toFloat() }
+                if ((0..2).any { !lowerValues[it].isFinite() ||
+                    !upperValues[it].isFinite() ||
+                    lowerValues[it] > upperValues[it] }) {
+                    unavailable.add(material)
+                    continue
+                }
+                val current = groupBounds[material]
+                if (current == null) groupBounds[material] = lowerValues to upperValues
+                else for (axis in 0..2) {
+                    current.first[axis] = minOf(current.first[axis], lowerValues[axis])
+                    current.second[axis] = maxOf(current.second[axis], upperValues[axis])
+                }
+            }
+        }
+        unavailable.forEach { groupBounds.remove(it) }
         val append = java.io.ByteArrayOutputStream()
         val cloned = mutableMapOf<Pair<Int,Int>,Int>()
         val deformedPositions = mutableMapOf<Pair<Int,Int>,FloatArray>()
@@ -128,12 +166,16 @@ object GlbSculpt {
                     high[axis] = kotlin.math.max(high[axis],v)
                 }
                 originalPositions[key] = vertices.copyOf()
-                val span = maxOf(high[0]-low[0],high[1]-low[1],high[2]-low[2])
+                val bounds = groupBounds[mat]
+                val centerMin = bounds?.first ?: low
+                val centerMax = bounds?.second ?: high
+                val span = maxOf(centerMax[0]-centerMin[0],
+                    centerMax[1]-centerMin[1],centerMax[2]-centerMin[2])
                 if (span <= 0f || !span.isFinite()) throw IOException("Нулевой размер сетки.")
                 for (stroke in edits) {
-                    val cx=low[0]+(high[0]-low[0])*stroke.centerX/100f
-                    val cy=low[1]+(high[1]-low[1])*stroke.centerY/100f
-                    val cz=low[2]+(high[2]-low[2])*stroke.centerZ/100f
+                    val cx=centerMin[0]+(centerMax[0]-centerMin[0])*stroke.centerX/100f
+                    val cy=centerMin[1]+(centerMax[1]-centerMin[1])*stroke.centerY/100f
+                    val cz=centerMin[2]+(centerMax[2]-centerMin[2])*stroke.centerZ/100f
                     val r=span*stroke.radius/100f
                     val d=span*stroke.strength/100f*(if(stroke.axis>0) 1f else -1f)
                     val dest=kotlin.math.abs(stroke.axis)-1

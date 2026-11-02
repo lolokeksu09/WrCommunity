@@ -36,6 +36,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.sceneview.SceneView
+import io.github.sceneview.rememberEngine
+import io.github.sceneview.rememberCameraNode
 import io.github.sceneview.rememberCameraManipulator
 import io.github.sceneview.math.Position
 import io.github.sceneview.math.Rotation
@@ -91,6 +93,11 @@ private fun EditorScreen() {
     var sculptDraft by remember { mutableStateOf(SculptStroke(materialId = 0)) }
     var sculptMode by remember { mutableStateOf(false) }
     var selectedPartId by remember { mutableStateOf<Int?>(null) }
+    var surfacePicker by remember { mutableStateOf<GlbSurfacePicker?>(null) }
+    var suggestedStrokes by remember { mutableStateOf<List<SculptStroke>>(emptyList()) }
+    var pickingBusy by remember { mutableStateOf(false) }
+    val traceRays = remember { mutableListOf<SurfaceRay>() }
+    val previousScreenPoint = remember { floatArrayOf(Float.NaN, Float.NaN) }
     var isPickingBrushCenter by remember { mutableStateOf(false) }
     var materialBounds by remember { mutableStateOf<Map<Int, BrushMaterialBounds>>(emptyMap()) }
     var modelForPicking by remember { mutableStateOf<io.github.sceneview.node.ModelNode?>(null) }
@@ -185,6 +192,9 @@ private fun EditorScreen() {
                         materialBounds = targetBounds
                         isPickingBrushCenter = false
                         modelForPicking = null
+                        suggestedStrokes = emptyList()
+                        surfacePicker = null
+                        pickingBusy = false
                         materialLayers = groups
                         layerHistory = LayerHistory(states = listOf(groups.map { it.id }.toSet()))
                         partHistory = PartHistory()
@@ -199,6 +209,18 @@ private fun EditorScreen() {
                         cameraView = CameraView.FRONT
                         showLayers = false
                         message = null
+                        scope.launch {
+                            val picked = withContext(Dispatchers.Default) {
+                                runCatching {
+                                    val local = Uri.parse(loaded.fileLocation).path
+                                        ?: return@runCatching null
+                                    GlbSurfacePicker.fromFile(File(local))
+                                }.getOrNull()
+                            }
+                            if (request == requestId && originalLocation == loaded.fileLocation) {
+                                surfacePicker = picked
+                            }
+                        }
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
@@ -305,47 +327,115 @@ private fun EditorScreen() {
                             targetPosition = Position(0f, 0f, 0f)
                         )
                     }
+                    val touchEngine = rememberEngine()
+                    val touchCamera = rememberCameraNode(touchEngine)
                     key(modelLocation) {
                         SceneView(
+                            engine = touchEngine,
+                            cameraNode = touchCamera,
                             modifier = Modifier.fillMaxSize(),
                             cameraManipulator = cameraManipulator,
-                            onTouchEvent = { event, hit ->
+                            onTouchEvent = { event, _ ->
                                 if (!isPickingBrushCenter) false
                                 else {
-                                    when (event.actionMasked) {
-                                        MotionEvent.ACTION_UP -> {
-                                            val part = selectedPartId
-                                            val bounds = part?.let { materialBounds[it] }
-                                            val model = modelForPicking
-                                            val point = if (hit?.nodeOrNull != null) {
-                                                hit.getWorldPosition()
-                                            } else null
-                                            if (bounds != null && model != null && point != null) {
-                                                val local = model.getLocalPosition(
-                                                    Position(point.x, point.y, point.z))
-                                                val chosen = bounds.at(local.x, local.y, local.z)
-                                                if (chosen != null) {
-                                                    sculptDraft = sculptDraft.copy(
-                                                        centerX = chosen.x, centerY = chosen.y,
-                                                        centerZ = chosen.z)
-                                                    isPickingBrushCenter = false
-                                                    showLayers = true
-                                                    sculptMode = true
-                                                    message = "Центр области выбран. Проверь радиус и силу."
-                                                } else {
-                                                    message = "Точка вне выбранного материала. Попробуй другой ракурс."
+                                    val model = modelForPicking
+                                    val picker = surfacePicker
+                                    if (model == null || picker == null || pickingBusy) {
+                                        isPickingBrushCenter = false
+                                        message = "Точная кисть ещё не готова. Используй ручной центр."
+                                    } else if (event.pointerCount > 1) {
+                                        traceRays.clear()
+                                        previousScreenPoint[0] = Float.NaN
+                                        message = "Для кисти используй один палец."
+                                    } else {
+                                        val action = event.actionMasked
+                                        if (action == MotionEvent.ACTION_DOWN) {
+                                            traceRays.clear()
+                                            previousScreenPoint[0] = Float.NaN
+                                        }
+                                        if (action == MotionEvent.ACTION_DOWN ||
+                                            action == MotionEvent.ACTION_MOVE ||
+                                            action == MotionEvent.ACTION_UP) {
+                                            val x = event.x
+                                            val y = event.y
+                                            val dx = x - previousScreenPoint[0]
+                                            val dy = y - previousScreenPoint[1]
+                                            val take = previousScreenPoint[0].isNaN() ||
+                                                dx * dx + dy * dy >= 22f * 22f ||
+                                                action == MotionEvent.ACTION_UP
+                                            if (take) {
+                                                @Suppress("DEPRECATION")
+                                                val ray = touchCamera.screenPointToRay(x, y)
+                                                val origin = ray.getPoint(0f)
+                                                val far = ray.getPoint(1f)
+                                                val a = model.getLocalPosition(Position(origin.x, origin.y, origin.z))
+                                                val b = model.getLocalPosition(Position(far.x, far.y, far.z))
+                                                val item = SurfaceRay(a.x, a.y, a.z,
+                                                    b.x - a.x, b.y - a.y, b.z - a.z)
+                                                if (traceRays.size < 12) traceRays.add(item)
+                                                else if (action == MotionEvent.ACTION_UP) {
+                                                    traceRays[traceRays.lastIndex] = item
                                                 }
-                                            } else {
-                                                message = "3D-попадание не найдено. Поверни модель или выбери точку вручную."
+                                                previousScreenPoint[0] = x
+                                                previousScreenPoint[1] = y
                                             }
-                                            true
                                         }
-                                        MotionEvent.ACTION_CANCEL -> {
+                                        if (action == MotionEvent.ACTION_CANCEL) {
+                                            traceRays.clear()
                                             isPickingBrushCenter = false
-                                            true
+                                            showLayers = true
                                         }
-                                        else -> true
+                                        if (action == MotionEvent.ACTION_UP) {
+                                            val samples = traceRays.toList()
+                                            traceRays.clear()
+                                            val sampleRequest = requestId
+                                            val selected = selectedPartId
+                                            val allVisible = visibleMaterials.toSet()
+                                            val draft = sculptDraft
+                                            isPickingBrushCenter = false
+                                            pickingBusy = true
+                                            scope.launch {
+                                                try {
+                                                    val found = withContext(Dispatchers.Default) {
+                                                        samples.mapNotNull { ray ->
+                                                            if (selected == null) null
+                                                            else picker.pick(ray, selected, allVisible)
+                                                        }
+                                                    }
+                                                    if (sampleRequest != requestId) return@launch
+                                                    if (found.isNotEmpty() && selected != null) {
+                                                        suggestedStrokes = found.map { hit ->
+                                                            draft.copy(materialId = selected,
+                                                                centerX = hit.center.x,
+                                                                centerY = hit.center.y,
+                                                                centerZ = hit.center.z)
+                                                        }.take(20 - sculptHistory.current.size)
+                                                        val first = found.first().center
+                                                        sculptDraft = sculptDraft.copy(
+                                                            centerX = first.x, centerY = first.y,
+                                                            centerZ = first.z
+                                                        )
+                                                        message = "Найдено точек на поверхности: ${suggestedStrokes.size}. Подтверди применение."
+                                                    } else {
+                                                        suggestedStrokes = emptyList()
+                                                        message = "Нет пересечения с выбранным видимым материалом. Поверни модель или скрой перекрывающий слой."
+                                                    }
+                                                } catch (error: Exception) {
+                                                    if (sampleRequest == requestId) {
+                                                        suggestedStrokes = emptyList()
+                                                        message = error.message ?: "Не удалось определить поверхность."
+                                                    }
+                                                } finally {
+                                                    if (sampleRequest == requestId) {
+                                                        pickingBusy = false
+                                                        showLayers = true
+                                                        sculptMode = true
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
+                                    true
                                 }
                             }
                         ) {
@@ -454,7 +544,9 @@ private fun EditorScreen() {
                             contentScale = ContentScale.Fit
                         )
                     }
-                    if (busy || layerBusy) CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    if (busy || layerBusy || pickingBusy) {
+                        CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    }
                 }
             }
 
@@ -604,17 +696,20 @@ private fun EditorScreen() {
                                 Text("Локальная деформация вершин",
                                     style = MaterialTheme.typography.titleSmall)
                                 Button(
-                                    enabled = !layerBusy && partId in materialBounds &&
+                                    enabled = !layerBusy && !pickingBusy &&
+                                        surfacePicker?.materialIds?.contains(partId) == true &&
                                         partId in visibleMaterials &&
-                                        partId !in partEdits,
+                                        partEdits.isEmpty() &&
+                                        sculptStrokes.isEmpty(),
                                     onClick = {
+                                        suggestedStrokes = emptyList()
                                         isPickingBrushCenter = true
                                         showLayers = false
                                     },
                                     modifier = Modifier.fillMaxWidth()
-                                ) { Text("Выбрать центр касанием") }
-                                if (partId !in materialBounds) {
-                                    Text("Автовыбор недоступен для сложной структуры GLB. Используй координаты ниже.",
+                                ) { Text("Точная кисть: касание или путь") }
+                                if (surfacePicker == null) {
+                                    Text("Точная кисть загружается или не поддерживает эту сцену. Ручной ввод работает.",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = TextSecondary)
                                 }
@@ -650,6 +745,14 @@ private fun EditorScreen() {
                                         }
                                     }
                                 }
+                                if (suggestedStrokes.isNotEmpty() &&
+                                    suggestedStrokes.first().materialId == partId) {
+                                    Text("Путь: ${suggestedStrokes.size} точек. Сила и радиус взяты на момент касания.",
+                                        style = MaterialTheme.typography.bodySmall, color = Highlight)
+                                    TextButton(onClick = { suggestedStrokes = emptyList() }) {
+                                        Text("Очистить путь")
+                                    }
+                                }
                                 Text("Деформаций: ${sculptHistory.current.size}/20",
                                     style = MaterialTheme.typography.labelMedium)
                                 Row(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
@@ -662,15 +765,24 @@ private fun EditorScreen() {
                                 }
                                 Button(
                                     modifier=Modifier.fillMaxWidth(),
-                                    enabled = !layerBusy && sculptHistory.current.size < 20,
+                                    enabled = !layerBusy && !pickingBusy &&
+                                        sculptHistory.current.size < 20,
                                     onClick = {
                                         try {
-                                            sculptHistory = sculptHistory.add(brush)
+                                            val path = suggestedStrokes.takeIf {
+                                                it.isNotEmpty() && it.first().materialId == partId
+                                            } ?: listOf(brush)
+                                            if (path.size + sculptHistory.current.size > 20)
+                                                throw java.io.IOException("Не хватает лимита деформаций. Отмени или сохрани GLB.")
+                                            var next = sculptHistory
+                                            for (point in path) next = next.add(point)
+                                            sculptHistory = next
+                                            suggestedStrokes = emptyList()
                                         } catch (e: Exception) {
                                             message = e.message ?: "Ошибка изменения формы."
                                         }
                                     }
-                                ) { Text("Применить деформацию") }
+                                ) { Text(if (suggestedStrokes.isNotEmpty()) "Применить путь" else "Применить деформацию") }
                             }
                         }
                         Text("При сохранении учитываются видимость и правки частей. Исходный GLB не изменяется.",
