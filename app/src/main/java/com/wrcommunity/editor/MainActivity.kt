@@ -85,6 +85,9 @@ private fun EditorScreen() {
     var materialLayers by remember { mutableStateOf<List<MaterialLayer>>(emptyList()) }
     var layerHistory by remember { mutableStateOf(LayerHistory()) }
     var partHistory by remember { mutableStateOf(PartHistory()) }
+    var sculptHistory by remember { mutableStateOf(SculptHistory()) }
+    var sculptDraft by remember { mutableStateOf(SculptStroke(materialId = 0)) }
+    var sculptMode by remember { mutableStateOf(false) }
     var selectedPartId by remember { mutableStateOf<Int?>(null) }
     var showLayers by remember { mutableStateOf(false) }
     var layerBusy by remember { mutableStateOf(false) }
@@ -104,13 +107,14 @@ private fun EditorScreen() {
     val edit = history.current
     val visibleMaterials = layerHistory.current
     val partEdits = partHistory.current
+    val sculptStrokes = sculptHistory.current
 
     // A change in layer visibility creates an independent preview GLB.
     // Cancellation prevents stale previews overwriting newer selections.
-    LaunchedEffect(originalLocation, visibleMaterials, partEdits) {
+    LaunchedEffect(originalLocation, visibleMaterials, partEdits, sculptStrokes) {
         val origin = originalLocation ?: return@LaunchedEffect
         val allIds = materialLayers.map { it.id }.toSet()
-        if (visibleMaterials == allIds && partEdits.isEmpty()) {
+        if (visibleMaterials == allIds && partEdits.isEmpty() && sculptStrokes.isEmpty()) {
             modelLocation = origin
             layerBusy = false
             return@LaunchedEffect
@@ -120,7 +124,8 @@ private fun EditorScreen() {
             kotlinx.coroutines.delay(140)
             modelLocation = GlbLayers.preview(
                 context.applicationContext, origin, visibleMaterials,
-                partEdits.filterKeys { it in visibleMaterials }
+                partEdits.filterKeys { it in visibleMaterials },
+                sculptStrokes.filter { it.materialId in visibleMaterials }
             )
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -168,6 +173,8 @@ private fun EditorScreen() {
                         materialLayers = groups
                         layerHistory = LayerHistory(states = listOf(groups.map { it.id }.toSet()))
                         partHistory = PartHistory()
+                        sculptHistory = SculptHistory()
+                        sculptMode = false
                         selectedPartId = null
                         originalLocation = loaded.fileLocation
                         modelLocation = loaded.fileLocation
@@ -196,12 +203,14 @@ private fun EditorScreen() {
             val snapshot = edit
             val selectedMaterials = layerHistory.current
             val partsSnapshot = partHistory.current.filterKeys { it in selectedMaterials }
+            val sculptSnapshot = sculptHistory.current.filter { it.materialId in selectedMaterials }
             scope.launch {
                 busy = true
                 try {
                     GlbTransformExporter.export(
                         context.applicationContext, location, uri, snapshot,
-                        selectedMaterials.takeIf { materialLayers.isNotEmpty() }, partsSnapshot
+                        selectedMaterials.takeIf { materialLayers.isNotEmpty() },
+                        partsSnapshot, sculptSnapshot
                     )
                     message = "GLB сохранён. Исходная модель не изменена."
                 } catch (cancelled: CancellationException) {
@@ -379,7 +388,7 @@ private fun EditorScreen() {
                         .padding(horizontal = 14.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Слоёв: ${layerHistory.current.size}/${materialLayers.size} · Правки: ${partEdits.size}",
+                    Text("Слоёв: ${layerHistory.current.size}/${materialLayers.size} · Форма: ${sculptStrokes.size}",
                         style = MaterialTheme.typography.labelSmall, color = TextSecondary,
                         modifier = Modifier.weight(1f))
                     TextButton(onClick = { showLayers = true }) { Text("Управлять слоями") }
@@ -400,7 +409,9 @@ private fun EditorScreen() {
                     containerColor = PanelTone
                 ) {
                     Column(
-                        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp),
+                        Modifier.fillMaxWidth().fillMaxHeight(0.88f)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 18.dp, vertical = 6.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text("Слои модели", style = MaterialTheme.typography.titleLarge)
@@ -419,7 +430,7 @@ private fun EditorScreen() {
                                 layerHistory = layerHistory.change(materialLayers.map { it.id }.toSet())
                             }) { Text("Показать все") }
                         }
-                        Column(Modifier.heightIn(max = 340.dp).verticalScroll(rememberScrollState())) {
+                        Column(Modifier.fillMaxWidth()) {
                             materialLayers.forEach { layer ->
                                 val visible = layer.id in layerHistory.current
                                 Row(
@@ -465,6 +476,16 @@ private fun EditorScreen() {
                             Text("Редактирование: ${selectedPart.name}",
                                 style = MaterialTheme.typography.titleMedium,
                                 maxLines = 2)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (sculptMode) {
+                                    Button(onClick = { sculptMode = false }) { Text("Положение") }
+                                    OutlinedButton(onClick = { sculptMode = true }) { Text("Форма") }
+                                } else {
+                                    OutlinedButton(onClick = { sculptMode = false }) { Text("Положение") }
+                                    Button(onClick = { sculptMode = true }) { Text("Форма") }
+                                }
+                            }
+                            if (!sculptMode) {
                             Row(
                                 Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -481,10 +502,7 @@ private fun EditorScreen() {
                                     partHistory = partHistory.change(partId, PartEdit())
                                 }) { Text("Сброс") }
                             }
-                            Column(
-                                Modifier.fillMaxWidth().heightIn(max = 320.dp)
-                                    .verticalScroll(rememberScrollState())
-                            ) {
+                            Column(Modifier.fillMaxWidth()) {
                                 Stepper("X", "%.2f".format(java.util.Locale.US, currentPart.x),
                                     { partHistory = partHistory.change(partId, currentPart.copy(x = (currentPart.x - .02f).coerceAtLeast(-3f))) },
                                     { partHistory = partHistory.change(partId, currentPart.copy(x = (currentPart.x + .02f).coerceAtMost(3f))) })
@@ -505,6 +523,64 @@ private fun EditorScreen() {
                                 "Это изменение целой группы по материалу, а не кисть по вершинам.",
                                 style = MaterialTheme.typography.labelSmall, color = TextSecondary
                             )
+                            } else {
+                                val brush = sculptDraft.copy(materialId = partId)
+                                Text("Локальная деформация вершин",
+                                    style = MaterialTheme.typography.titleSmall)
+                                Text("Центр — проценты от границ выбранного материала. Измени параметры и нажми «Применить».",
+                                    style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                                Column(Modifier.fillMaxWidth()) {
+                                    Stepper("Центр X", "${brush.centerX}%",
+                                        { sculptDraft = sculptDraft.copy(centerX = (sculptDraft.centerX-5).coerceAtLeast(0)) },
+                                        { sculptDraft = sculptDraft.copy(centerX = (sculptDraft.centerX+5).coerceAtMost(100)) })
+                                    Stepper("Центр Y", "${brush.centerY}%",
+                                        { sculptDraft = sculptDraft.copy(centerY = (sculptDraft.centerY-5).coerceAtLeast(0)) },
+                                        { sculptDraft = sculptDraft.copy(centerY = (sculptDraft.centerY+5).coerceAtMost(100)) })
+                                    Stepper("Центр Z", "${brush.centerZ}%",
+                                        { sculptDraft = sculptDraft.copy(centerZ = (sculptDraft.centerZ-5).coerceAtLeast(0)) },
+                                        { sculptDraft = sculptDraft.copy(centerZ = (sculptDraft.centerZ+5).coerceAtMost(100)) })
+                                    Stepper("Радиус", "${brush.radius}%",
+                                        { sculptDraft = sculptDraft.copy(radius = (sculptDraft.radius-5).coerceAtLeast(5)) },
+                                        { sculptDraft = sculptDraft.copy(radius = (sculptDraft.radius+5).coerceAtMost(100)) })
+                                    Stepper("Сила", "${brush.strength}%",
+                                        { sculptDraft = sculptDraft.copy(strength = (sculptDraft.strength-1).coerceAtLeast(1)) },
+                                        { sculptDraft = sculptDraft.copy(strength = (sculptDraft.strength+1).coerceAtMost(20)) })
+                                    Row(Modifier.horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        listOf(1 to "+X", -1 to "−X", 2 to "+Y", -2 to "−Y",
+                                            3 to "+Z", -3 to "−Z").forEach { (axis, label) ->
+                                            if (brush.axis == axis) {
+                                                Button(onClick = { sculptDraft = sculptDraft.copy(axis=axis) },
+                                                    contentPadding=PaddingValues(horizontal=10.dp)) { Text(label) }
+                                            } else {
+                                                OutlinedButton(onClick = { sculptDraft = sculptDraft.copy(axis=axis) },
+                                                    contentPadding=PaddingValues(horizontal=10.dp)) { Text(label) }
+                                            }
+                                        }
+                                    }
+                                }
+                                Text("Деформаций: ${sculptHistory.current.size}/20",
+                                    style = MaterialTheme.typography.labelMedium)
+                                Row(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                                    OutlinedButton(enabled=sculptHistory.canUndo,
+                                        onClick={sculptHistory=sculptHistory.undo()}) { Text("↶") }
+                                    OutlinedButton(enabled=sculptHistory.canRedo,
+                                        onClick={sculptHistory=sculptHistory.redo()}) { Text("↷") }
+                                    TextButton(enabled=sculptHistory.current.isNotEmpty(),
+                                        onClick={sculptHistory=sculptHistory.reset()}) { Text("Сброс") }
+                                }
+                                Button(
+                                    modifier=Modifier.fillMaxWidth(),
+                                    enabled = !layerBusy && sculptHistory.current.size < 20,
+                                    onClick = {
+                                        try {
+                                            sculptHistory = sculptHistory.add(brush)
+                                        } catch (e: Exception) {
+                                            message = e.message ?: "Ошибка изменения формы."
+                                        }
+                                    }
+                                ) { Text("Применить деформацию") }
+                            }
                         }
                         Text("При сохранении учитываются видимость и правки частей. Исходный GLB не изменяется.",
                             style = MaterialTheme.typography.labelSmall, color = TextSecondary)
