@@ -10,6 +10,7 @@ import java.io.File
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.security.MessageDigest
 
 /** Exports a transformed GLB with original vertex data, images and binary chunks unchanged. */
 object GlbTransformExporter {
@@ -101,8 +102,35 @@ object GlbTransformExporter {
                 sculptStrokes.filter { visibleMaterials == null || it.materialId in visibleMaterials })
             val partCopy = GlbPartTransforms.apply(sculpted, partEdits)
             val data = transform(partCopy, edit)
-            val stream = context.contentResolver.openOutputStream(targetUri, "w")
+            GlbIntegrity.validate(data)
+            val resolver = context.contentResolver
+            val stream = resolver.openOutputStream(targetUri, "wt")
                 ?: throw IOException("Не удалось открыть файл для сохранения.")
-            stream.use { it.write(data) }
+            stream.use {
+                it.write(data)
+                it.flush()
+            }
+            // SAF providers may truncate, rewrite or incompletely persist a
+            // document. Read back and verify before claiming success.
+            val expectedHash = MessageDigest.getInstance("SHA-256").digest(data)
+            val readBack = resolver.openInputStream(targetUri)
+                ?: throw IOException("Файл записан, но проверить его не удалось.")
+            val hasher = MessageDigest.getInstance("SHA-256")
+            var readBytes = 0L
+            readBack.use { input ->
+                val chunk = ByteArray(64 * 1024)
+                while (true) {
+                    val count = input.read(chunk)
+                    if (count < 0) break
+                    if (count == 0) continue
+                    readBytes += count
+                    if (readBytes > data.size.toLong())
+                        throw IOException("Сохранённый GLB отличается от исходного экспорта.")
+                    hasher.update(chunk, 0, count)
+                }
+            }
+            if (readBytes != data.size.toLong() ||
+                !MessageDigest.isEqual(expectedHash, hasher.digest()))
+                throw IOException("Сохранённый GLB повреждён или записан не полностью.")
         }
 }
