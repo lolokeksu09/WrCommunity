@@ -48,3 +48,13 @@ REQ-012: новую установку выполнить без удалени�
 
 Not geometry sculpting: groups map to glTF material assignments (some material groups may include unrelated surfaces).
 Original user GLB is never overwritten. No VDS changes. Android screenshots/gestures and export round-trip still require hardware.
+
+## v0.4.0 — material-group transformations
+
+REQ-018: select one material group and edit x/y/z (step 0.02), rotate about Y (5°), scale (5%). Changes use new glTF child scene nodes and do not modify original vertex buffer or material textures.
+REQ-019: PartHistory maintains independent undo, redo, per-part reset for up to 50 states.
+REQ-020: non-destructive preview of visibility + part transforms, with cancellation/debouncing and bounded private cache.
+REQ-021: exporting preserves visible material groups, part transforms and global transforms in a newly created GLB document.
+REQ-022: keep `com.wrcommunity.editor.stable` and original certificate; require CI unit tests and an exact APK cert check before user delivery.
+
+Limitations: groups follow material assignments. Unsupported animation, skin and morph targets rejected rather than silently broken. Device rendering and touch controls remain unverified until installed on real Android.

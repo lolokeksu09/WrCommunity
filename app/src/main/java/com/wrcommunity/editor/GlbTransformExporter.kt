@@ -84,7 +84,8 @@ object GlbTransformExporter {
         originalLocation: String,
         targetUri: Uri,
         edit: ModelEdit,
-        visibleMaterials: Set<Int>? = null
+        visibleMaterials: Set<Int>? = null,
+        partEdits: Map<Int, PartEdit> = emptyMap()
     ) = withContext(Dispatchers.IO) {
             val file = File(Uri.parse(originalLocation).path ?: throw IOException("Исходный GLB не найден."))
             if (!file.isFile || file.length() > GlbHeader.MAX_BYTES) {
@@ -95,7 +96,8 @@ object GlbTransformExporter {
             // The underlying vertex buffers and textures remain binary-identical.
             val layersCopy = if (visibleMaterials == null) original
                 else GlbLayers.filter(original, visibleMaterials)
-            val data = transform(layersCopy, edit)
+            val partCopy = GlbPartTransforms.apply(layersCopy, partEdits)
+            val data = transform(partCopy, edit)
             val stream = context.contentResolver.openOutputStream(targetUri, "w")
                 ?: throw IOException("Не удалось открыть файл для сохранения.")
             stream.use { it.write(data) }

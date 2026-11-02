@@ -84,6 +84,8 @@ private fun EditorScreen() {
     var originalLocation by remember { mutableStateOf<String?>(null) }
     var materialLayers by remember { mutableStateOf<List<MaterialLayer>>(emptyList()) }
     var layerHistory by remember { mutableStateOf(LayerHistory()) }
+    var partHistory by remember { mutableStateOf(PartHistory()) }
+    var selectedPartId by remember { mutableStateOf<Int?>(null) }
     var showLayers by remember { mutableStateOf(false) }
     var layerBusy by remember { mutableStateOf(false) }
     var cameraView by remember { mutableStateOf(CameraView.FRONT) }
@@ -101,20 +103,25 @@ private fun EditorScreen() {
     var showReference by remember { mutableStateOf(true) }
     val edit = history.current
     val visibleMaterials = layerHistory.current
+    val partEdits = partHistory.current
 
     // A change in layer visibility creates an independent preview GLB.
     // Cancellation prevents stale previews overwriting newer selections.
-    LaunchedEffect(originalLocation, visibleMaterials) {
+    LaunchedEffect(originalLocation, visibleMaterials, partEdits) {
         val origin = originalLocation ?: return@LaunchedEffect
         val allIds = materialLayers.map { it.id }.toSet()
-        if (visibleMaterials == allIds) {
+        if (visibleMaterials == allIds && partEdits.isEmpty()) {
             modelLocation = origin
             layerBusy = false
             return@LaunchedEffect
         }
         layerBusy = true
         try {
-            modelLocation = GlbLayers.preview(context.applicationContext, origin, visibleMaterials)
+            kotlinx.coroutines.delay(140)
+            modelLocation = GlbLayers.preview(
+                context.applicationContext, origin, visibleMaterials,
+                partEdits.filterKeys { it in visibleMaterials }
+            )
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (e: Exception) {
@@ -160,6 +167,8 @@ private fun EditorScreen() {
                     if (request == requestId) {
                         materialLayers = groups
                         layerHistory = LayerHistory(states = listOf(groups.map { it.id }.toSet()))
+                        partHistory = PartHistory()
+                        selectedPartId = null
                         originalLocation = loaded.fileLocation
                         modelLocation = loaded.fileLocation
                         modelName = displayName(context.contentResolver, uri) ?: "Модель GLB"
@@ -186,11 +195,14 @@ private fun EditorScreen() {
             val location = originalLocation!!
             val snapshot = edit
             val selectedMaterials = layerHistory.current
+            val partsSnapshot = partHistory.current.filterKeys { it in selectedMaterials }
             scope.launch {
                 busy = true
                 try {
-                    GlbTransformExporter.export(context.applicationContext, location, uri, snapshot,
-                        selectedMaterials.takeIf { materialLayers.isNotEmpty() })
+                    GlbTransformExporter.export(
+                        context.applicationContext, location, uri, snapshot,
+                        selectedMaterials.takeIf { materialLayers.isNotEmpty() }, partsSnapshot
+                    )
                     message = "GLB сохранён. Исходная модель не изменена."
                 } catch (cancelled: CancellationException) {
                     throw cancelled
@@ -367,7 +379,7 @@ private fun EditorScreen() {
                         .padding(horizontal = 14.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Видно слоёв: ${layerHistory.current.size} / ${materialLayers.size}",
+                    Text("Слоёв: ${layerHistory.current.size}/${materialLayers.size} · Правки: ${partEdits.size}",
                         style = MaterialTheme.typography.labelSmall, color = TextSecondary,
                         modifier = Modifier.weight(1f))
                     TextButton(onClick = { showLayers = true }) { Text("Управлять слоями") }
@@ -392,7 +404,7 @@ private fun EditorScreen() {
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text("Слои модели", style = MaterialTheme.typography.titleLarge)
-                        Text("Скрывай материалы целиком, чтобы осматривать детали. Сетка и текстуры не изменяются.",
+                        Text("Выбери материал для точного перемещения, поворота и масштаба его частей.",
                             style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(
@@ -433,12 +445,68 @@ private fun EditorScreen() {
                                     }
                                     TextButton(
                                         enabled = !layerBusy,
-                                        onClick = { layerHistory = layerHistory.change(setOf(layer.id)) }
+                                        onClick = { layerHistory = layerHistory.change(setOf(layer.id)) },
+                                        contentPadding = PaddingValues(horizontal = 5.dp)
                                     ) { Text("Соло") }
+                                    TextButton(
+                                        onClick = { selectedPartId = layer.id },
+                                        contentPadding = PaddingValues(horizontal = 5.dp)
+                                    ) { Text("Править") }
                                 }
                             }
                         }
-                        Text("При сохранении скрытые части не отображаются в экспортированном GLB. Исходный файл остаётся без изменений.",
+                        val selectedPart = selectedPartId?.let { id ->
+                            materialLayers.firstOrNull { it.id == id }
+                        }
+                        if (selectedPart != null) {
+                            val currentPart = partHistory.current[selectedPart.id] ?: PartEdit()
+                            val partId = selectedPart.id
+                            HorizontalDivider(color = Color(0xFF3E4050))
+                            Text("Редактирование: ${selectedPart.name}",
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 2)
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                OutlinedButton(
+                                    enabled = partHistory.canUndo,
+                                    onClick = { partHistory = partHistory.undo() }
+                                ) { Text("↶ Правка") }
+                                OutlinedButton(
+                                    enabled = partHistory.canRedo,
+                                    onClick = { partHistory = partHistory.redo() }
+                                ) { Text("↷ Правка") }
+                                TextButton(onClick = {
+                                    partHistory = partHistory.change(partId, PartEdit())
+                                }) { Text("Сброс") }
+                            }
+                            Column(
+                                Modifier.fillMaxWidth().heightIn(max = 320.dp)
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                Stepper("X", "%.2f".format(java.util.Locale.US, currentPart.x),
+                                    { partHistory = partHistory.change(partId, currentPart.copy(x = (currentPart.x - .02f).coerceAtLeast(-3f))) },
+                                    { partHistory = partHistory.change(partId, currentPart.copy(x = (currentPart.x + .02f).coerceAtMost(3f))) })
+                                Stepper("Y", "%.2f".format(java.util.Locale.US, currentPart.y),
+                                    { partHistory = partHistory.change(partId, currentPart.copy(y = (currentPart.y - .02f).coerceAtLeast(-3f))) },
+                                    { partHistory = partHistory.change(partId, currentPart.copy(y = (currentPart.y + .02f).coerceAtMost(3f))) })
+                                Stepper("Z", "%.2f".format(java.util.Locale.US, currentPart.z),
+                                    { partHistory = partHistory.change(partId, currentPart.copy(z = (currentPart.z - .02f).coerceAtLeast(-3f))) },
+                                    { partHistory = partHistory.change(partId, currentPart.copy(z = (currentPart.z + .02f).coerceAtMost(3f))) })
+                                Stepper("Y °", "${currentPart.rotationY}°",
+                                    { partHistory = partHistory.change(partId, currentPart.copy(rotationY = (currentPart.rotationY - 5).coerceAtLeast(-360))) },
+                                    { partHistory = partHistory.change(partId, currentPart.copy(rotationY = (currentPart.rotationY + 5).coerceAtMost(360))) })
+                                Stepper("Размер", "${currentPart.scalePercent}%",
+                                    { partHistory = partHistory.change(partId, currentPart.copy(scalePercent = (currentPart.scalePercent - 5).coerceAtLeast(25))) },
+                                    { partHistory = partHistory.change(partId, currentPart.copy(scalePercent = (currentPart.scalePercent + 5).coerceAtMost(300))) })
+                            }
+                            Text(
+                                "Это изменение целой группы по материалу, а не кисть по вершинам.",
+                                style = MaterialTheme.typography.labelSmall, color = TextSecondary
+                            )
+                        }
+                        Text("При сохранении учитываются видимость и правки частей. Исходный GLB не изменяется.",
                             style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                         Button(onClick = { showLayers = false }, Modifier.fillMaxWidth()) { Text("Готово") }
                         Spacer(Modifier.height(8.dp))

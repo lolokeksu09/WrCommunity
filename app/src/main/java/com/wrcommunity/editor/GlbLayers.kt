@@ -125,14 +125,19 @@ object GlbLayers {
     }
 
     /** SAF cache file generation, not direct mutation of the user's document. */
-    suspend fun preview(context: Context, sourceLocation: String, visible: Set<Int>): String =
+    suspend fun preview(
+        context: Context, sourceLocation: String, visible: Set<Int>,
+        partEdits: Map<Int, PartEdit> = emptyMap()
+    ): String =
         withContext(Dispatchers.IO) {
             val src = File(Uri.parse(sourceLocation).path ?: throw IOException("GLB недоступен."))
             val dst = File(context.cacheDir, "layer-view-${UUID.randomUUID()}.glb")
             try {
                 val filtered = filter(src.readBytes(), visible)
                 currentCoroutineContext().ensureActive()
-                dst.writeBytes(filtered)
+                val adjusted = GlbPartTransforms.apply(filtered, partEdits)
+                currentCoroutineContext().ensureActive()
+                dst.writeBytes(adjusted)
                 // Bound cache usage without touching the user's original document.
                 context.cacheDir.listFiles()
                     ?.filter { it.isFile && it.name.startsWith("layer-view-") && it.extension == "glb" }
