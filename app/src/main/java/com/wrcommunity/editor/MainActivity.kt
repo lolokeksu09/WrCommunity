@@ -94,6 +94,8 @@ private fun EditorScreen() {
     var sculptMode by remember { mutableStateOf(false) }
     var selectedPartId by remember { mutableStateOf<Int?>(null) }
     var surfacePicker by remember { mutableStateOf<GlbSurfacePicker?>(null) }
+    var pickerLocation by remember { mutableStateOf<String?>(null) }
+    var nodeLocation by remember { mutableStateOf<String?>(null) }
     var suggestedStrokes by remember { mutableStateOf<List<SculptStroke>>(emptyList()) }
     var pickingBusy by remember { mutableStateOf(false) }
     val traceRays = remember { mutableListOf<SurfaceRay>() }
@@ -148,6 +150,30 @@ private fun EditorScreen() {
         }
     }
 
+    // Rebuild the picker from the *displayed* GLB, not from the original.
+    // After a sculpt stroke, POSITION accessors have changed. A stale picker
+    // cannot safely select the next hit. LaunchedEffect cancels obsolete loads.
+    LaunchedEffect(modelLocation, partEdits) {
+        val location = modelLocation
+        pickerLocation = null
+        surfacePicker = null
+        if (location == null || partEdits.isNotEmpty()) return@LaunchedEffect
+        try {
+            val picked = withContext(Dispatchers.Default) {
+                val local = Uri.parse(location).path
+                    ?: throw java.io.IOException("Нет файла предпросмотра.")
+                GlbSurfacePicker.fromFile(File(local))
+            }
+            surfacePicker = picked
+            pickerLocation = location
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Some glTF scenes cannot support accurate ray picking. Keep
+            // all manual coordinate-based sculpt controls available.
+        }
+    }
+
     // A large reference photo must not freeze the rendering/gesture thread.
     val referenceBitmap by produceState<ImageBitmap?>(null, referenceUri) {
         val uri = referenceUri ?: return@produceState
@@ -194,6 +220,8 @@ private fun EditorScreen() {
                         modelForPicking = null
                         suggestedStrokes = emptyList()
                         surfacePicker = null
+                        pickerLocation = null
+                        nodeLocation = null
                         pickingBusy = false
                         materialLayers = groups
                         layerHistory = LayerHistory(states = listOf(groups.map { it.id }.toSet()))
@@ -209,19 +237,7 @@ private fun EditorScreen() {
                         cameraView = CameraView.FRONT
                         showLayers = false
                         message = null
-                        scope.launch {
-                            val picked = withContext(Dispatchers.Default) {
-                                runCatching {
-                                    val local = Uri.parse(loaded.fileLocation).path
-                                        ?: return@runCatching null
-                                    GlbSurfacePicker.fromFile(File(local))
-                                }.getOrNull()
-                            }
-                            if (request == requestId && originalLocation == loaded.fileLocation) {
-                                surfacePicker = picked
-                            }
-                        }
-                    }
+                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
@@ -340,7 +356,9 @@ private fun EditorScreen() {
                                 else {
                                     val model = modelForPicking
                                     val picker = surfacePicker
-                                    if (model == null || picker == null || pickingBusy) {
+                                    if (model == null || picker == null || pickingBusy ||
+                                        pickerLocation != modelLocation ||
+                                        nodeLocation != modelLocation || layerBusy) {
                                         isPickingBrushCenter = false
                                         message = "Точная кисть ещё не готова. Используй ручной центр."
                                     } else if (event.pointerCount > 1) {
@@ -389,6 +407,7 @@ private fun EditorScreen() {
                                             val samples = traceRays.toList()
                                             traceRays.clear()
                                             val sampleRequest = requestId
+                                            val sampleLocation = modelLocation
                                             val selected = selectedPartId
                                             val allVisible = visibleMaterials.toSet()
                                             val draft = sculptDraft
@@ -402,7 +421,10 @@ private fun EditorScreen() {
                                                             else picker.pick(ray, selected, allVisible)
                                                         }
                                                     }
-                                                    if (sampleRequest != requestId) return@launch
+                                                    if (sampleRequest != requestId ||
+                                                        sampleLocation != modelLocation ||
+                                                        selectedPartId != selected ||
+                                                        visibleMaterials != allVisible) return@launch
                                                     if (found.isNotEmpty() && selected != null) {
                                                         suggestedStrokes = found.map { hit ->
                                                             draft.copy(materialId = selected,
@@ -421,12 +443,14 @@ private fun EditorScreen() {
                                                         message = "Нет пересечения с выбранным видимым материалом. Поверни модель или скрой перекрывающий слой."
                                                     }
                                                 } catch (error: Exception) {
-                                                    if (sampleRequest == requestId) {
+                                                    if (sampleRequest == requestId &&
+                                                        sampleLocation == modelLocation) {
                                                         suggestedStrokes = emptyList()
                                                         message = error.message ?: "Не удалось определить поверхность."
                                                     }
                                                 } finally {
-                                                    if (sampleRequest == requestId) {
+                                                    if (sampleRequest == requestId &&
+                                                        sampleLocation == modelLocation) {
                                                         pickingBusy = false
                                                         showLayers = true
                                                         sculptMode = true
@@ -454,7 +478,10 @@ private fun EditorScreen() {
                                         modelInstance = instance,
                                         scaleToUnits = 1.5f,
                                         autoAnimate = false,
-                                        apply = { modelForPicking = this }
+                                        apply = {
+                                            modelForPicking = this
+                                            nodeLocation = modelLocation
+                                        }
                                     )
                                 }
                             }
@@ -698,9 +725,10 @@ private fun EditorScreen() {
                                 Button(
                                     enabled = !layerBusy && !pickingBusy &&
                                         surfacePicker?.materialIds?.contains(partId) == true &&
+                                        pickerLocation == modelLocation &&
+                                        nodeLocation == modelLocation &&
                                         partId in visibleMaterials &&
-                                        partEdits.isEmpty() &&
-                                        sculptStrokes.isEmpty(),
+                                        partEdits.isEmpty(),
                                     onClick = {
                                         suggestedStrokes = emptyList()
                                         isPickingBrushCenter = true
@@ -774,9 +802,7 @@ private fun EditorScreen() {
                                             } ?: listOf(brush)
                                             if (path.size + sculptHistory.current.size > 20)
                                                 throw java.io.IOException("Не хватает лимита деформаций. Отмени или сохрани GLB.")
-                                            var next = sculptHistory
-                                            for (point in path) next = next.add(point)
-                                            sculptHistory = next
+                                            sculptHistory = sculptHistory.addPath(path)
                                             suggestedStrokes = emptyList()
                                         } catch (e: Exception) {
                                             message = e.message ?: "Ошибка изменения формы."
