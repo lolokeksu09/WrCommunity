@@ -86,6 +86,9 @@ private fun EditorScreen() {
     val scope = rememberCoroutineScope()
     var modelLocation by remember { mutableStateOf<String?>(null) }
     var originalLocation by remember { mutableStateOf<String?>(null) }
+    var savedSource by remember { mutableStateOf<StoredModel?>(null) }
+    var recoveryReady by remember { mutableStateOf(false) }
+    var autosaveProblem by remember { mutableStateOf<String?>(null) }
     var materialLayers by remember { mutableStateOf<List<MaterialLayer>>(emptyList()) }
     var layerHistory by remember { mutableStateOf(LayerHistory()) }
     var partHistory by remember { mutableStateOf(PartHistory()) }
@@ -122,6 +125,77 @@ private fun EditorScreen() {
     val visibleMaterials = layerHistory.current
     val partEdits = partHistory.current
     val sculptStrokes = sculptHistory.current
+
+    // Restore the last unfinished edit from app-private persistent storage.
+    // All expensive file reading and checksum work runs off the UI thread.
+    LaunchedEffect(Unit) {
+        busy = true
+        try {
+            val draft = EditorSessionStore.restore(context.applicationContext.filesDir)
+            if (draft != null) {
+                val location = Uri.fromFile(draft.source.file).toString()
+                val groups = GlbLayers.describe(context.applicationContext, location)
+                val available = groups.map { it.id }.toSet()
+                if (available.isEmpty() || draft.visible.isEmpty() ||
+                    !draft.visible.all { it in available } ||
+                    !draft.parts.keys.all { it in available } ||
+                    !draft.strokes.all { it.materialId in available }) {
+                    throw java.io.IOException("Слои черновика не совпадают с моделью.")
+                }
+                val bounds = withContext(Dispatchers.IO) {
+                    runCatching { GlbBrushTarget.fromFile(draft.source.file) }
+                        .getOrDefault(emptyMap())
+                }
+                materialBounds = bounds
+                materialLayers = groups
+                layerHistory = LayerHistory(states = listOf(draft.visible))
+                partHistory = PartHistory(steps = listOf(draft.parts))
+                sculptHistory = SculptHistory(states = listOf(draft.strokes))
+                history = EditHistory(steps = listOf(draft.global))
+                sculptDraft = draft.brush
+                selectedPartId = draft.selected?.takeIf { it in available }
+                cameraView = CameraView.entries.firstOrNull { it.name == draft.camera }
+                    ?: CameraView.FRONT
+                cameraEpoch++
+                modelName = draft.name
+                originalLocation = location
+                modelLocation = location
+                savedSource = draft.source
+                message = "Черновик восстановлен. Правки на месте."
+            }
+        } catch (e: Exception) {
+            message = e.message?.let { "Не удалось восстановить черновик: $it" }
+                ?: "Не удалось восстановить черновик."
+        } finally {
+            recoveryReady = true
+            busy = false
+        }
+    }
+
+    // Autosave lightweight edit metadata, not 150 MB of geometry on each touch.
+    // Restart the debounce when any displayed edit changes; canceled writes must
+    // not replace a newer manifest.
+    LaunchedEffect(recoveryReady, savedSource, modelName, history.current,
+        layerHistory.current, partHistory.current, sculptHistory.current,
+        selectedPartId, sculptDraft, cameraView) {
+        val source = savedSource
+        if (!recoveryReady || source == null) return@LaunchedEffect
+        kotlinx.coroutines.delay(600)
+        val snapshot = EditorDraft(
+            source = source, name = modelName, global = history.current,
+            visible = layerHistory.current, parts = partHistory.current,
+            strokes = sculptHistory.current, selected = selectedPartId,
+            brush = sculptDraft, camera = cameraView.name
+        )
+        try {
+            EditorSessionStore.save(context.applicationContext.filesDir, snapshot)
+            autosaveProblem = null
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            autosaveProblem = e.message ?: "Ошибка автосохранения."
+        }
+    }
 
     // A change in layer visibility creates an independent preview GLB.
     // Cancellation prevents stale previews overwriting newer selections.
@@ -206,10 +280,15 @@ private fun EditorScreen() {
                 message = null
                 try {
                     val loaded = GlbFileImporter.import(context.applicationContext, uri)
-                    val groups = GlbLayers.describe(context.applicationContext, loaded.fileLocation)
+                    val imported = File(Uri.parse(loaded.fileLocation).path
+                        ?: throw java.io.IOException("GLB недоступен после импорта."))
+                    val stored = EditorSessionStore.importSource(
+                        context.applicationContext.filesDir, imported)
+                    val persistentLocation = Uri.fromFile(stored.file).toString()
+                    val groups = GlbLayers.describe(context.applicationContext, persistentLocation)
                     val targetBounds = withContext(Dispatchers.IO) {
                         runCatching {
-                            val local = Uri.parse(loaded.fileLocation).path
+                            val local = Uri.parse(persistentLocation).path
                                 ?: return@runCatching emptyMap<Int, BrushMaterialBounds>()
                             GlbBrushTarget.fromFile(File(local))
                         }.getOrDefault(emptyMap())
@@ -229,8 +308,10 @@ private fun EditorScreen() {
                         sculptHistory = SculptHistory()
                         sculptMode = false
                         selectedPartId = null
-                        originalLocation = loaded.fileLocation
-                        modelLocation = loaded.fileLocation
+                        originalLocation = persistentLocation
+                        modelLocation = persistentLocation
+                        savedSource = stored
+                        autosaveProblem = null
                         modelName = displayName(context.contentResolver, uri) ?: "Модель GLB"
                         history = EditHistory()
                         cameraEpoch++
@@ -311,13 +392,13 @@ private fun EditorScreen() {
                 }
                 FilledTonalButton(
                     onClick = { importPicker.launch(arrayOf("*/*")) },
-                    enabled = !busy,
+                    enabled = !busy && recoveryReady,
                     contentPadding = PaddingValues(horizontal = 12.dp),
                     modifier = Modifier.heightIn(min = 48.dp)
                 ) { Text("Открыть") }
                 Button(
                     onClick = { exportPicker.launch(modelName.substringBeforeLast('.', modelName) + "_edited.glb") },
-                    enabled = !busy && modelLocation != null,
+                    enabled = !busy && recoveryReady && modelLocation != null,
                     contentPadding = PaddingValues(horizontal = 12.dp),
                     modifier = Modifier.heightIn(min = 48.dp)
                 ) { Text("Сохранить") }
@@ -597,6 +678,11 @@ private fun EditorScreen() {
                 }
             }
 
+            if (autosaveProblem != null) {
+                Text("Автосохранение: $autosaveProblem",
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall, color = Color(0xFFFFB4A2))
+            }
             if (message != null) {
                 Text(
                     message!!, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
