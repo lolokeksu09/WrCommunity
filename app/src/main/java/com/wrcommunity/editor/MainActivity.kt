@@ -194,6 +194,7 @@ private fun EditorScreen() {
                         modelForPicking = null
                         suggestedStrokes = emptyList()
                         surfacePicker = null
+                        pickingBusy = false
                         materialLayers = groups
                         layerHistory = LayerHistory(states = listOf(groups.map { it.id }.toSet()))
                         partHistory = PartHistory()
@@ -387,6 +388,7 @@ private fun EditorScreen() {
                                         if (action == MotionEvent.ACTION_UP) {
                                             val samples = traceRays.toList()
                                             traceRays.clear()
+                                            val sampleRequest = requestId
                                             val selected = selectedPartId
                                             val allVisible = visibleMaterials.toSet()
                                             val draft = sculptDraft
@@ -400,6 +402,7 @@ private fun EditorScreen() {
                                                             else picker.pick(ray, selected, allVisible)
                                                         }
                                                     }
+                                                    if (sampleRequest != requestId) return@launch
                                                     if (found.isNotEmpty() && selected != null) {
                                                         suggestedStrokes = found.map { hit ->
                                                             draft.copy(materialId = selected,
@@ -417,10 +420,17 @@ private fun EditorScreen() {
                                                         suggestedStrokes = emptyList()
                                                         message = "Нет пересечения с выбранным видимым материалом. Поверни модель или скрой перекрывающий слой."
                                                     }
+                                                } catch (error: Exception) {
+                                                    if (sampleRequest == requestId) {
+                                                        suggestedStrokes = emptyList()
+                                                        message = error.message ?: "Не удалось определить поверхность."
+                                                    }
                                                 } finally {
-                                                    pickingBusy = false
-                                                    showLayers = true
-                                                    sculptMode = true
+                                                    if (sampleRequest == requestId) {
+                                                        pickingBusy = false
+                                                        showLayers = true
+                                                        sculptMode = true
+                                                    }
                                                 }
                                             }
                                         }
@@ -534,7 +544,9 @@ private fun EditorScreen() {
                             contentScale = ContentScale.Fit
                         )
                     }
-                    if (busy || layerBusy) CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    if (busy || layerBusy || pickingBusy) {
+                        CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    }
                 }
             }
 
