@@ -418,7 +418,14 @@ private fun EditorScreen() {
                                                     val found = withContext(Dispatchers.Default) {
                                                         samples.mapNotNull { ray ->
                                                             if (selected == null) null
-                                                            else picker.pick(ray, selected, allVisible)
+                                                            else {
+                                                                val hit = picker.pick(ray, selected, allVisible)
+                                                                val originalBounds = materialBounds[selected]
+                                                                if (hit == null || originalBounds == null) null
+                                                                else originalBounds.at(hit.x, hit.y, hit.z)?.let {
+                                                                    hit.copy(center = it)
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                     if (sampleRequest != requestId ||
