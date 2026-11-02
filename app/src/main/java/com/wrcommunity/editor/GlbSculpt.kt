@@ -27,10 +27,15 @@ data class SculptHistory(val states: List<List<SculptStroke>> = listOf(emptyList
     val current get() = states[index]
     val canUndo get() = index > 0
     val canRedo get() = index < states.lastIndex
-    fun add(stroke: SculptStroke): SculptHistory {
-        stroke.check()
-        if (current.size >= 20) throw IOException("Лимит 20 деформаций; сохрани GLB.")
-        val branch = states.take(index + 1).takeLast(49) + listOf(current + stroke)
+    fun add(stroke: SculptStroke): SculptHistory = addPath(listOf(stroke))
+
+    /** A finger-drawn path is one atomic undo/redo step, even if it has many points. */
+    fun addPath(path: List<SculptStroke>): SculptHistory {
+        if (path.isEmpty()) return this
+        path.forEach { it.check() }
+        if (current.size + path.size > 20)
+            throw IOException("Лимит 20 деформаций; сохрани GLB.")
+        val branch = states.take(index + 1).takeLast(49) + listOf(current + path.toList())
         return SculptHistory(branch, branch.lastIndex)
     }
     fun undo() = if (canUndo) copy(index = index - 1) else this

@@ -78,4 +78,38 @@ class GlbSurfacePickerTest {
             fail("Transformation is unsupported")
         } catch (_: IOException) { }
     }
+    @Test fun rebuildPickerAfterSculptSeesUpdatedTriangles() {
+        val source = fixture()
+        val before = GlbSurfacePicker.fromBytes(source)
+            .pick(forward, 0, setOf(0, 1))!!
+        val sculpted = GlbSculpt.apply(source,
+            listOf(SculptStroke(
+                materialId = 0,
+                centerX = 0, centerY = 0, centerZ = 0,
+                radius = 100, axis = 3, strength = 20
+            )))
+        val after = GlbSurfacePicker.fromBytes(sculpted)
+            .pick(forward, 0, setOf(0, 1))!!
+        assertTrue("Picker must follow the changed POSITION buffer", after.z > before.z + 0.03f)
+        assertEquals(0, after.materialId)
+        // The original source stays unchanged.
+        assertArrayEquals(fixture(), source)
+    }
+
+    @Test fun repeatStrokeUsesOriginalMaterialBoundsInsteadOfDriftingWithSculpt() {
+        val src = fixture()
+        val changed = GlbSculpt.apply(src, listOf(SculptStroke(
+            0, centerX = 100, centerY = 0, centerZ = 50,
+            radius = 100, axis = 1, strength = 20
+        )))
+        val point = GlbSurfacePicker.fromBytes(changed).pick(
+            SurfaceRay(.75f, .05f, 2f, 0f, 0f, -1f), 0, setOf(0, 1)
+        )!!
+        val sourceBounds = BrushMaterialBounds(0,
+            listOf(0f, 0f, 0f), listOf(1f, 1f, 0f))
+        val mapped = sourceBounds.at(point.x, point.y, point.z)!!
+        assertEquals(75, mapped.x)
+        assertTrue("Deformed bounds would shift the next center", point.center.x < mapped.x)
+    }
+
 }

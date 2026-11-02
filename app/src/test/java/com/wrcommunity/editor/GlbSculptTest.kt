@@ -118,4 +118,33 @@ class GlbSculptTest {
         assertEquals("remote group should be untouched", 0f, zOf(1, 1), 1e-6f)
     }
 
+    @Test fun aFingerPathIsOneUndoStepAndRedoRestoresEveryPoint() {
+        val start = SculptHistory()
+        val path = listOf(
+            SculptStroke(0, centerX=10),
+            SculptStroke(0, centerX=30),
+            SculptStroke(0, centerX=70)
+        )
+        val edited = start.addPath(path)
+        assertEquals(3, edited.current.size)
+        assertEquals(0, edited.undo().current.size)
+        assertEquals(path, edited.undo().redo().current)
+        assertFalse(edited.undo().addPath(listOf(SculptStroke(0, centerX=90))).canRedo)
+    }
+
+    @Test fun anOverLimitPathIsRejectedWithoutChangingHistory() {
+        val initial = SculptHistory().addPath(List(19) { SculptStroke(0) })
+        try {
+            initial.addPath(listOf(SculptStroke(0), SculptStroke(0)))
+            fail("Over-limit brush path accepted")
+        } catch (_: IOException) {}
+        assertEquals(19, initial.current.size)
+        assertEquals(19, initial.addPath(emptyList()).current.size)
+        try {
+            initial.addPath(listOf(SculptStroke(0), SculptStroke(0, axis=0)))
+            fail("Invalid path accepted")
+        } catch (_: IOException) {}
+        assertEquals(19, initial.current.size)
+    }
+
 }
