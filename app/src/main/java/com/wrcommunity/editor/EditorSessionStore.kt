@@ -1,9 +1,16 @@
 package com.wrcommunity.editor
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -12,6 +19,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
 
 /** Persist one private source GLB; store ongoing edits as small atomic JSON snapshots. */
 data class StoredModel(val file: File, val bytes: Long, val sha256: String)
@@ -117,6 +125,25 @@ object EditorSessionStore {
     private const val DIRECTORY = "editor-session"
     private const val JSON_NAME = "draft.json"
     private const val MAX_JSON = 65536L
+    // A foreground debounce and an ON_PAUSE flush must never commit out of order.
+    private val writeMutex = Mutex()
+    // Not tied to Activity/Compose cancellation: a pause flush can finish after onDestroy.
+    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val backgroundError = AtomicReference<String?>(null)
+
+    fun backgroundSaveError(): String? = backgroundError.get()
+
+    /** Best-effort immediate flush; never delay this behind the UI's debounce. */
+    fun saveWhenPaused(filesDir: File, draft: EditorDraft): Job = backgroundScope.launch {
+        try {
+            save(filesDir, draft)
+            backgroundError.set(null)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            backgroundError.set(error.message ?: "Не удалось сохранить черновик при сворачивании.")
+        }
+    }
 
     internal fun folder(filesDir: File): File =
         File(filesDir, DIRECTORY).apply {
@@ -173,6 +200,7 @@ object EditorSessionStore {
 
     suspend fun save(filesDir: File, draft: EditorDraft) =
         withContext(Dispatchers.IO) {
+            writeMutex.withLock {
             val dir = folder(filesDir)
             if (draft.source.file.parentFile?.canonicalFile != dir.canonicalFile ||
                 !draft.source.file.isFile || draft.source.file.length() != draft.source.bytes)
@@ -194,6 +222,7 @@ object EditorSessionStore {
                         it.name != draft.source.file.name
                 }?.forEach { it.delete() }
             } finally { temp.delete() }
+            }
         }
 
     suspend fun restore(filesDir: File): EditorDraft? =
