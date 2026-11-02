@@ -34,6 +34,18 @@ jobs:
           gradle-version: '9.6.0'
       - name: Build and unit tests
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      # Feature and PR runs build an UNSIGNED release APK. It is an input for
+      # local signing with the existing private key, never a public installer.
+      - name: Build unsigned release for independent signing
+        if: github.ref != 'refs/heads/main'
+        run: gradle --no-daemon :app:assembleRelease
+      - name: Archive unsigned release (NOT installable)
+        if: github.ref != 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-3d-editor-release-unsigned
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
       # Never expose the private signing key on a push to an editable feature
       # branch, or on pull_request. Only trusted main can produce an update.
       - name: Build and verify signed release (trusted main only)
