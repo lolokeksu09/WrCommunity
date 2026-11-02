@@ -4,6 +4,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.currentCoroutineContext
@@ -208,6 +209,59 @@ object EditorSessionStore {
                     throw IOException("Не удалось сохранить исходную модель проекта.")
                 StoredModel(destination, destination.length(), digest)
             } finally { temp.delete() }
+        }
+
+    /**
+     * Make a newly imported model the active recoverable project *before*
+     * the UI switches to it. A failed commit leaves the prior draft intact.
+     */
+    suspend fun commitImportedDraft(
+        filesDir: File, source: StoredModel, name: String, layerIds: Set<Int>
+    ): EditorDraft {
+        var committed = false
+        try {
+            if (layerIds.isEmpty())
+                throw IOException("В импортированном GLB нет редактируемых слоёв.")
+            val draft = EditorDraft(
+                source = source,
+                name = name,
+                global = ModelEdit(),
+                visible = layerIds,
+                parts = emptyMap(),
+                strokes = emptyList(),
+                selected = null,
+                brush = SculptStroke(materialId = layerIds.sorted().first()),
+                camera = "FRONT"
+            )
+            save(filesDir, draft)
+            committed = true
+            return draft
+        } finally {
+            if (!committed) withContext(NonCancellable) {
+                discardUncommittedSource(filesDir, source)
+            }
+        }
+    }
+
+    /**
+     * Discard only a private copy that no valid current/backup manifest owns.
+     * Used for failed imports, never for user documents in SAF or Downloads.
+     */
+    suspend fun discardUncommittedSource(filesDir: File, source: StoredModel) =
+        withContext(Dispatchers.IO) {
+            writeMutex.withLock {
+                val dir = folder(filesDir)
+                if (source.file.parentFile?.canonicalFile != dir.canonicalFile ||
+                    !source.file.name.matches(Regex("model-[a-f0-9-]{36}\\.glb")))
+                    throw IOException("Недопустимая временная модель.")
+                val referenced = listOf(JSON_NAME, BACKUP_NAME).any { name ->
+                    val file = File(dir, name)
+                    file.isFile && file.length() in 2..MAX_JSON &&
+                        runCatching { JSONObject(file.readText()).getString("file") }
+                            .getOrNull() == source.file.name
+                }
+                if (!referenced) source.file.delete()
+            }
         }
 
     suspend fun save(filesDir: File, draft: EditorDraft) =

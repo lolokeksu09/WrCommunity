@@ -179,6 +179,60 @@ class EditorSessionStoreTest {
         } finally { root.deleteRecursively() }
     }
 
+    @Test fun acceptedImportIsDurablyCommittedBeforeReturning() = runBlocking {
+        val root = Files.createTempDirectory("editor-import-commit").toFile()
+        try {
+            val source = EditorSessionStore.importSource(root,
+                File(root, "new.glb").apply { writeBytes(ByteArray(48) { 42 }) })
+            val committed = EditorSessionStore.commitImportedDraft(
+                root, source, "Fresh.glb", setOf(-1, 3))
+            val restored = EditorSessionStore.restore(root)!!
+            assertEquals("Fresh.glb", restored.name)
+            assertEquals(source.sha256, restored.source.sha256)
+            assertEquals(setOf(-1, 3), restored.visible)
+            assertEquals(ModelEdit(), restored.global)
+            assertEquals(emptyList<SculptStroke>(), restored.strokes)
+            assertEquals(committed.brush, restored.brush)
+            assertTrue(restored.brush.materialId in restored.visible)
+            assertEquals("FRONT", restored.camera)
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun invalidImportedDraftLeavesCurrentSessionAndCleansUncommittedCopy() = runBlocking {
+        val root = Files.createTempDirectory("editor-invalid-import").toFile()
+        try {
+            val previous = EditorSessionStore.importSource(root,
+                File(root, "previous.glb").apply { writeBytes(ByteArray(48) { 13 }) })
+            EditorSessionStore.save(root, draft(previous))
+            val pending = EditorSessionStore.importSource(root,
+                File(root, "pending.glb").apply { writeBytes(ByteArray(48) { 14 }) })
+            try {
+                EditorSessionStore.commitImportedDraft(root, pending, "", setOf(0))
+                fail("Invalid title must reject import")
+            } catch (_: IllegalArgumentException) {}
+            assertFalse("New uncommitted GLB should be reclaimed", pending.file.exists())
+            assertEquals(previous.sha256, EditorSessionStore.restore(root)!!.source.sha256)
+            assertTrue(previous.file.exists())
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun emptyLayerImportDoesNotDestroyLastGoodDraft() = runBlocking {
+        val root = Files.createTempDirectory("editor-empty-layer").toFile()
+        try {
+            val previous = EditorSessionStore.importSource(root,
+                File(root, "previous.glb").apply { writeBytes(ByteArray(48) { 21 }) })
+            EditorSessionStore.save(root, draft(previous))
+            val pending = EditorSessionStore.importSource(root,
+                File(root, "pending.glb").apply { writeBytes(ByteArray(48) { 22 }) })
+            try {
+                EditorSessionStore.commitImportedDraft(root, pending, "New.glb", emptySet())
+                fail("No renderable layers should be refused")
+            } catch (_: java.io.IOException) {}
+            assertFalse(pending.file.exists())
+            assertEquals(previous.sha256, EditorSessionStore.restore(root)!!.source.sha256)
+        } finally { root.deleteRecursively() }
+    }
+
     @Test fun modifiedSourceIsNeverSilentlyRestored() = runBlocking {
         val root=Files.createTempDirectory("editor-draft-hash").toFile()
         try {

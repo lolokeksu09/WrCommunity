@@ -48,6 +48,7 @@ import io.github.sceneview.node.ModelNode
 import io.github.sceneview.rememberModelInstance
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -121,12 +122,16 @@ private fun EditorScreen() {
     var job by remember { mutableStateOf<Job?>(null) }
     var cameraEpoch by remember { mutableIntStateOf(0) }
     var showInfo by remember { mutableStateOf(false) }
+    var confirmModelReplacement by remember { mutableStateOf(false) }
     var referenceUri by remember { mutableStateOf<Uri?>(null) }
     var showReference by remember { mutableStateOf(true) }
     val edit = history.current
     val visibleMaterials = layerHistory.current
     val partEdits = partHistory.current
     val sculptStrokes = sculptHistory.current
+    val hasModelEdits = !edit.isIdentity ||
+        visibleMaterials != materialLayers.map { it.id }.toSet() ||
+        partEdits.isNotEmpty() || sculptStrokes.isNotEmpty()
 
     // Flush the current edit immediately when Android backgrounds the editor.
     // The background worker survives destruction of this Compose screen.
@@ -313,12 +318,15 @@ private fun EditorScreen() {
             job = scope.launch {
                 busy = true
                 message = null
+                var stagedSource: StoredModel? = null
+                var importedCommitted = false
                 try {
                     val loaded = GlbFileImporter.import(context.applicationContext, uri)
                     val imported = File(Uri.parse(loaded.fileLocation).path
                         ?: throw java.io.IOException("GLB недоступен после импорта."))
                     val stored = EditorSessionStore.importSource(
                         context.applicationContext.filesDir, imported)
+                    stagedSource = stored
                     val persistentLocation = Uri.fromFile(stored.file).toString()
                     val groups = GlbLayers.describe(context.applicationContext, persistentLocation)
                     val targetBounds = withContext(Dispatchers.IO) {
@@ -329,6 +337,14 @@ private fun EditorScreen() {
                         }.getOrDefault(emptyMap())
                     }
                     if (request == requestId) {
+                        // Commit metadata before displaying the new project. An
+                        // interrupted import must not replace the last good draft.
+                        val committedDraft = EditorSessionStore.commitImportedDraft(
+                            context.applicationContext.filesDir, stored,
+                            displayName(context.contentResolver, uri) ?: "Модель GLB",
+                            groups.map { it.id }.toSet()
+                        )
+                        importedCommitted = true
                         materialBounds = targetBounds
                         isPickingBrushCenter = false
                         modelForPicking = null
@@ -341,13 +357,14 @@ private fun EditorScreen() {
                         layerHistory = LayerHistory(states = listOf(groups.map { it.id }.toSet()))
                         partHistory = PartHistory()
                         sculptHistory = SculptHistory()
+                        sculptDraft = committedDraft.brush
                         sculptMode = false
                         selectedPartId = null
                         originalLocation = persistentLocation
                         modelLocation = persistentLocation
                         savedSource = stored
                         autosaveProblem = null
-                        modelName = displayName(context.contentResolver, uri) ?: "Модель GLB"
+                        modelName = committedDraft.name
                         history = EditHistory()
                         cameraEpoch++
                         cameraView = CameraView.FRONT
@@ -359,6 +376,18 @@ private fun EditorScreen() {
                 } catch (error: Exception) {
                     if (request == requestId) message = error.message ?: "Не удалось открыть GLB."
                 } finally {
+                    if (!importedCommitted) stagedSource?.let { pending ->
+                        // Cancellation must still clean this private, uncommitted
+                        // copy. Referenced drafts are protected by store checks.
+                        withContext(NonCancellable) {
+                            try {
+                                EditorSessionStore.discardUncommittedSource(
+                                    context.applicationContext.filesDir, pending)
+                            } catch (_: Exception) {
+                                // Preserve the last committed model on cleanup errors.
+                            }
+                        }
+                    }
                     if (request == requestId) busy = false
                 }
             }
@@ -409,6 +438,26 @@ private fun EditorScreen() {
             onSurface = TextPrimary
         )
     ) {
+        if (confirmModelReplacement) {
+            AlertDialog(
+                onDismissRequest = { confirmModelReplacement = false },
+                title = { Text("Заменить текущий проект?") },
+                text = {
+                    Text("В редакторе есть правки. При открытии другого GLB текущий черновик будет заменён. Сначала сохрани изменённую модель через «Сохранить».")
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmModelReplacement = false
+                        importPicker.launch(arrayOf("*/*"))
+                    }) { Text("Выбрать другой GLB") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmModelReplacement = false }) {
+                        Text("Отмена")
+                    }
+                }
+            )
+        }
         Column(
             Modifier.fillMaxSize()
                 .background(Ink)
@@ -426,7 +475,13 @@ private fun EditorScreen() {
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 FilledTonalButton(
-                    onClick = { importPicker.launch(arrayOf("*/*")) },
+                    onClick = {
+                        if (savedSource != null && hasModelEdits) {
+                            confirmModelReplacement = true
+                        } else {
+                            importPicker.launch(arrayOf("*/*"))
+                        }
+                    },
                     enabled = !busy && recoveryReady,
                     contentPadding = PaddingValues(horizontal = 12.dp),
                     modifier = Modifier.heightIn(min = 48.dp)
