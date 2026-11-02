@@ -127,7 +127,8 @@ object GlbLayers {
     /** SAF cache file generation, not direct mutation of the user's document. */
     suspend fun preview(
         context: Context, sourceLocation: String, visible: Set<Int>,
-        partEdits: Map<Int, PartEdit> = emptyMap()
+        partEdits: Map<Int, PartEdit> = emptyMap(),
+        sculptStrokes: List<SculptStroke> = emptyList()
     ): String =
         withContext(Dispatchers.IO) {
             val src = File(Uri.parse(sourceLocation).path ?: throw IOException("GLB недоступен."))
@@ -135,7 +136,10 @@ object GlbLayers {
             try {
                 val filtered = filter(src.readBytes(), visible)
                 currentCoroutineContext().ensureActive()
-                val adjusted = GlbPartTransforms.apply(filtered, partEdits)
+                val shaped = GlbSculpt.apply(filtered,
+                    sculptStrokes.filter { it.materialId in visible })
+                currentCoroutineContext().ensureActive()
+                val adjusted = GlbPartTransforms.apply(shaped, partEdits)
                 currentCoroutineContext().ensureActive()
                 dst.writeBytes(adjusted)
                 // Bound cache usage without touching the user's original document.
