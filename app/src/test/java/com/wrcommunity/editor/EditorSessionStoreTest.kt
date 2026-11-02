@@ -43,6 +43,39 @@ class EditorSessionStoreTest {
         } finally { root.deleteRecursively() }
     }
 
+    @Test fun pauseFlushPersistsNewestEditsWithoutWaitingForDebounce() = runBlocking {
+        val root = Files.createTempDirectory("editor-draft-pause").toFile()
+        try {
+            val input = File(root, "phone.glb").apply { writeBytes(ByteArray(48) { it.toByte() }) }
+            val source = EditorSessionStore.importSource(root, input)
+            val initial = draft(source)
+            EditorSessionStore.save(root, initial)
+            val justEdited = initial.copy(
+                global = initial.global.copy(moveX = 0.75f),
+                camera = "BACK"
+            )
+            EditorSessionStore.saveWhenPaused(root, justEdited).join()
+            val restored = EditorSessionStore.restore(root)!!
+            assertEquals(justEdited.global, restored.global)
+            assertEquals("BACK", restored.camera)
+            assertNull(EditorSessionStore.backgroundSaveError())
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun failedPauseFlushKeepsLastGoodDraft() = runBlocking {
+        val root = Files.createTempDirectory("editor-draft-pause-error").toFile()
+        try {
+            val input = File(root, "good.glb").apply { writeBytes(ByteArray(48) { 7 }) }
+            val source = EditorSessionStore.importSource(root, input)
+            EditorSessionStore.save(root, draft(source))
+            val missing = StoredModel(File(source.file.parentFile, "model-" +
+                java.util.UUID.randomUUID() + ".glb"), 48, source.sha256)
+            EditorSessionStore.saveWhenPaused(root, draft(missing)).join()
+            assertNotNull(EditorSessionStore.backgroundSaveError())
+            assertEquals(source.sha256, EditorSessionStore.restore(root)!!.source.sha256)
+        } finally { root.deleteRecursively() }
+    }
+
     @Test fun modifiedSourceIsNeverSilentlyRestored() = runBlocking {
         val root=Files.createTempDirectory("editor-draft-hash").toFile()
         try {
