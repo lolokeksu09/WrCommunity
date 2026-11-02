@@ -30,14 +30,14 @@ data class SculptHistory(val states: List<List<SculptStroke>> = listOf(emptyList
     fun add(stroke: SculptStroke): SculptHistory {
         stroke.check()
         if (current.size >= 20) throw IOException("Лимит 20 деформаций; сохрани GLB.")
-        val branch = states.take(index + 1).takeLast(49) + (current + stroke)
+        val branch = states.take(index + 1).takeLast(49) + listOf(current + stroke)
         return SculptHistory(branch, branch.lastIndex)
     }
     fun undo() = if (canUndo) copy(index = index - 1) else this
     fun redo() = if (canRedo) copy(index = index + 1) else this
     fun reset(): SculptHistory {
         if (current.isEmpty()) return this
-        val branch = states.take(index + 1).takeLast(49) + emptyList<SculptStroke>()
+        val branch = states.take(index + 1).takeLast(49) + listOf(emptyList<SculptStroke>())
         return SculptHistory(branch, branch.lastIndex)
     }
 }
