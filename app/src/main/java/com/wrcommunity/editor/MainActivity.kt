@@ -5,6 +5,8 @@ import android.database.Cursor
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
+import android.view.MotionEvent
+import java.io.File
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -89,6 +91,9 @@ private fun EditorScreen() {
     var sculptDraft by remember { mutableStateOf(SculptStroke(materialId = 0)) }
     var sculptMode by remember { mutableStateOf(false) }
     var selectedPartId by remember { mutableStateOf<Int?>(null) }
+    var isPickingBrushCenter by remember { mutableStateOf(false) }
+    var materialBounds by remember { mutableStateOf<Map<Int, BrushMaterialBounds>>(emptyMap()) }
+    var modelForPicking by remember { mutableStateOf<io.github.sceneview.node.ModelNode?>(null) }
     var showLayers by remember { mutableStateOf(false) }
     var layerBusy by remember { mutableStateOf(false) }
     var cameraView by remember { mutableStateOf(CameraView.FRONT) }
@@ -169,7 +174,17 @@ private fun EditorScreen() {
                 try {
                     val loaded = GlbFileImporter.import(context.applicationContext, uri)
                     val groups = GlbLayers.describe(context.applicationContext, loaded.fileLocation)
+                    val targetBounds = withContext(Dispatchers.IO) {
+                        runCatching {
+                            val local = Uri.parse(loaded.fileLocation).path
+                                ?: return@runCatching emptyMap<Int, BrushMaterialBounds>()
+                            GlbBrushTarget.fromFile(File(local))
+                        }.getOrDefault(emptyMap())
+                    }
                     if (request == requestId) {
+                        materialBounds = targetBounds
+                        isPickingBrushCenter = false
+                        modelForPicking = null
                         materialLayers = groups
                         layerHistory = LayerHistory(states = listOf(groups.map { it.id }.toSet()))
                         partHistory = PartHistory()
@@ -293,7 +308,46 @@ private fun EditorScreen() {
                     key(modelLocation) {
                         SceneView(
                             modifier = Modifier.fillMaxSize(),
-                            cameraManipulator = cameraManipulator
+                            cameraManipulator = cameraManipulator,
+                            onTouchEvent = { event, hit ->
+                                if (!isPickingBrushCenter) false
+                                else {
+                                    when (event.actionMasked) {
+                                        MotionEvent.ACTION_UP -> {
+                                            val part = selectedPartId
+                                            val bounds = part?.let { materialBounds[it] }
+                                            val model = modelForPicking
+                                            val point = if (hit?.nodeOrNull != null) {
+                                                hit.getWorldPosition()
+                                            } else null
+                                            if (bounds != null && model != null && point != null) {
+                                                val local = model.getLocalPosition(
+                                                    Position(point.x, point.y, point.z))
+                                                val chosen = bounds.at(local.x, local.y, local.z)
+                                                if (chosen != null) {
+                                                    sculptDraft = sculptDraft.copy(
+                                                        centerX = chosen.x, centerY = chosen.y,
+                                                        centerZ = chosen.z)
+                                                    isPickingBrushCenter = false
+                                                    showLayers = true
+                                                    sculptMode = true
+                                                    message = "Центр области выбран. Проверь радиус и силу."
+                                                } else {
+                                                    message = "Точка вне выбранного материала. Попробуй другой ракурс."
+                                                }
+                                            } else {
+                                                message = "3D-попадание не найдено. Поверни модель или выбери точку вручную."
+                                            }
+                                            true
+                                        }
+                                        MotionEvent.ACTION_CANCEL -> {
+                                            isPickingBrushCenter = false
+                                            true
+                                        }
+                                        else -> true
+                                    }
+                                }
+                            }
                         ) {
                             rememberModelInstance(
                                 modelLoader = modelLoader,
@@ -309,7 +363,8 @@ private fun EditorScreen() {
                                     ModelNode(
                                         modelInstance = instance,
                                         scaleToUnits = 1.5f,
-                                        autoAnimate = false
+                                        autoAnimate = false,
+                                        apply = { modelForPicking = this }
                                     )
                                 }
                             }
@@ -317,6 +372,27 @@ private fun EditorScreen() {
                     }
                 }
 
+                if (isPickingBrushCenter) {
+                    Surface(
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(14.dp),
+                        color = Color(0xEE252434),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Row(
+                            Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("Нажми на область модели", color = TextPrimary,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.weight(1f, fill = false))
+                            TextButton(onClick = {
+                                isPickingBrushCenter = false
+                                showLayers = true
+                            }) { Text("Отмена") }
+                        }
+                    }
+                }
                 if (modelLocation != null) {
                     Row(
                         modifier = Modifier.align(Alignment.TopEnd).fillMaxWidth()
@@ -527,6 +603,21 @@ private fun EditorScreen() {
                                 val brush = sculptDraft.copy(materialId = partId)
                                 Text("Локальная деформация вершин",
                                     style = MaterialTheme.typography.titleSmall)
+                                Button(
+                                    enabled = !layerBusy && partId in materialBounds &&
+                                        partId in visibleMaterials &&
+                                        partId !in partEdits,
+                                    onClick = {
+                                        isPickingBrushCenter = true
+                                        showLayers = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("Выбрать центр касанием") }
+                                if (partId !in materialBounds) {
+                                    Text("Автовыбор недоступен для сложной структуры GLB. Используй координаты ниже.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextSecondary)
+                                }
                                 Text("Центр — проценты от границ выбранного материала. Измени параметры и нажми «Применить».",
                                     style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                                 Column(Modifier.fillMaxWidth()) {
