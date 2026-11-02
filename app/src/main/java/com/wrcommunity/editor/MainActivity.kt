@@ -409,7 +409,9 @@ private fun EditorScreen() {
                     containerColor = PanelTone
                 ) {
                     Column(
-                        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp),
+                        Modifier.fillMaxWidth().fillMaxHeight(0.88f)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 18.dp, vertical = 6.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text("Слои модели", style = MaterialTheme.typography.titleLarge)
@@ -428,7 +430,7 @@ private fun EditorScreen() {
                                 layerHistory = layerHistory.change(materialLayers.map { it.id }.toSet())
                             }) { Text("Показать все") }
                         }
-                        Column(Modifier.heightIn(max = 340.dp).verticalScroll(rememberScrollState())) {
+                        Column(Modifier.fillMaxWidth()) {
                             materialLayers.forEach { layer ->
                                 val visible = layer.id in layerHistory.current
                                 Row(
@@ -500,10 +502,7 @@ private fun EditorScreen() {
                                     partHistory = partHistory.change(partId, PartEdit())
                                 }) { Text("Сброс") }
                             }
-                            Column(
-                                Modifier.fillMaxWidth().heightIn(max = 320.dp)
-                                    .verticalScroll(rememberScrollState())
-                            ) {
+                            Column(Modifier.fillMaxWidth()) {
                                 Stepper("X", "%.2f".format(java.util.Locale.US, currentPart.x),
                                     { partHistory = partHistory.change(partId, currentPart.copy(x = (currentPart.x - .02f).coerceAtLeast(-3f))) },
                                     { partHistory = partHistory.change(partId, currentPart.copy(x = (currentPart.x + .02f).coerceAtMost(3f))) })
@@ -530,8 +529,7 @@ private fun EditorScreen() {
                                     style = MaterialTheme.typography.titleSmall)
                                 Text("Центр — проценты от границ выбранного материала. Измени параметры и нажми «Применить».",
                                     style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-                                Column(Modifier.heightIn(max = 340.dp)
-                                    .verticalScroll(rememberScrollState())) {
+                                Column(Modifier.fillMaxWidth()) {
                                     Stepper("Центр X", "${brush.centerX}%",
                                         { sculptDraft = sculptDraft.copy(centerX = (sculptDraft.centerX-5).coerceAtLeast(0)) },
                                         { sculptDraft = sculptDraft.copy(centerX = (sculptDraft.centerX+5).coerceAtMost(100)) })
