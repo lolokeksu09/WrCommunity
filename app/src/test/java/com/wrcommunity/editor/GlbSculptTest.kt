@@ -69,8 +69,8 @@ class GlbSculptTest {
         repeat(20){h=h.add(a)}
         assertEquals(19,h.undo().current.size)
         assertEquals(20,h.undo().redo().current.size)
-        assertEquals(0,h.reset().current.size)
         try {h.add(a);fail("expected bound")}catch (_:IOException){}
+        assertEquals(0,h.reset().current.size)
     }
 
     @Test fun rejectsMissingMaterial() {
