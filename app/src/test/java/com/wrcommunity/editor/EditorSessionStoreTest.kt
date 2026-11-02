@@ -76,6 +76,37 @@ class EditorSessionStoreTest {
         } finally { root.deleteRecursively() }
     }
 
+    @Test fun oldDraftSaveDoesNotDeleteAJustImportedUncommittedModel() = runBlocking {
+        val root = Files.createTempDirectory("editor-pending-import").toFile()
+        try {
+            val first = EditorSessionStore.importSource(root,
+                File(root, "first.glb").apply { writeBytes(ByteArray(40) { 1 }) })
+            EditorSessionStore.save(root, draft(first))
+            val pending = EditorSessionStore.importSource(root,
+                File(root, "second.glb").apply { writeBytes(ByteArray(40) { 2 }) })
+            // Re-saving the previous session may race with this new, uncommitted import.
+            EditorSessionStore.save(root, draft(first))
+            assertTrue("Uncommitted import must survive a stale autosave", pending.file.isFile)
+            EditorSessionStore.save(root, draft(pending))
+            assertEquals(pending.sha256, EditorSessionStore.restore(root)!!.source.sha256)
+            assertFalse("Previous committed source can now be reclaimed", first.file.exists())
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun delayedPauseFlushCannotReplaceNewerCommittedSnapshot() = runBlocking {
+        val root = Files.createTempDirectory("editor-save-order").toFile()
+        try {
+            val source = EditorSessionStore.importSource(root,
+                File(root, "model.glb").apply { writeBytes(ByteArray(48) { 3 }) })
+            val earlier = draft(source)
+            val newest = earlier.copy(global = earlier.global.copy(moveZ = 0.91f))
+            val pendingFlush = EditorSessionStore.saveWhenPaused(root, earlier)
+            EditorSessionStore.save(root, newest)
+            pendingFlush.join()
+            assertEquals(newest.global, EditorSessionStore.restore(root)!!.global)
+        } finally { root.deleteRecursively() }
+    }
+
     @Test fun modifiedSourceIsNeverSilentlyRestored() = runBlocking {
         val root=Files.createTempDirectory("editor-draft-hash").toFile()
         try {
