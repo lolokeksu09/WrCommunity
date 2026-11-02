@@ -79,6 +79,7 @@ object GlbSculpt {
         val append = java.io.ByteArrayOutputStream()
         val cloned = mutableMapOf<Pair<Int,Int>,Int>()
         val deformedPositions = mutableMapOf<Pair<Int,Int>,FloatArray>()
+        val originalPositions = mutableMapOf<Pair<Int,Int>,FloatArray>()
         var changed = 0
         for (mi in 0 until meshes.length()) {
             val primitives = meshes.optJSONObject(mi)?.optJSONArray("primitives") ?: continue
@@ -94,7 +95,8 @@ object GlbSculpt {
                 if (cloned.containsKey(key)) {
                     attrs.put("POSITION", cloned.getValue(key))
                     GlbNormals.rebuild(input, binStart, declared, primitive, attrs,
-                        accessors, views, deformedPositions.getValue(key), append, originalBinSize)
+                        accessors, views, deformedPositions.getValue(key),
+                        originalPositions.getValue(key), append, originalBinSize)
                     changed++
                     continue
                 }
@@ -125,6 +127,7 @@ object GlbSculpt {
                     low[axis] = kotlin.math.min(low[axis],v)
                     high[axis] = kotlin.math.max(high[axis],v)
                 }
+                originalPositions[key] = vertices.copyOf()
                 val span = maxOf(high[0]-low[0],high[1]-low[1],high[2]-low[2])
                 if (span <= 0f || !span.isFinite()) throw IOException("Нулевой размер сетки.")
                 for (stroke in edits) {
@@ -169,7 +172,8 @@ object GlbSculpt {
                 cloned[key]=newId
                 deformedPositions[key]=vertices
                 GlbNormals.rebuild(input, binStart, declared, primitive, attrs,
-                    accessors, views, vertices, append, originalBinSize)
+                    accessors, views, vertices, originalPositions.getValue(key),
+                    append, originalBinSize)
                 changed++
             }
         }
