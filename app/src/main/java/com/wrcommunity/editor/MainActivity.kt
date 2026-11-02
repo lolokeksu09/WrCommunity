@@ -727,8 +727,32 @@ private fun EditorScreen() {
                             )
                             } else {
                                 val brush = sculptDraft.copy(materialId = partId)
-                                Text("Локальная деформация вершин",
+                                Text("Редактирование формы",
                                     style = MaterialTheme.typography.titleSmall)
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (brush.mode == SculptMode.PUSH) {
+                                        Button(onClick = {
+                                            sculptDraft = sculptDraft.copy(mode = SculptMode.PUSH)
+                                            suggestedStrokes = emptyList()
+                                        }) { Text("Сдвиг") }
+                                    } else {
+                                        OutlinedButton(onClick = {
+                                            sculptDraft = sculptDraft.copy(mode = SculptMode.PUSH)
+                                            suggestedStrokes = emptyList()
+                                        }) { Text("Сдвиг") }
+                                    }
+                                    if (brush.mode == SculptMode.SMOOTH) {
+                                        Button(onClick = {
+                                            sculptDraft = sculptDraft.copy(mode = SculptMode.SMOOTH)
+                                            suggestedStrokes = emptyList()
+                                        }) { Text("Сгладить") }
+                                    } else {
+                                        OutlinedButton(onClick = {
+                                            sculptDraft = sculptDraft.copy(mode = SculptMode.SMOOTH)
+                                            suggestedStrokes = emptyList()
+                                        }) { Text("Сгладить") }
+                                    }
+                                }
                                 Button(
                                     enabled = !layerBusy && !pickingBusy &&
                                         surfacePicker?.materialIds?.contains(partId) == true &&
@@ -748,7 +772,10 @@ private fun EditorScreen() {
                                         style = MaterialTheme.typography.labelSmall,
                                         color = TextSecondary)
                                 }
-                                Text("Центр — проценты от границ выбранного материала. Измени параметры и нажми «Применить».",
+                                Text(
+                                    if (brush.mode == SculptMode.SMOOTH)
+                                        "Сглаживание уменьшает неровности в зоне кисти по соседним вершинам. Индексированные TRIANGLES обязательны."
+                                    else "Центр — проценты от границ выбранного материала. Измени параметры и нажми «Применить».",
                                     style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                                 Column(Modifier.fillMaxWidth()) {
                                     Stepper("Центр X", "${brush.centerX}%",
@@ -766,6 +793,7 @@ private fun EditorScreen() {
                                     Stepper("Сила", "${brush.strength}%",
                                         { sculptDraft = sculptDraft.copy(strength = (sculptDraft.strength-1).coerceAtLeast(1)) },
                                         { sculptDraft = sculptDraft.copy(strength = (sculptDraft.strength+1).coerceAtMost(20)) })
+                                    if (brush.mode == SculptMode.PUSH) {
                                     Row(Modifier.horizontalScroll(rememberScrollState()),
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         listOf(1 to "+X", -1 to "−X", 2 to "+Y", -2 to "−Y",
@@ -778,6 +806,7 @@ private fun EditorScreen() {
                                                     contentPadding=PaddingValues(horizontal=10.dp)) { Text(label) }
                                             }
                                         }
+                                    }
                                     }
                                 }
                                 if (suggestedStrokes.isNotEmpty() &&
@@ -815,7 +844,7 @@ private fun EditorScreen() {
                                             message = e.message ?: "Ошибка изменения формы."
                                         }
                                     }
-                                ) { Text(if (suggestedStrokes.isNotEmpty()) "Применить путь" else "Применить деформацию") }
+                                ) { Text(if (suggestedStrokes.isNotEmpty()) "Применить путь" else if (brush.mode == SculptMode.SMOOTH) "Сгладить область" else "Применить деформацию") }
                             }
                         }
                         Text("При сохранении учитываются видимость и правки частей. Исходный GLB не изменяется.",
