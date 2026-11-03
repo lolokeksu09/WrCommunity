@@ -99,6 +99,7 @@ private fun EditorScreen() {
     var partHistory by remember { mutableStateOf(PartHistory()) }
     var sculptHistory by remember { mutableStateOf(SculptHistory()) }
     var sculptDraft by remember { mutableStateOf(SculptStroke(materialId = 0)) }
+    var symmetryAxis by remember { mutableIntStateOf(0) }
     var sculptMode by remember { mutableStateOf(false) }
     var selectedPartId by remember { mutableStateOf<Int?>(null) }
     var surfacePicker by remember { mutableStateOf<GlbSurfacePicker?>(null) }
@@ -155,7 +156,8 @@ private fun EditorScreen() {
             source = source, name = modelName, global = edit,
             visible = visibleMaterials, parts = partEdits,
             strokes = sculptStrokes, selected = selectedPartId,
-            brush = sculptDraft, camera = cameraView.name
+            brush = sculptDraft, camera = cameraView.name,
+            symmetryAxis = symmetryAxis
         )
     } else null
     val currentPauseDraft by rememberUpdatedState(pauseDraft)
@@ -235,6 +237,7 @@ private fun EditorScreen() {
                 sculptHistory = SculptHistory(states = listOf(draft.strokes))
                 history = EditHistory(steps = listOf(draft.global))
                 sculptDraft = draft.brush
+                symmetryAxis = draft.symmetryAxis
                 selectedPartId = draft.selected?.takeIf { it in available }
                 cameraView = CameraView.entries.firstOrNull { it.name == draft.camera }
                     ?: CameraView.FRONT
@@ -268,7 +271,7 @@ private fun EditorScreen() {
     // not replace a newer manifest.
     LaunchedEffect(recoveryReady, savedSource, modelName, history.current,
         layerHistory.current, partHistory.current, sculptHistory.current,
-        selectedPartId, sculptDraft, cameraView) {
+        selectedPartId, sculptDraft, cameraView, symmetryAxis) {
         val source = savedSource
         if (!recoveryReady || source == null) return@LaunchedEffect
         kotlinx.coroutines.delay(600)
@@ -276,7 +279,8 @@ private fun EditorScreen() {
             source = source, name = modelName, global = history.current,
             visible = layerHistory.current, parts = partHistory.current,
             strokes = sculptHistory.current, selected = selectedPartId,
-            brush = sculptDraft, camera = cameraView.name
+            brush = sculptDraft, camera = cameraView.name,
+            symmetryAxis = symmetryAxis
         )
         try {
             EditorSessionStore.saveCurrent(context.applicationContext.filesDir, snapshot)
@@ -415,6 +419,7 @@ private fun EditorScreen() {
                         partHistory = PartHistory()
                         sculptHistory = SculptHistory()
                         sculptDraft = committedDraft.brush
+                        symmetryAxis = 0
                         sculptMode = false
                         selectedPartId = null
                         originalLocation = persistentLocation
@@ -512,6 +517,7 @@ private fun EditorScreen() {
                         sculptHistory = SculptHistory(states = listOf(draft.strokes))
                         history = EditHistory(steps = listOf(draft.global))
                         sculptDraft = draft.brush
+                        symmetryAxis = draft.symmetryAxis
                         selectedPartId = draft.selected
                         cameraView = CameraView.entries.firstOrNull { it.name == draft.camera }
                             ?: CameraView.FRONT
@@ -809,6 +815,7 @@ private fun EditorScreen() {
                                 sculptHistory = SculptHistory(states = listOf(checkpoint.strokes))
                                 history = EditHistory(steps = listOf(checkpoint.global))
                                 sculptDraft = checkpoint.brush
+                                symmetryAxis = checkpoint.symmetryAxis
                                 selectedPartId = checkpoint.selected
                                 cameraView = CameraView.entries.firstOrNull {
                                     it.name == checkpoint.camera
@@ -1311,6 +1318,7 @@ private fun EditorScreen() {
                                                             sculptHistory = SculptHistory(states = listOf(opened.strokes))
                                                             history = EditHistory(steps = listOf(opened.global))
                                                             sculptDraft = opened.brush
+                                                            symmetryAxis = opened.symmetryAxis
                                                             selectedPartId = opened.selected?.takeIf { it in available }
                                                             cameraView = CameraView.entries.firstOrNull {
                                                                 it.name == opened.camera
@@ -1630,6 +1638,29 @@ private fun EditorScreen() {
                                         }
                                     }
                                 }
+                                Text(
+                                    "Симметрия кисти: зеркальная деформация относительно центра границ материала. Вторая сторона изменяется при «Применить».",
+                                    style = MaterialTheme.typography.labelSmall, color = TextSecondary
+                                )
+                                Row(
+                                    Modifier.horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    listOf(0 to "Выкл", 1 to "X", 2 to "Y", 3 to "Z")
+                                        .forEach { (axis, label) ->
+                                            if (symmetryAxis == axis) {
+                                                Button(
+                                                    onClick = { symmetryAxis = axis },
+                                                    contentPadding = PaddingValues(horizontal = 12.dp)
+                                                ) { Text(label) }
+                                            } else {
+                                                OutlinedButton(
+                                                    onClick = { symmetryAxis = axis },
+                                                    contentPadding = PaddingValues(horizontal = 12.dp)
+                                                ) { Text(label) }
+                                            }
+                                        }
+                                }
                                 if (suggestedStrokes.isNotEmpty() &&
                                     suggestedStrokes.first().materialId == partId) {
                                     Text("Путь: ${suggestedStrokes.size} точек. Сила и радиус взяты на момент касания.",
@@ -1638,7 +1669,10 @@ private fun EditorScreen() {
                                         Text("Очистить путь")
                                     }
                                 }
-                                Text("Деформаций: ${sculptHistory.current.size}/20",
+                                Text(
+                                    "Деформаций: ${sculptHistory.current.size}/20" +
+                                        if (symmetryAxis != 0) " · Зеркальная кисть активна" else "",
+
                                     style = MaterialTheme.typography.labelMedium)
                                 Row(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
                                     OutlinedButton(enabled=sculptHistory.canUndo,
@@ -1657,9 +1691,14 @@ private fun EditorScreen() {
                                             val path = suggestedStrokes.takeIf {
                                                 it.isNotEmpty() && it.first().materialId == partId
                                             } ?: listOf(brush)
-                                            if (path.size + sculptHistory.current.size > 20)
-                                                throw java.io.IOException("Не хватает лимита деформаций. Отмени или сохрани GLB.")
-                                            sculptHistory = sculptHistory.addPath(path)
+                                            val operations = SculptSymmetry.expand(path, symmetryAxis)
+                                            if (operations.size + sculptHistory.current.size > 20)
+                                                throw java.io.IOException(
+                                                    "Симметричному пути нужно ${operations.size} деформаций. " +
+                                                        "Доступно ${20 - sculptHistory.current.size}. " +
+                                                        "Уменьши путь или сохрани GLB."
+                                                )
+                                            sculptHistory = sculptHistory.addPath(operations)
                                             suggestedStrokes = emptyList()
                                         } catch (e: Exception) {
                                             message = e.message ?: "Ошибка изменения формы."
