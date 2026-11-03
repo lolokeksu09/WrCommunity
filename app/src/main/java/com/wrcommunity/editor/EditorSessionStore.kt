@@ -124,12 +124,17 @@ data class EditorDraft(
 }
 
 /** One restored snapshot and whether the primary manifest required fallback. */
-data class RestoredEditorDraft(val draft: EditorDraft, val fromBackup: Boolean)
+data class RestoredEditorDraft(
+    val draft: EditorDraft,
+    val fromBackup: Boolean,
+    val fromCheckpoint: Boolean = false
+)
 
 object EditorSessionStore {
     private const val DIRECTORY = "editor-session"
     private const val JSON_NAME = "draft.json"
     private const val BACKUP_NAME = "draft.backup.json"
+    private const val CHECKPOINT_NAME = "draft.checkpoint.json"
     private const val MAX_JSON = 65536L
     // A foreground debounce and an ON_PAUSE flush must never commit out of order.
     private val writeMutex = Mutex()
@@ -315,7 +320,19 @@ object EditorSessionStore {
                         throw IOException("Не удалось атомарно записать черновик.")
                     lastCommittedOrder = order
 
-                    if (!sameSource) backup.delete()
+                    if (!sameSource) {
+                        backup.delete()
+                        // The manual checkpoint belongs to its original model;
+                        // it must not be used after switching projects. Preserve
+                        // it when repairing a corrupt primary of the SAME model.
+                        val kept = File(dir, CHECKPOINT_NAME)
+                        val checkpointSource = if (kept.isFile && kept.length() in 2..MAX_JSON) {
+                            runCatching {
+                                EditorDraft.decode(JSONObject(kept.readText(Charsets.UTF_8)), dir).source
+                            }.getOrNull()
+                        } else null
+                        if (checkpointSource != draft.source) kept.delete()
+                    }
                     val oldSource = previous?.source?.file
                     if (oldSource != null && oldSource != draft.source.file)
                         oldSource.delete()
@@ -326,6 +343,81 @@ object EditorSessionStore {
             }
         }
 
+    /** Checkpoint is an independent edit snapshot, not a second 150 MB GLB. */
+    suspend fun saveCheckpoint(filesDir: File, draft: EditorDraft) =
+        withContext(Dispatchers.IO) {
+            writeMutex.withLock {
+                val dir = folder(filesDir)
+                val active = readChecked(File(dir, JSON_NAME), dir)
+                if (active.source != draft.source)
+                    throw IOException("Нельзя сохранить точку от другой модели.")
+                if (draft.source.file.parentFile?.canonicalFile != dir.canonicalFile ||
+                    !draft.source.file.isFile || draft.source.file.length() != draft.source.bytes ||
+                    hash(draft.source.file) != draft.source.sha256)
+                    throw IOException("Контрольная сумма исходного GLB не совпадает.")
+                val encoded = draft.encode().toString().toByteArray(Charsets.UTF_8)
+                if (encoded.size > MAX_JSON) throw IOException("Контрольная точка слишком большая.")
+                val checkpoint = File(dir, CHECKPOINT_NAME)
+                val tmp = File(dir, ".checkpoint-" + UUID.randomUUID() + ".tmp")
+                try {
+                    FileOutputStream(tmp).use { out ->
+                        out.write(encoded)
+                        out.fd.sync()
+                    }
+                    currentCoroutineContext().ensureActive()
+                    if (!tmp.renameTo(checkpoint))
+                        throw IOException("Не удалось записать контрольную точку.")
+                } finally {
+                    tmp.delete()
+                }
+            }
+        }
+
+    private fun readChecked(file: File, dir: File): EditorDraft {
+        if (!file.isFile || file.length() !in 2..MAX_JSON)
+            throw IOException("Файл черновика повреждён.")
+        val draft = try {
+            EditorDraft.decode(JSONObject(file.readText(Charsets.UTF_8)), dir)
+        } catch (_: Exception) {
+            throw IOException("Не удалось прочитать черновик.")
+        }
+        if (!draft.source.file.isFile ||
+            draft.source.file.length() != draft.source.bytes ||
+            hash(draft.source.file) != draft.source.sha256)
+            throw IOException("Контрольная сумма исходной модели не совпадает.")
+        return draft
+    }
+
+    /** Load a checkpoint only if it still refers to the active project. */
+    suspend fun readCheckpoint(filesDir: File): EditorDraft? = withContext(Dispatchers.IO) {
+        writeMutex.withLock {
+            val dir = folder(filesDir)
+            val checkpoint = File(dir, CHECKPOINT_NAME)
+            if (!checkpoint.exists()) return@withLock null
+            val saved = readChecked(checkpoint, dir)
+            val active = runCatching { readChecked(File(dir, JSON_NAME), dir) }.getOrNull()
+                ?: runCatching { readChecked(File(dir, BACKUP_NAME), dir) }.getOrNull()
+            if (active != null && active.source != saved.source)
+                throw IOException("Контрольная точка от другой модели.")
+            saved
+        }
+    }
+
+    /**
+     * Restoring makes the checkpoint the current autosaved draft.
+     * The checkpoint itself remains available for future manual restores.
+     */
+    suspend fun restoreCheckpoint(filesDir: File): EditorDraft {
+        val checkpoint = readCheckpoint(filesDir)
+            ?: throw IOException("Нет сохранённой контрольной точки.")
+        save(filesDir, checkpoint)
+        val committed = restore(filesDir)
+            ?: throw IOException("Не удалось применить контрольную точку.")
+        if (committed != checkpoint)
+            throw IOException("Контрольная точка не применена из-за нового изменения.")
+        return committed
+    }
+
     suspend fun restore(filesDir: File): EditorDraft? = restoreWithStatus(filesDir)?.draft
 
     suspend fun restoreWithStatus(filesDir: File): RestoredEditorDraft? =
@@ -335,37 +427,24 @@ object EditorSessionStore {
                 val dir = folder(filesDir)
                 val manifest = File(dir, JSON_NAME)
                 val backup = File(dir, BACKUP_NAME)
-                if (!manifest.exists() && !backup.exists()) return@withLock null
+                val checkpoint = File(dir, CHECKPOINT_NAME)
+                if (!manifest.exists() && !backup.exists() && !checkpoint.exists())
+                    return@withLock null
 
-                fun readChecked(file: File): EditorDraft {
-                    if (!file.isFile || file.length() !in 2..MAX_JSON)
-                        throw IOException("Файл черновика повреждён.")
-                    val draft = try {
-                        EditorDraft.decode(JSONObject(file.readText(Charsets.UTF_8)), dir)
-                    } catch (_: Exception) {
-                        throw IOException("Не удалось прочитать черновик.")
-                    }
-                    if (!draft.source.file.isFile ||
-                        draft.source.file.length() != draft.source.bytes ||
-                        hash(draft.source.file) != draft.source.sha256)
-                        throw IOException("Контрольная сумма исходной модели не совпадает.")
-                    return draft
-                }
-
-                // A fully validated primary always wins. Backup is used only
-                // after a failed read, never as a way around the source hash.
-                val primary = runCatching { readChecked(manifest) }.getOrNull()
+                // Fully validate hashes on EACH candidate; a stale or tampered
+                // source cannot be brought back by a backup or checkpoint.
+                val primary = runCatching { readChecked(manifest, dir) }.getOrNull()
                 if (primary != null) {
                     RestoredEditorDraft(primary, fromBackup = false)
-                } else if (backup.exists()) {
-                    val recovered = try {
-                        readChecked(backup)
-                    } catch (_: Exception) {
-                        throw IOException("Основной и резервный черновики повреждены.")
-                    }
-                    RestoredEditorDraft(recovered, fromBackup = true)
                 } else {
-                    throw IOException("Основной черновик повреждён; резервной копии нет.")
+                    val backed = runCatching { readChecked(backup, dir) }.getOrNull()
+                    if (backed != null) {
+                        RestoredEditorDraft(backed, fromBackup = true)
+                    } else {
+                        val manual = runCatching { readChecked(checkpoint, dir) }.getOrNull()
+                            ?: throw IOException("Основной, резервный черновики и контрольная точка недоступны.")
+                        RestoredEditorDraft(manual, fromBackup = false, fromCheckpoint = true)
+                    }
                 }
             }
         }

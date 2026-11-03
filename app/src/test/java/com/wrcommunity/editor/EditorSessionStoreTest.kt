@@ -233,6 +233,93 @@ class EditorSessionStoreTest {
         } finally { root.deleteRecursively() }
     }
 
+    @Test fun manualCheckpointSurvivesLaterAutosavesAndCanBeRestored() = runBlocking {
+        val root = Files.createTempDirectory("editor-checkpoint").toFile()
+        try {
+            val source = EditorSessionStore.importSource(root,
+                File(root, "input.glb").apply { writeBytes(ByteArray(48) { 12 }) })
+            val saved = draft(source)
+            EditorSessionStore.save(root, saved)
+            EditorSessionStore.saveCheckpoint(root, saved.copy(camera = "LEFT"))
+            repeat(3) { EditorSessionStore.save(root, saved.copy(camera = "TOP")) }
+            assertEquals("LEFT", EditorSessionStore.readCheckpoint(root)!!.camera)
+            assertEquals("TOP", EditorSessionStore.restore(root)!!.camera)
+            EditorSessionStore.restoreCheckpoint(root)
+            assertEquals("LEFT", EditorSessionStore.restore(root)!!.camera)
+            assertEquals("LEFT", EditorSessionStore.readCheckpoint(root)!!.camera)
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun checkpointSurvivesBrokenAutosaveAndBackup() = runBlocking {
+        val root = Files.createTempDirectory("editor-checkpoint-recovery").toFile()
+        try {
+            val source = EditorSessionStore.importSource(root,
+                File(root, "input.glb").apply { writeBytes(ByteArray(48) { 14 }) })
+            EditorSessionStore.save(root, draft(source))
+            EditorSessionStore.saveCheckpoint(root, draft(source).copy(camera = "RIGHT"))
+            EditorSessionStore.save(root, draft(source).copy(camera = "TOP"))
+            val folder = EditorSessionStore.folder(root)
+            File(folder, "draft.json").writeText("{broken")
+            File(folder, "draft.backup.json").writeText("{broken")
+            val restored = EditorSessionStore.restoreWithStatus(root)!!
+            assertTrue(restored.fromCheckpoint)
+            assertEquals("RIGHT", restored.draft.camera)
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun importingDifferentModelRemovesOldCheckpoint() = runBlocking {
+        val root = Files.createTempDirectory("editor-checkpoint-switch").toFile()
+        try {
+            val first = EditorSessionStore.importSource(root,
+                File(root, "first.glb").apply { writeBytes(ByteArray(48) { 14 }) })
+            EditorSessionStore.save(root, draft(first))
+            EditorSessionStore.saveCheckpoint(root, draft(first))
+            val second = EditorSessionStore.importSource(root,
+                File(root, "second.glb").apply { writeBytes(ByteArray(48) { 15 }) })
+            EditorSessionStore.save(root, draft(second))
+            assertNull(EditorSessionStore.readCheckpoint(root))
+            assertFalse(File(EditorSessionStore.folder(root), "draft.checkpoint.json").exists())
+            assertEquals(second.sha256, EditorSessionStore.restore(root)!!.source.sha256)
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun staleCheckpointCannotOverwriteAnotherProject() = runBlocking {
+        val root = Files.createTempDirectory("editor-checkpoint-stale").toFile()
+        try {
+            val first = EditorSessionStore.importSource(root,
+                File(root, "first.glb").apply { writeBytes(ByteArray(48) { 20 }) })
+            EditorSessionStore.save(root, draft(first))
+            val second = EditorSessionStore.importSource(root,
+                File(root, "second.glb").apply { writeBytes(ByteArray(48) { 21 }) })
+            EditorSessionStore.save(root, draft(second))
+            try {
+                EditorSessionStore.saveCheckpoint(root, draft(first))
+                fail("Stale model must not be checkpointed")
+            } catch (_: IOException) {}
+            assertNull(EditorSessionStore.readCheckpoint(root))
+            assertEquals(second.sha256, EditorSessionStore.restore(root)!!.source.sha256)
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun tamperedSourceBlocksCheckpointRecovery() = runBlocking {
+        val root = Files.createTempDirectory("editor-checkpoint-hash").toFile()
+        try {
+            val source = EditorSessionStore.importSource(root,
+                File(root, "input.glb").apply { writeBytes(ByteArray(48) { 23 }) })
+            EditorSessionStore.save(root, draft(source))
+            EditorSessionStore.saveCheckpoint(root, draft(source))
+            source.file.writeBytes(ByteArray(48) { 99.toByte() })
+            try {
+                EditorSessionStore.readCheckpoint(root)
+                fail("Modified source must not be trusted")
+            } catch (_: IOException) {}
+            try {
+                EditorSessionStore.restoreWithStatus(root)
+                fail("Checkpoint must not bypass source verification")
+            } catch (_: IOException) {}
+        } finally { root.deleteRecursively() }
+    }
+
     @Test fun modifiedSourceIsNeverSilentlyRestored() = runBlocking {
         val root=Files.createTempDirectory("editor-draft-hash").toFile()
         try {
