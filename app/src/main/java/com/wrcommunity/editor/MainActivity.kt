@@ -46,6 +46,8 @@ import io.github.sceneview.math.Rotation
 import io.github.sceneview.math.Scale
 import io.github.sceneview.node.ModelNode
 import io.github.sceneview.rememberModelInstance
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -123,6 +125,7 @@ private fun EditorScreen() {
     var cameraEpoch by remember { mutableIntStateOf(0) }
     var showInfo by remember { mutableStateOf(false) }
     var confirmModelReplacement by remember { mutableStateOf(false) }
+    var confirmArchiveImport by remember { mutableStateOf(false) }
     var confirmCheckpointRestore by remember { mutableStateOf(false) }
     var checkpointAvailable by remember { mutableStateOf(false) }
     var referenceUri by remember { mutableStateOf<Uri?>(null) }
@@ -429,6 +432,117 @@ private fun EditorScreen() {
             }
         }
     }
+    val archiveImportPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            job?.cancel()
+            val request = ++requestId
+            job = scope.launch {
+                busy = true
+                recoveryReady = false // Inhibit stale edit snapshots while switching.
+                message = null
+                try {
+                    val stream = context.contentResolver.openInputStream(uri)
+                        ?: throw java.io.IOException("Не удалось открыть архив проекта.")
+                    val draft = EditorProjectArchive.importProject(
+                        context.applicationContext.filesDir, stream)
+                    if (request == requestId) {
+                        val location = Uri.fromFile(draft.source.file).toString()
+                        val groups = GlbLayers.describe(context.applicationContext, location)
+                        val bounds = withContext(Dispatchers.IO) {
+                            runCatching { GlbBrushTarget.fromFile(draft.source.file) }
+                                .getOrDefault(emptyMap())
+                        }
+                        materialBounds = bounds
+                        materialLayers = groups
+                        layerHistory = LayerHistory(states = listOf(draft.visible))
+                        partHistory = PartHistory(steps = listOf(draft.parts))
+                        sculptHistory = SculptHistory(states = listOf(draft.strokes))
+                        history = EditHistory(steps = listOf(draft.global))
+                        sculptDraft = draft.brush
+                        selectedPartId = draft.selected
+                        cameraView = CameraView.entries.firstOrNull { it.name == draft.camera }
+                            ?: CameraView.FRONT
+                        cameraEpoch++
+                        savedSource = draft.source
+                        modelName = draft.name
+                        originalLocation = location
+                        modelLocation = location
+                        checkpointAvailable = false
+                        autosaveProblem = null
+                        sculptMode = false
+                        showLayers = false
+                        isPickingBrushCenter = false
+                        suggestedStrokes = emptyList()
+                        surfacePicker = null
+                        pickerLocation = null
+                        nodeLocation = null
+                        modelForPicking = null
+                        message = "Проект из ZIP восстановлен. Исходный архив не изменён."
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    if (request == requestId)
+                        message = error.message ?: "Не удалось восстановить архив проекта."
+                } finally {
+                    if (request == requestId) {
+                        recoveryReady = true
+                        busy = false
+                    }
+                }
+            }
+        }
+    }
+    val archiveExportPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri ->
+        val snapshot = pauseDraft
+        if (uri != null && snapshot != null) {
+            scope.launch {
+                busy = true
+                try {
+                    withContext(Dispatchers.IO) {
+                        val resolver = context.contentResolver
+                        val sha = java.security.MessageDigest.getInstance("SHA-256")
+                        val stream = resolver.openOutputStream(uri, "wt")
+                            ?: throw java.io.IOException("Не удалось создать архив.")
+                        EditorProjectArchive.write(
+                            java.security.DigestOutputStream(stream, sha), snapshot)
+                        val expected = sha.digest()
+                        val actual = java.security.MessageDigest.getInstance("SHA-256")
+                        val readBack = resolver.openInputStream(uri)
+                            ?: throw java.io.IOException("Нельзя проверить записанный ZIP.")
+                        readBack.use { input ->
+                            val block = ByteArray(65536)
+                            var total = 0L
+                            while (true) {
+                                currentCoroutineContext().ensureActive()
+                                val count = input.read(block)
+                                if (count < 0) break
+                                if (count == 0) continue
+                                total += count
+                                if (total > GlbHeader.MAX_BYTES + 2L * 1024 * 1024)
+                                    throw java.io.IOException("ZIP превышает ограничение.")
+                                actual.update(block, 0, count)
+                            }
+                        }
+                        if (!java.security.MessageDigest.isEqual(expected, actual.digest()))
+                            throw java.io.IOException("Записанный ZIP повреждён или неполный.")
+                    }
+                    message = "Резервный ZIP проекта сохранён и проверен."
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    message = error.message ?: "Не удалось сохранить архив проекта."
+                } finally {
+                    busy = false
+                }
+            }
+        }
+    }
+
     val referencePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             referenceUri = uri
@@ -463,6 +577,24 @@ private fun EditorScreen() {
                     TextButton(onClick = { confirmModelReplacement = false }) {
                         Text("Отмена")
                     }
+                }
+            )
+        }
+        if (confirmArchiveImport) {
+            AlertDialog(
+                onDismissRequest = { confirmArchiveImport = false },
+                title = { Text("Открыть проект из ZIP?") },
+                text = {
+                    Text("Текущий проект и его контрольная точка будут заменены после полной проверки ZIP. Перед этим сохрани резервную копию, если правки важны.")
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmArchiveImport = false
+                        archiveImportPicker.launch(arrayOf("application/zip", "application/octet-stream"))
+                    }) { Text("Выбрать ZIP") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmArchiveImport = false }) { Text("Отмена") }
                 }
             )
         }
@@ -865,6 +997,35 @@ private fun EditorScreen() {
                         onClick = { confirmCheckpointRestore = true },
                         enabled = !busy && checkpointAvailable
                     ) { Text("Вернуть") }
+                }
+            }
+
+            if (recoveryReady) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().background(PanelTone)
+                        .padding(horizontal = 14.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Архив проекта", modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    TextButton(
+                        onClick = {
+                            archiveExportPicker.launch(
+                                modelName.substringBeforeLast('.', modelName) + "_project.zip")
+                        },
+                        enabled = !busy && savedSource != null && !layerBusy
+                    ) { Text("Экспорт ZIP") }
+                    TextButton(
+                        onClick = {
+                            if (savedSource == null) {
+                                archiveImportPicker.launch(arrayOf("application/zip", "application/octet-stream"))
+                            } else {
+                                confirmArchiveImport = true
+                            }
+                        },
+                        enabled = !busy
+                    ) { Text("Импорт ZIP") }
                 }
             }
 
