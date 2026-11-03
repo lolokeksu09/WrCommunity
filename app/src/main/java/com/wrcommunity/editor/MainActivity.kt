@@ -226,6 +226,7 @@ private fun EditorScreen() {
         vertexTargetsError = null
         vertexPrimitiveIndex = 0
         vertexIndex = 0
+        vertexIndexInput = "0"
         val source = savedSource ?: return@LaunchedEffect
         try {
             vertexTargets = withContext(Dispatchers.IO) {
