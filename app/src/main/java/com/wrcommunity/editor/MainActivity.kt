@@ -124,6 +124,10 @@ private fun EditorScreen() {
     var job by remember { mutableStateOf<Job?>(null) }
     var cameraEpoch by remember { mutableIntStateOf(0) }
     var showInfo by remember { mutableStateOf(false) }
+    var showProjects by remember { mutableStateOf(false) }
+    var projectList by remember { mutableStateOf<List<SavedEditorProject>>(emptyList()) }
+    var projectListError by remember { mutableStateOf<String?>(null) }
+    var projectToDelete by remember { mutableStateOf<SavedEditorProject?>(null) }
     var modelReport by remember { mutableStateOf<GlbModelReport?>(null) }
     var modelReportError by remember { mutableStateOf<String?>(null) }
     var confirmModelReplacement by remember { mutableStateOf(false) }
@@ -184,6 +188,18 @@ private fun EditorScreen() {
             } catch (error: Exception) {
                 modelReportError = error.message ?: "Невозможно прочитать параметры GLB."
             }
+        }
+    }
+
+    LaunchedEffect(showProjects, savedSource) {
+        if (!showProjects) return@LaunchedEffect
+        try {
+            projectList = EditorSessionStore.listProjects(context.applicationContext.filesDir)
+            projectListError = null
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            projectListError = e.message ?: "Не удалось открыть список проектов."
         }
     }
 
@@ -259,7 +275,7 @@ private fun EditorScreen() {
             brush = sculptDraft, camera = cameraView.name
         )
         try {
-            EditorSessionStore.save(context.applicationContext.filesDir, snapshot)
+            EditorSessionStore.saveCurrent(context.applicationContext.filesDir, snapshot)
             autosaveProblem = null
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -346,6 +362,7 @@ private fun EditorScreen() {
         if (uri != null) {
             job?.cancel()
             val request = ++requestId
+            val outgoing = pauseDraft
             job = scope.launch {
                 busy = true
                 message = null
@@ -368,6 +385,11 @@ private fun EditorScreen() {
                         }.getOrDefault(emptyMap())
                     }
                     if (request == requestId) {
+                        // Flush edits that may still be waiting for the debounce
+                        // before moving to a different saved project.
+                        outgoing?.let {
+                            EditorSessionStore.saveCurrent(context.applicationContext.filesDir, it)
+                        }
                         // Commit metadata before displaying the new project. An
                         // interrupted import must not replace the last good draft.
                         val committedDraft = EditorSessionStore.commitImportedDraft(
@@ -459,11 +481,15 @@ private fun EditorScreen() {
         if (uri != null) {
             job?.cancel()
             val request = ++requestId
+            val outgoing = pauseDraft
             job = scope.launch {
                 busy = true
                 recoveryReady = false // Inhibit stale edit snapshots while switching.
                 message = null
                 try {
+                    outgoing?.let {
+                        EditorSessionStore.saveCurrent(context.applicationContext.filesDir, it)
+                    }
                     val stream = context.contentResolver.openInputStream(uri)
                         ?: throw java.io.IOException("Не удалось открыть архив проекта.")
                     val draft = EditorProjectArchive.importProject(
@@ -586,7 +612,7 @@ private fun EditorScreen() {
                 onDismissRequest = { confirmModelReplacement = false },
                 title = { Text("Заменить текущий проект?") },
                 text = {
-                    Text("В редакторе есть правки. При открытии другого GLB текущий черновик будет заменён. Сначала сохрани изменённую модель через «Сохранить».")
+                    Text("Текущие правки будут сохранены в библиотеке проектов перед открытием другого GLB. При необходимости сначала сделай экспорт ZIP для отдельной резервной копии.")
                 },
                 confirmButton = {
                     TextButton(onClick = {
@@ -598,6 +624,37 @@ private fun EditorScreen() {
                     TextButton(onClick = { confirmModelReplacement = false }) {
                         Text("Отмена")
                     }
+                }
+            )
+        }
+        projectToDelete?.let { project ->
+            AlertDialog(
+                onDismissRequest = { projectToDelete = null },
+                title = { Text("Удалить сохранённый проект?") },
+                text = {
+                    Text("Проект «${project.name}» и его приватная GLB-копия будут удалены из приложения. Отменить это нельзя. Исходный файл в «Загрузках» не затрагивается.")
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        projectToDelete = null
+                        scope.launch {
+                            busy = true
+                            try {
+                                EditorSessionStore.deleteProject(
+                                    context.applicationContext.filesDir, project.sourceFileName)
+                                projectList = EditorSessionStore.listProjects(
+                                    context.applicationContext.filesDir)
+                                projectListError = null
+                            } catch (e: Exception) {
+                                projectListError = e.message ?: "Не удалось удалить проект."
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    }) { Text("Удалить") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { projectToDelete = null }) { Text("Отмена") }
                 }
             )
         }
@@ -690,6 +747,10 @@ private fun EditorScreen() {
                     Text(modelName, style = MaterialTheme.typography.labelMedium, color = TextSecondary,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                TextButton(
+                    enabled = !busy && recoveryReady,
+                    onClick = { showProjects = true }
+                ) { Text("Мои") }
                 FilledTonalButton(
                     onClick = {
                         if (savedSource != null && hasModelEdits) {
@@ -927,6 +988,9 @@ private fun EditorScreen() {
                             }
                         }
                         CompactAction("Сброс", description = "Сбросить положение камеры", onClick = { cameraEpoch++ })
+                        CompactAction("Проекты", description = "Сохранённые GLB-проекты", onClick = {
+                            if (!busy && recoveryReady) showProjects = true
+                        })
                         CompactAction("Слои", description = "Управление видимостью материалов",
                             enabled = materialLayers.isNotEmpty(),
                             onClick = { showLayers = true })
@@ -1049,6 +1113,147 @@ private fun EditorScreen() {
                 )
             }
 
+            if (showProjects) {
+                ModalBottomSheet(
+                    onDismissRequest = { showProjects = false },
+                    containerColor = PanelTone
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth().fillMaxHeight(0.78f)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 18.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("Мои проекты", style = MaterialTheme.typography.titleLarge)
+                        Text("До ${EditorSessionStore.MAX_PROJECTS} GLB. Проекты хранятся внутри приложения; для переноса на другое устройство используй экспорт ZIP.",
+                            style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        projectListError?.let { error ->
+                            Text(error, color = Color(0xFFFFB4A2))
+                        }
+                        if (projectList.isEmpty() && projectListError == null) {
+                            Text("Пока нет сохранённых моделей.",
+                                style = MaterialTheme.typography.bodyMedium)
+                        }
+                        projectList.forEach { project ->
+                            Surface(
+                                color = if (project.active) Highlight.copy(alpha = 0.12f)
+                                    else Ink,
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(project.name, maxLines = 2,
+                                            style = MaterialTheme.typography.bodyMedium)
+                                        val sizeMiB = project.bytes / (1024.0 * 1024.0)
+                                        Text(
+                                            (if (project.active) "Открыт · " else "") +
+                                                (if (project.damaged) "Повреждён · " else "") +
+                                                String.format(java.util.Locale.ROOT, "%.1f МиБ", sizeMiB),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = TextSecondary
+                                        )
+                                    }
+                                    if (!project.active) {
+                                        TextButton(
+                                            enabled = !busy && !layerBusy && recoveryReady && !project.damaged,
+                                            onClick = {
+                                                val outgoing = pauseDraft
+                                                val projectId = project.sourceFileName
+                                                job?.cancel()
+                                                val request = ++requestId
+                                                job = scope.launch {
+                                                    busy = true
+                                                    recoveryReady = false
+                                                    try {
+                                                        val target = EditorSessionStore.peekProject(
+                                                            context.applicationContext.filesDir, projectId)
+                                                        val location = Uri.fromFile(target.source.file).toString()
+                                                        val groups = GlbLayers.describe(
+                                                            context.applicationContext, location)
+                                                        val available = groups.map { it.id }.toSet()
+                                                        if (available.isEmpty() ||
+                                                            target.visible.isEmpty() ||
+                                                            !target.visible.all { it in available } ||
+                                                            !target.parts.keys.all { it in available } ||
+                                                            !target.strokes.all { it.materialId in available } ||
+                                                            target.brush.materialId !in available ||
+                                                            (target.selected != null && target.selected !in available))
+                                                            throw java.io.IOException("Слои сохранённого проекта не совпадают с моделью.")
+                                                        val bounds = withContext(Dispatchers.IO) {
+                                                            runCatching {
+                                                                GlbBrushTarget.fromFile(target.source.file)
+                                                            }.getOrDefault(emptyMap())
+                                                        }
+                                                        val current = outgoing
+                                                            ?: throw java.io.IOException("Текущий проект недоступен.")
+                                                        val opened = EditorSessionStore.activateProject(
+                                                            context.applicationContext.filesDir, current, projectId)
+                                                        if (request == requestId) {
+                                                            materialBounds = bounds
+                                                            materialLayers = groups
+                                                            layerHistory = LayerHistory(states = listOf(opened.visible))
+                                                            partHistory = PartHistory(steps = listOf(opened.parts))
+                                                            sculptHistory = SculptHistory(states = listOf(opened.strokes))
+                                                            history = EditHistory(steps = listOf(opened.global))
+                                                            sculptDraft = opened.brush
+                                                            selectedPartId = opened.selected?.takeIf { it in available }
+                                                            cameraView = CameraView.entries.firstOrNull {
+                                                                it.name == opened.camera
+                                                            } ?: CameraView.FRONT
+                                                            cameraEpoch++
+                                                            modelName = opened.name
+                                                            originalLocation = location
+                                                            modelLocation = location
+                                                            savedSource = opened.source
+                                                            checkpointAvailable = runCatching {
+                                                                EditorSessionStore.readCheckpoint(
+                                                                    context.applicationContext.filesDir) != null
+                                                            }.getOrDefault(false)
+                                                            autosaveProblem = null
+                                                            sculptMode = false
+                                                            showLayers = false
+                                                            isPickingBrushCenter = false
+                                                            suggestedStrokes = emptyList()
+                                                            surfacePicker = null
+                                                            pickerLocation = null
+                                                            nodeLocation = null
+                                                            modelForPicking = null
+                                                            showProjects = false
+                                                            message = "Проект ${opened.name} открыт. Правки сохранены."
+                                                        }
+                                                    } catch (cancelled: CancellationException) {
+                                                        throw cancelled
+                                                    } catch (e: Exception) {
+                                                        if (request == requestId)
+                                                            projectListError = e.message ?: "Не удалось открыть проект."
+                                                    } finally {
+                                                        if (request == requestId) {
+                                                            recoveryReady = true
+                                                            busy = false
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        ) { Text("Открыть") }
+                                        TextButton(
+                                            enabled = !busy && recoveryReady,
+                                            onClick = { projectToDelete = project }
+                                        ) { Text("Удалить") }
+                                    } else {
+                                        Text("Активный", color = Highlight,
+                                            style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                    }
+                }
+            }
             if (showInfo && savedSource != null) {
                 ModalBottomSheet(
                     onDismissRequest = { showInfo = false },

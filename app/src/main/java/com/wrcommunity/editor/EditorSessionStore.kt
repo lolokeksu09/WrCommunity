@@ -123,6 +123,16 @@ data class EditorDraft(
     }
 }
 
+/** A saved project references its private GLB; listing does not load its BIN chunk. */
+data class SavedEditorProject(
+    val sourceFileName: String,
+    val name: String,
+    val bytes: Long,
+    val modifiedAt: Long,
+    val active: Boolean,
+    val damaged: Boolean = false
+)
+
 /** One restored snapshot and whether the primary manifest required fallback. */
 data class RestoredEditorDraft(
     val draft: EditorDraft,
@@ -136,6 +146,9 @@ object EditorSessionStore {
     private const val BACKUP_NAME = "draft.backup.json"
     private const val CHECKPOINT_NAME = "draft.checkpoint.json"
     private const val MAX_JSON = 65536L
+    const val MAX_PROJECTS = 8
+    private const val PROJECTS_DIRECTORY = "projects"
+    private val SOURCE_PATTERN = Regex("model-[a-f0-9-]{36}\\.glb")
     // A foreground debounce and an ON_PAUSE flush must never commit out of order.
     private val writeMutex = Mutex()
     private val requestOrder = AtomicLong(0L)
@@ -153,7 +166,7 @@ object EditorSessionStore {
         val order = requestOrder.incrementAndGet()
         return backgroundScope.launch {
             try {
-                saveOrdered(filesDir, draft, order)
+                saveOrdered(filesDir, draft, order, sameSourceOnly = true)
                 backgroundError.set(null)
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -167,6 +180,40 @@ object EditorSessionStore {
         File(filesDir, DIRECTORY).apply {
             if (!isDirectory && !mkdirs()) throw IOException("Не удалось создать папку черновика.")
         }
+
+
+    private fun projectsFolder(dir: File): File =
+        File(dir, PROJECTS_DIRECTORY).apply {
+            if (!isDirectory && !mkdirs()) throw IOException("Не удалось создать каталог проектов.")
+        }
+
+    private fun projectFile(dir: File, name: String): File {
+        if (!SOURCE_PATTERN.matches(name)) throw IOException("Недопустимый идентификатор проекта.")
+        return File(projectsFolder(dir), name.removeSuffix(".glb") + ".json")
+    }
+
+    private fun projectCheckpoint(dir: File, name: String): File {
+        if (!SOURCE_PATTERN.matches(name)) throw IOException("Недопустимый идентификатор проекта.")
+        return File(projectsFolder(dir), name.removeSuffix(".glb") + ".checkpoint.json")
+    }
+
+    private fun atomicWrite(file: File, bytes: ByteArray) {
+        if (bytes.size !in 2..MAX_JSON.toInt()) throw IOException("Описание проекта слишком большое.")
+        val temp = File(file.parentFile, "." + UUID.randomUUID() + ".tmp")
+        try {
+            FileOutputStream(temp).use { output ->
+                output.write(bytes)
+                output.fd.sync()
+            }
+            if (!temp.renameTo(file))
+                throw IOException("Не удалось сохранить проект в каталоге.")
+        } finally { temp.delete() }
+    }
+
+    private fun projectRecords(dir: File): List<File> =
+        projectsFolder(dir).listFiles()?.filter { file ->
+            file.isFile && file.name.matches(Regex("model-[a-f0-9-]{36}\\.json"))
+        } ?: emptyList()
 
     private fun hash(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
@@ -259,24 +306,56 @@ object EditorSessionStore {
                 if (source.file.parentFile?.canonicalFile != dir.canonicalFile ||
                     !source.file.name.matches(Regex("model-[a-f0-9-]{36}\\.glb")))
                     throw IOException("Недопустимая временная модель.")
-                val referenced = listOf(JSON_NAME, BACKUP_NAME).any { name ->
+                val referenced = listOf(JSON_NAME, BACKUP_NAME, CHECKPOINT_NAME).any { name ->
                     val file = File(dir, name)
                     file.isFile && file.length() in 2..MAX_JSON &&
                         runCatching { JSONObject(file.readText()).getString("file") }
                             .getOrNull() == source.file.name
                 }
-                if (!referenced) source.file.delete()
+                if (!referenced) {
+                    // A failed new-model commit can leave a staged library record.
+                    // Keep the user's current project, but reclaim only the failed
+                    // source and its own metadata.
+                    projectFile(dir, source.file.name).delete()
+                    projectCheckpoint(dir, source.file.name).delete()
+                    source.file.delete()
+                }
             }
         }
 
     suspend fun save(filesDir: File, draft: EditorDraft) =
         saveOrdered(filesDir, draft, requestOrder.incrementAndGet())
 
-    private suspend fun saveOrdered(filesDir: File, draft: EditorDraft, order: Long) =
+    /** Debounced and pause writes may update ONLY the currently displayed model. */
+    suspend fun saveCurrent(filesDir: File, draft: EditorDraft) =
+        saveOrdered(filesDir, draft, requestOrder.incrementAndGet(), sameSourceOnly = true)
+
+    private suspend fun saveOrdered(
+        filesDir: File, draft: EditorDraft, order: Long,
+        sameSourceOnly: Boolean = false
+    ) =
         withContext(Dispatchers.IO) {
             writeMutex.withLock {
                 if (order < lastCommittedOrder) return@withLock
                 val dir = folder(filesDir)
+                if (sameSourceOnly) {
+                    // Never allow an obsolete autosave worker to re-activate a
+                    // project that the user has already switched away from.
+                    val name = listOf(JSON_NAME, BACKUP_NAME, CHECKPOINT_NAME)
+                        .firstNotNullOfOrNull { entry ->
+                            val file = File(dir, entry)
+                            if (file.isFile && file.length() in 2..MAX_JSON) {
+                                runCatching {
+                                    JSONObject(file.readText(Charsets.UTF_8)).getString("file")
+                                }.getOrNull()
+                            } else null
+                        }
+                    // Recovering from a damaged primary is permitted if the
+                    // backup/checkpoint still belongs to this exact source.
+                    // After a project switch, these references are changed or
+                    // removed, so stale workers cannot restore the old model.
+                    if (name != draft.source.file.name) return@withLock
+                }
                 if (draft.source.file.parentFile?.canonicalFile != dir.canonicalFile ||
                     !draft.source.file.isFile || draft.source.file.length() != draft.source.bytes)
                     throw IOException("Исходный файл проекта недоступен.")
@@ -294,6 +373,20 @@ object EditorSessionStore {
                         .getOrNull()
                 }
                 val sameSource = previous?.source == draft.source
+
+                val catalog = projectFile(dir, draft.source.file.name)
+                // Upgrade a v0.17 single-project session when saving another
+                // model. The former GLB is never deleted implicitly.
+                if (previous != null && !sameSource) {
+                    val oldEntry = projectFile(dir, previous.source.file.name)
+                    if (!oldEntry.isFile)
+                        atomicWrite(oldEntry, previous.encode().toString().toByteArray(Charsets.UTF_8))
+                }
+                if (!catalog.isFile && projectRecords(dir).size >= MAX_PROJECTS)
+                    throw IOException("Достигнут лимит $MAX_PROJECTS проектов. Удали ненужный проект в каталоге.")
+                // Write the catalog before the active pointer. A crash cannot
+                // discard a model that the user has started to edit.
+                atomicWrite(catalog, json)
 
                 val temp = File(dir, ".draft-" + UUID.randomUUID() + ".tmp")
                 val backupTemp = File(dir, ".backup-" + UUID.randomUUID() + ".tmp")
@@ -322,20 +415,24 @@ object EditorSessionStore {
 
                     if (!sameSource) {
                         backup.delete()
-                        // The manual checkpoint belongs to its original model;
-                        // it must not be used after switching projects. Preserve
-                        // it when repairing a corrupt primary of the SAME model.
-                        val kept = File(dir, CHECKPOINT_NAME)
-                        val checkpointSource = if (kept.isFile && kept.length() in 2..MAX_JSON) {
+                        val activeCheckpoint = File(dir, CHECKPOINT_NAME)
+                        val savedCheckpoint = projectCheckpoint(dir, draft.source.file.name)
+                        val validCheckpoint = if (savedCheckpoint.isFile &&
+                            savedCheckpoint.length() in 2..MAX_JSON) {
                             runCatching {
-                                EditorDraft.decode(JSONObject(kept.readText(Charsets.UTF_8)), dir).source
-                            }.getOrNull()
-                        } else null
-                        if (checkpointSource != draft.source) kept.delete()
+                                EditorDraft.decode(
+                                    JSONObject(savedCheckpoint.readText(Charsets.UTF_8)), dir)
+                                    .source == draft.source
+                            }.getOrDefault(false)
+                        } else false
+                        if (validCheckpoint) {
+                            // Copying the lightweight checkpoint must not
+                            // replace the freshly committed active manifest.
+                            runCatching { atomicWrite(activeCheckpoint, savedCheckpoint.readBytes()) }
+                        } else {
+                            activeCheckpoint.delete()
+                        }
                     }
-                    val oldSource = previous?.source?.file
-                    if (oldSource != null && oldSource != draft.source.file)
-                        oldSource.delete()
                 } finally {
                     temp.delete()
                     backupTemp.delete()
@@ -367,6 +464,9 @@ object EditorSessionStore {
                     currentCoroutineContext().ensureActive()
                     if (!tmp.renameTo(checkpoint))
                         throw IOException("Не удалось записать контрольную точку.")
+                    atomicWrite(
+                        projectCheckpoint(dir, draft.source.file.name), encoded
+                    )
                 } finally {
                     tmp.delete()
                 }
@@ -417,6 +517,103 @@ object EditorSessionStore {
             throw IOException("Контрольная точка не применена из-за нового изменения.")
         return committed
     }
+
+    /** Upgrades a legacy v0.17 active draft in place; no user GLB is copied. */
+    suspend fun listProjects(filesDir: File): List<SavedEditorProject> =
+        withContext(Dispatchers.IO) {
+            writeMutex.withLock {
+                val dir = folder(filesDir)
+                val current = runCatching { readChecked(File(dir, JSON_NAME), dir) }.getOrNull()
+                if (current != null) {
+                    val record = projectFile(dir, current.source.file.name)
+                    if (!record.isFile) atomicWrite(
+                        record, current.encode().toString().toByteArray(Charsets.UTF_8))
+                }
+                projectRecords(dir).map { record ->
+                    val name = record.name.removeSuffix(".json") + ".glb"
+                    val item = runCatching {
+                        EditorDraft.decode(JSONObject(record.readText(Charsets.UTF_8)), dir)
+                    }.getOrNull()
+                    val src = File(dir, name)
+                    val structurallyValid = item?.source?.file?.name == name &&
+                        src.isFile && src.length() == item.source.bytes
+                    // A library listing only checks metadata and file length.
+                    // Full SHA-256 is verified on open, not for every card.
+                    // Reading up to 8 * 150 MiB here would stall the UI.
+                    val validMetadata = structurallyValid
+                    val activeFileName = if (File(dir, JSON_NAME).isFile) {
+                        runCatching {
+                            JSONObject(File(dir, JSON_NAME).readText(Charsets.UTF_8))
+                                .getString("file")
+                        }.getOrNull()
+                    } else null
+                    val damaged = !validMetadata
+                    SavedEditorProject(
+                        sourceFileName = name,
+                        name = item?.name ?: "Повреждённый проект",
+                        bytes = item?.source?.bytes ?: src.takeIf { it.isFile }?.length() ?: 0L,
+                        modifiedAt = record.lastModified(),
+                        active = name == activeFileName,
+                        damaged = damaged
+                    )
+                }.sortedWith(compareByDescending<SavedEditorProject> { it.active }
+                    .thenByDescending { it.modifiedAt })
+            }
+        }
+
+    suspend fun peekProject(filesDir: File, sourceFileName: String): EditorDraft =
+        withContext(Dispatchers.IO) {
+            writeMutex.withLock {
+                val dir = folder(filesDir)
+                val file = projectFile(dir, sourceFileName)
+                val draft = readChecked(file, dir)
+                if (draft.source.file.name != sourceFileName)
+                    throw IOException("Идентификатор проекта не совпадает с содержимым.")
+                draft
+            }
+        }
+
+    /** Flush the user's newest outgoing edits before switching the active pointer. */
+    suspend fun activateProject(
+        filesDir: File, outgoing: EditorDraft, sourceFileName: String
+    ): EditorDraft {
+        val candidate = peekProject(filesDir, sourceFileName)
+        saveCurrent(filesDir, outgoing)
+        // Target source cannot be replaced by a stale autosave (saveCurrent is guarded).
+        save(filesDir, candidate)
+        val committed = restore(filesDir)
+            ?: throw IOException("Не удалось восстановить сохранённый проект.")
+        if (committed.source != candidate.source)
+            throw IOException("Переключение проекта не завершилось.")
+        return committed
+    }
+
+    /** Only explicit user-requested removal; active and recovery sources are protected. */
+    suspend fun deleteProject(filesDir: File, sourceFileName: String) =
+        withContext(Dispatchers.IO) {
+            writeMutex.withLock {
+                val dir = folder(filesDir)
+                val metadata = projectFile(dir, sourceFileName)
+                if (!metadata.isFile) throw IOException("Проект не найден.")
+                val referenced = listOf(JSON_NAME, BACKUP_NAME, CHECKPOINT_NAME).any { name ->
+                    val record = File(dir, name)
+                    record.isFile && record.length() in 2..MAX_JSON &&
+                        runCatching { JSONObject(record.readText()).getString("file") }
+                            .getOrNull() == sourceFileName
+                }
+                if (referenced) throw IOException("Нельзя удалить активный проект или его резервную копию.")
+                // Deleting a damaged archived project must still work. The
+                // selected filename is validated, and the source path comes
+                // ONLY from the private editor-session directory, never JSON.
+                val source = File(dir, sourceFileName)
+                if (source.parentFile.canonicalFile != dir.canonicalFile)
+                    throw IOException("Недопустимый путь исходного проекта.")
+                if (!metadata.delete()) throw IOException("Не удалось удалить запись проекта.")
+                projectCheckpoint(dir, sourceFileName).delete()
+                if (source.isFile && !source.delete())
+                    throw IOException("Запись удалена, но исходный GLB остался на диске.")
+            }
+        }
 
     suspend fun restore(filesDir: File): EditorDraft? = restoreWithStatus(filesDir)?.draft
 
