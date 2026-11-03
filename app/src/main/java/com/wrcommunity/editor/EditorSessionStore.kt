@@ -530,16 +530,17 @@ object EditorSessionStore {
                     val src = File(dir, name)
                     val structurallyValid = item?.source?.file?.name == name &&
                         src.isFile && src.length() == item.source.bytes
-                    val validHash = structurallyValid && runCatching {
-                        hash(src) == item!!.source.sha256
-                    }.getOrDefault(false)
+                    // A library listing only checks metadata and file length.
+                    // Full SHA-256 is verified on open, not for every card.
+                    // Reading up to 8 * 150 MiB here would stall the UI.
+                    val validMetadata = structurallyValid
                     val activeFileName = if (File(dir, JSON_NAME).isFile) {
                         runCatching {
                             JSONObject(File(dir, JSON_NAME).readText(Charsets.UTF_8))
                                 .getString("file")
                         }.getOrNull()
                     } else null
-                    val damaged = !validHash
+                    val damaged = !validMetadata
                     SavedEditorProject(
                         sourceFileName = name,
                         name = item?.name ?: "Повреждённый проект",
