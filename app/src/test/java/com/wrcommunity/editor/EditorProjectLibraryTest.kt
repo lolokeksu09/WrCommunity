@@ -148,7 +148,7 @@ class EditorProjectLibraryTest {
             val active = draft(source(root, 66), "Active.glb")
             EditorSessionStore.save(root, old)
             EditorSessionStore.save(root, active)
-            old.source.file.writeBytes(ByteArray(48) { 0 })
+            old.source.file.writeBytes(ByteArray(20) { 0 })
             val entries = EditorSessionStore.listProjects(root)
             val damaged = entries.first { it.sourceFileName == old.source.file.name }
             assertTrue(damaged.damaged)
