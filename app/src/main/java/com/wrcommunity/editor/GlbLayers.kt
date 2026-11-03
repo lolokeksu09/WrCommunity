@@ -135,13 +135,15 @@ object GlbLayers {
             val src = File(Uri.parse(sourceLocation).path ?: throw IOException("GLB недоступен."))
             val dst = File(context.cacheDir, "layer-view-${UUID.randomUUID()}.glb")
             try {
-                val filtered = filter(src.readBytes(), visible)
+                // Original mesh/primitive indices must be resolved before
+                // filtering changes the primitive order.
+                val withVertices = GlbVertexEditor.apply(src.readBytes(), vertexMoves)
+                currentCoroutineContext().ensureActive()
+                val filtered = filter(withVertices, visible)
                 currentCoroutineContext().ensureActive()
                 val shaped = GlbSculpt.apply(filtered,
                     sculptStrokes.filter { it.materialId in visible })
-                currentCoroutineContext().ensureActive()
-                val withVertices = GlbVertexEditor.apply(shaped, vertexMoves)
-                val adjusted = GlbPartTransforms.apply(withVertices, partEdits)
+                val adjusted = GlbPartTransforms.apply(shaped, partEdits)
                 currentCoroutineContext().ensureActive()
                 dst.writeBytes(adjusted)
                 // Bound cache usage without touching the user's original document.
