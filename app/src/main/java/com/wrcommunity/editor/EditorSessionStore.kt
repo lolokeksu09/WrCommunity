@@ -129,7 +129,8 @@ data class SavedEditorProject(
     val name: String,
     val bytes: Long,
     val modifiedAt: Long,
-    val active: Boolean
+    val active: Boolean,
+    val damaged: Boolean = false
 )
 
 /** One restored snapshot and whether the primary manifest required fallback. */
@@ -521,15 +522,32 @@ object EditorSessionStore {
                     if (!record.isFile) atomicWrite(
                         record, current.encode().toString().toByteArray(Charsets.UTF_8))
                 }
-                projectRecords(dir).mapNotNull { record ->
-                    runCatching {
-                        val item = EditorDraft.decode(JSONObject(record.readText(Charsets.UTF_8)), dir)
-                        if (!item.source.file.isFile ||
-                            item.source.file.length() != item.source.bytes) null
-                        else SavedEditorProject(
-                            item.source.file.name, item.name, item.source.bytes,
-                            record.lastModified(), current?.source == item.source)
+                projectRecords(dir).map { record ->
+                    val name = record.name.removeSuffix(".json") + ".glb"
+                    val item = runCatching {
+                        EditorDraft.decode(JSONObject(record.readText(Charsets.UTF_8)), dir)
                     }.getOrNull()
+                    val src = File(dir, name)
+                    val structurallyValid = item?.source?.file?.name == name &&
+                        src.isFile && src.length() == item.source.bytes
+                    val validHash = structurallyValid && runCatching {
+                        hash(src) == item!!.source.sha256
+                    }.getOrDefault(false)
+                    val activeFileName = if (File(dir, JSON_NAME).isFile) {
+                        runCatching {
+                            JSONObject(File(dir, JSON_NAME).readText(Charsets.UTF_8))
+                                .getString("file")
+                        }.getOrNull()
+                    } else null
+                    val damaged = !validHash
+                    SavedEditorProject(
+                        sourceFileName = name,
+                        name = item?.name ?: "Повреждённый проект",
+                        bytes = item?.source?.bytes ?: src.takeIf { it.isFile }?.length() ?: 0L,
+                        modifiedAt = record.lastModified(),
+                        active = name == activeFileName,
+                        damaged = damaged
+                    )
                 }.sortedWith(compareByDescending<SavedEditorProject> { it.active }
                     .thenByDescending { it.modifiedAt })
             }
@@ -576,13 +594,15 @@ object EditorSessionStore {
                             .getOrNull() == sourceFileName
                 }
                 if (referenced) throw IOException("Нельзя удалить активный проект или его резервную копию.")
-                val draft = readChecked(metadata, dir)
-                if (draft.source.file.name != sourceFileName ||
-                    draft.source.file.parentFile?.canonicalFile != dir.canonicalFile)
-                    throw IOException("Повреждён идентификатор проекта.")
+                // Deleting a damaged archived project must still work. The
+                // selected filename is validated, and the source path comes
+                // ONLY from the private editor-session directory, never JSON.
+                val source = File(dir, sourceFileName)
+                if (source.parentFile.canonicalFile != dir.canonicalFile)
+                    throw IOException("Недопустимый путь исходного проекта.")
                 if (!metadata.delete()) throw IOException("Не удалось удалить запись проекта.")
                 projectCheckpoint(dir, sourceFileName).delete()
-                if (!draft.source.file.delete())
+                if (source.isFile && !source.delete())
                     throw IOException("Запись удалена, но исходный GLB остался на диске.")
             }
         }
