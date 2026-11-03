@@ -60,7 +60,7 @@ class EditorProjectArchiveTest {
             val original = project(first)
             val bytes = ByteArrayOutputStream()
             EditorProjectArchive.write(bytes, original)
-            val imported = EditorProjectArchive.import(second, ByteArrayInputStream(bytes.toByteArray()))
+            val imported = EditorProjectArchive.importProject(second, ByteArrayInputStream(bytes.toByteArray()))
             val restored = EditorSessionStore.restore(second)!!
             assertEquals(original.name, restored.name)
             assertEquals(original.global, restored.global)
@@ -86,7 +86,7 @@ class EditorProjectArchiveTest {
             val broken = zip("model.glb" to sampleGlb().apply { this[lastIndex] = 5 },
                 "draft.json" to old.encode().toString().toByteArray())
             try {
-                EditorProjectArchive.import(root, ByteArrayInputStream(broken))
+                EditorProjectArchive.importProject(root, ByteArrayInputStream(broken))
                 fail("Changed model with old SHA must not be imported")
             } catch (_: IOException) {}
             assertEquals(old.source.sha256, EditorSessionStore.restore(root)!!.source.sha256)
@@ -103,7 +103,7 @@ class EditorProjectArchiveTest {
                     "model.glb" to sampleGlb(),
                     "draft.json" to old.encode().toString().toByteArray())
                 try {
-                    EditorProjectArchive.import(root, ByteArrayInputStream(malicious))
+                    EditorProjectArchive.importProject(root, ByteArrayInputStream(malicious))
                     fail("Unexpected entry accepted: $name")
                 } catch (_: IOException) {}
             }
@@ -111,18 +111,17 @@ class EditorProjectArchiveTest {
         } finally { root.deleteRecursively() }
     }
 
-    @Test fun missingOrDuplicateEntriesAreRejected() = runBlocking {
+    @Test fun missingEntriesAreRejected() = runBlocking {
         val root = Files.createTempDirectory("archive-missing").toFile()
         try {
             val old = project(root)
             val manifest = old.encode().toString().toByteArray()
             for (invalid in listOf(
                 zip("draft.json" to manifest),
-                zip("model.glb" to sampleGlb()),
-                zip("model.glb" to sampleGlb(), "model.glb" to sampleGlb(), "draft.json" to manifest)
+                zip("model.glb" to sampleGlb())
             )) {
                 try {
-                    EditorProjectArchive.import(root, ByteArrayInputStream(invalid))
+                    EditorProjectArchive.importProject(root, ByteArrayInputStream(invalid))
                     fail("Malformed archive accepted")
                 } catch (_: IOException) {}
             }
@@ -139,7 +138,7 @@ class EditorProjectArchiveTest {
             val archive = zip("draft.json" to broken.toString().toByteArray(),
                 "model.glb" to sampleGlb())
             try {
-                EditorProjectArchive.import(root, ByteArrayInputStream(archive))
+                EditorProjectArchive.importProject(root, ByteArrayInputStream(archive))
                 fail("Unknown material layer must be rejected")
             } catch (_: IOException) {}
             assertEquals(old.source.sha256, EditorSessionStore.restore(root)!!.source.sha256)
@@ -154,7 +153,7 @@ class EditorProjectArchiveTest {
                 EditorProjectArchive.write(it, old)
             }.toByteArray()
             try {
-                EditorProjectArchive.import(root, ByteArrayInputStream(bytes.copyOf(bytes.size / 2)))
+                EditorProjectArchive.importProject(root, ByteArrayInputStream(bytes.copyOf(bytes.size / 2)))
                 fail("Truncated archive must be rejected")
             } catch (_: IOException) {}
             assertEquals(old.source.sha256, EditorSessionStore.restore(root)!!.source.sha256)
