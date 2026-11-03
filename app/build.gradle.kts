@@ -27,8 +27,8 @@ android {
         applicationId = "com.wrcommunity.editor.stable"
         minSdk = 26
         targetSdk = 36
-        versionCode = 21
-        versionName = "0.15.0"
+        versionCode = 22
+        versionName = "0.16.0"
     }
 
     compileOptions {
