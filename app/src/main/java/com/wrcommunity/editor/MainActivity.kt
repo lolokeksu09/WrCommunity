@@ -497,10 +497,10 @@ private fun EditorScreen() {
                                 showLayers = false
                                 isPickingBrushCenter = false
                                 suggestedStrokes = emptyList()
-                                surfacePicker = null
-                                pickerLocation = null
-                                nodeLocation = null
-                                modelForPicking = null
+                                // Keep the current picker until a preview or
+                                // part edit change rebuilds it. Clearing it when
+                                // only the camera changes would disable touch
+                                // selection with no LaunchedEffect restart.
                                 modelLocation = originalLocation
                                 autosaveProblem = null
                                 message = "Контрольная точка восстановлена."
