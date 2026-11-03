@@ -35,7 +35,8 @@ data class EditorDraft(
     val strokes: List<SculptStroke>,
     val selected: Int?,
     val brush: SculptStroke,
-    val camera: String
+    val camera: String,
+    val symmetryAxis: Int = 0
 ) {
     fun encode(): JSONObject {
         require(source.file.name.matches(Regex("model-[a-f0-9-]{36}\\.glb")))
@@ -48,6 +49,7 @@ data class EditorDraft(
         parts.values.forEach { it.check() }
         strokes.forEach { it.check() }
         brush.check()
+        require(symmetryAxis in 0..3) { "Недопустимая ось симметрии." }
         fun stroke(v: SculptStroke) = JSONObject()
             .put("id", v.materialId).put("x", v.centerX).put("y", v.centerY)
             .put("z", v.centerZ).put("radius", v.radius)
@@ -55,6 +57,7 @@ data class EditorDraft(
         return JSONObject().put("format", 1)
             .put("file", source.file.name).put("bytes", source.bytes)
             .put("hash", source.sha256).put("name", name).put("camera", camera)
+            .put("symmetryAxis", symmetryAxis)
             .put("selected", selected ?: JSONObject.NULL)
             .put("global", JSONObject()
                 .put("x", global.x).put("y", global.y).put("z", global.z)
@@ -116,7 +119,8 @@ data class EditorDraft(
                 StoredModel(File(folder, filename), root.getLong("bytes"), digest),
                 root.getString("name"), global, visible, parts, strokes,
                 if (root.isNull("selected")) null else root.getInt("selected"),
-                stroke(root.getJSONObject("brush")), root.getString("camera"))
+                stroke(root.getJSONObject("brush")), root.getString("camera"),
+                root.optInt("symmetryAxis", 0))
             draft.encode() // Apply all write-side invariants to untrusted stored data.
             return draft
         }
