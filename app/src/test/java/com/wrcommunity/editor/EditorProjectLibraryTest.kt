@@ -141,6 +141,28 @@ class EditorProjectLibraryTest {
         } finally { root.deleteRecursively() }
     }
 
+    @Test fun damagedInactiveProjectIsVisibleAndCanBeExplicitlyRemoved() = runBlocking {
+        val root = Files.createTempDirectory("project-damaged-delete").toFile()
+        try {
+            val old = draft(source(root, 65), "Damaged.glb")
+            val active = draft(source(root, 66), "Active.glb")
+            EditorSessionStore.save(root, old)
+            EditorSessionStore.save(root, active)
+            old.source.file.writeBytes(ByteArray(48) { 0 })
+            val entries = EditorSessionStore.listProjects(root)
+            val damaged = entries.first { it.sourceFileName == old.source.file.name }
+            assertTrue(damaged.damaged)
+            assertFalse(damaged.active)
+            try {
+                EditorSessionStore.peekProject(root, damaged.sourceFileName)
+                fail("Damaged project should not be opened")
+            } catch (_: IOException) {}
+            EditorSessionStore.deleteProject(root, damaged.sourceFileName)
+            assertFalse(old.source.file.exists())
+            assertEquals(active.source, EditorSessionStore.restore(root)!!.source)
+        } finally { root.deleteRecursively() }
+    }
+
     @Test fun projectLimitRejectsNewImportWithoutDestroyingCurrent() = runBlocking {
         val root = Files.createTempDirectory("project-limit").toFile()
         try {
