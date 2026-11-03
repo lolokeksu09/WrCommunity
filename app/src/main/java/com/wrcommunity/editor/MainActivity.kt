@@ -124,6 +124,8 @@ private fun EditorScreen() {
     var job by remember { mutableStateOf<Job?>(null) }
     var cameraEpoch by remember { mutableIntStateOf(0) }
     var showInfo by remember { mutableStateOf(false) }
+    var modelReport by remember { mutableStateOf<GlbModelReport?>(null) }
+    var modelReportError by remember { mutableStateOf<String?>(null) }
     var confirmModelReplacement by remember { mutableStateOf(false) }
     var confirmArchiveImport by remember { mutableStateOf(false) }
     var confirmCheckpointRestore by remember { mutableStateOf(false) }
@@ -164,6 +166,25 @@ private fun EditorScreen() {
         }
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
+    }
+
+    // A small bounded JSON probe, never a second full GLB/BIN read on the UI.
+    // LaunchedEffect cancels obsolete analysis when the user switches models.
+    LaunchedEffect(savedSource) {
+        val source = savedSource
+        modelReport = null
+        modelReportError = null
+        if (source != null) {
+            try {
+                modelReport = withContext(Dispatchers.IO) {
+                    GlbModelInspector.inspect(source.file)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                modelReportError = error.message ?: "Невозможно прочитать параметры GLB."
+            }
+        }
     }
 
     // Restore the last unfinished edit from app-private persistent storage.
@@ -919,20 +940,6 @@ private fun EditorScreen() {
                                 onClick = { referencePicker.launch("image/*") })
                         }
                     }
-                    if (showInfo) {
-                        Surface(
-                            modifier = Modifier.align(Alignment.TopStart).padding(12.dp).widthIn(max = 230.dp),
-                            color = Color(0xE51D1C28),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Трансформация GLB", fontWeight = FontWeight.SemiBold)
-                                Text("Углы: ${edit.x}° / ${edit.y}° / ${edit.z}°", style = MaterialTheme.typography.bodySmall)
-                                Text("Масштаб: ${edit.scalePercent}%", style = MaterialTheme.typography.bodySmall)
-                                Text("Экспорт сохраняет исходную сетку и текстуры.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                            }
-                        }
-                    }
                     val image = referenceBitmap
                     if (showReference && image != null) {
                         Image(
@@ -1040,6 +1047,60 @@ private fun EditorScreen() {
                     color = if (message!!.startsWith("GLB сохранён")) Color(0xFF96DFBE) else Color(0xFFFFB4AB),
                     style = MaterialTheme.typography.bodySmall
                 )
+            }
+
+            if (showInfo && savedSource != null) {
+                ModalBottomSheet(
+                    onDismissRequest = { showInfo = false },
+                    containerColor = PanelTone
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth().fillMaxHeight(0.83f)
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 20.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("Инспектор GLB", style = MaterialTheme.typography.titleLarge)
+                        Text(modelName, style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary)
+                        val report = modelReport
+                        if (report != null) {
+                            val mib = report.bytes / (1024.0 * 1024.0)
+                            Text("Размер: " + String.format(java.util.Locale.ROOT, "%.2f МиБ", mib))
+                            Text("Меши: ${report.meshes}  ·  Примитивы: ${report.primitives}")
+                            Text("Узлы: ${report.nodes}  ·  Сцены: ${report.scenes}")
+                            Text("Материалы: ${report.materials}  ·  Текстуры: ${report.textures}")
+                            Text("Изображения: ${report.images}")
+                            Text("Вершины примитивов*: ${report.vertexReferences}")
+                            Text("Треугольники*: ${report.triangles}")
+                            Text("Анимации: ${report.animations}  ·  Скелеты: ${report.skins}")
+                            Text("Morph targets: ${report.morphTargets}")
+                            if (report.warnings.isNotEmpty()) {
+                                Spacer(Modifier.height(4.dp))
+                                Text("Ограничения редактирования",
+                                    style = MaterialTheme.typography.titleSmall)
+                                report.warnings.forEach { warning ->
+                                    Text("• $warning", color = Color(0xFFFFB4A2),
+                                        style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                            Text("* Сумма по примитивам исходных мешей. Экземпляры одной сетки не учитываются повторно; данные не являются количеством уникальных вершин или видимых треугольников.",
+                                style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        } else {
+                            Text(modelReportError ?: "Чтение параметров GLB…",
+                                style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        }
+                        HorizontalDivider()
+                        Text("Текущие правки", style = MaterialTheme.typography.titleSmall)
+                        Text("Поворот: ${edit.x}° / ${edit.y}° / ${edit.z}°")
+                        Text("Позиция: ${edit.moveX} / ${edit.moveY} / ${edit.moveZ}")
+                        Text("Масштаб: ${edit.scalePercent}%")
+                        Text("Видимые слои: ${visibleMaterials.size}/${materialLayers.size}  ·  Деформации: ${sculptStrokes.size}")
+                        Text("Инспектор не изменяет модель и читает только JSON-описание GLB.",
+                            style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        Spacer(Modifier.height(12.dp))
+                    }
+                }
             }
 
             if (showLayers && materialLayers.isNotEmpty()) {
