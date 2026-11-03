@@ -36,18 +36,20 @@ data class EditorDraft(
     val selected: Int?,
     val brush: SculptStroke,
     val camera: String,
-    val symmetryAxis: Int = 0
+    val symmetryAxis: Int = 0,
+    val vertexMoves: List<VertexMove> = emptyList()
 ) {
     fun encode(): JSONObject {
         require(source.file.name.matches(Regex("model-[a-f0-9-]{36}\\.glb")))
         require(source.bytes in 20..GlbHeader.MAX_BYTES)
         require(source.sha256.matches(Regex("[a-f0-9]{64}")))
         require(name.length in 1..160 && visible.isNotEmpty() && visible.size <= 512)
-        require(parts.size <= 512 && strokes.size <= 20)
+        require(parts.size <= 512 && strokes.size <= 20 && vertexMoves.size <= 64)
         require(global.scalePercent in 10..400)
         require(listOf(global.moveX, global.moveY, global.moveZ).all { it.isFinite() })
         parts.values.forEach { it.check() }
         strokes.forEach { it.check() }
+        vertexMoves.forEach { it.check() }
         brush.check()
         require(symmetryAxis in 0..3) { "Недопустимая ось симметрии." }
         fun stroke(v: SculptStroke) = JSONObject()
@@ -72,6 +74,13 @@ data class EditorDraft(
                 }
             })
             .put("strokes", JSONArray().apply { strokes.forEach { put(stroke(it)) } })
+            .put("vertexMoves", JSONArray().apply {
+                vertexMoves.forEach { move ->
+                    put(JSONObject().put("m", move.mesh).put("p", move.primitive)
+                        .put("v", move.vertex).put("dx", move.dx.toDouble())
+                        .put("dy", move.dy.toDouble()).put("dz", move.dz.toDouble()))
+                }
+            })
             .put("brush", stroke(brush))
     }
 
@@ -115,12 +124,19 @@ data class EditorDraft(
             val arr = root.getJSONArray("strokes")
             if (arr.length() > 20) throw IOException("Слишком много штрихов.")
             val strokes = (0 until arr.length()).map { stroke(arr.getJSONObject(it)) }
+            val offsets = root.optJSONArray("vertexMoves") ?: JSONArray()
+            if (offsets.length() > 64) throw IOException("Слишком много правок вершин.")
+            val vertexMoves = (0 until offsets.length()).map { index ->
+                val o = offsets.getJSONObject(index)
+                VertexMove(o.getInt("m"), o.getInt("p"), o.getInt("v"),
+                    finite(o, "dx"), finite(o, "dy"), finite(o, "dz")).also { it.check() }
+            }
             val draft = EditorDraft(
                 StoredModel(File(folder, filename), root.getLong("bytes"), digest),
                 root.getString("name"), global, visible, parts, strokes,
                 if (root.isNull("selected")) null else root.getInt("selected"),
                 stroke(root.getJSONObject("brush")), root.getString("camera"),
-                root.optInt("symmetryAxis", 0))
+                root.optInt("symmetryAxis", 0), vertexMoves)
             draft.encode() // Apply all write-side invariants to untrusted stored data.
             return draft
         }
