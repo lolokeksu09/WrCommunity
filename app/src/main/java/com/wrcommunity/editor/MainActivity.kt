@@ -128,6 +128,10 @@ private fun EditorScreen() {
     var projectList by remember { mutableStateOf<List<SavedEditorProject>>(emptyList()) }
     var projectListError by remember { mutableStateOf<String?>(null) }
     var projectToDelete by remember { mutableStateOf<SavedEditorProject?>(null) }
+    var projectActionsMenu by remember { mutableStateOf<String?>(null) }
+    var projectToRename by remember { mutableStateOf<SavedEditorProject?>(null) }
+    var projectToDuplicate by remember { mutableStateOf<SavedEditorProject?>(null) }
+    var projectTitleInput by remember { mutableStateOf("") }
     var modelReport by remember { mutableStateOf<GlbModelReport?>(null) }
     var modelReportError by remember { mutableStateOf<String?>(null) }
     var confirmModelReplacement by remember { mutableStateOf(false) }
@@ -624,6 +628,113 @@ private fun EditorScreen() {
                     TextButton(onClick = { confirmModelReplacement = false }) {
                         Text("Отмена")
                     }
+                }
+            )
+        }
+        projectToRename?.let { project ->
+            AlertDialog(
+                onDismissRequest = { projectToRename = null },
+                title = { Text("Переименовать проект") },
+                text = {
+                    OutlinedTextField(
+                        value = projectTitleInput,
+                        onValueChange = { projectTitleInput = it },
+                        label = { Text("Название проекта") },
+                        singleLine = true
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = !busy && projectTitleInput.trim().isNotEmpty() &&
+                            projectTitleInput.trim().length <= 160,
+                        onClick = {
+                            val name = projectTitleInput
+                            val sourceId = project.sourceFileName
+                            val outgoing = if (project.active) pauseDraft else null
+                            projectToRename = null
+                            scope.launch {
+                                busy = true
+                                try {
+                                    outgoing?.let {
+                                        EditorSessionStore.saveCurrent(
+                                            context.applicationContext.filesDir, it)
+                                    }
+                                    val result = EditorSessionStore.renameProject(
+                                        context.applicationContext.filesDir, sourceId, name)
+                                    if (project.active) modelName = result.name
+                                    projectList = EditorSessionStore.listProjects(
+                                        context.applicationContext.filesDir)
+                                    projectListError = null
+                                    message = "Проект переименован: ${result.name}."
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (error: Exception) {
+                                    projectListError = error.message ?: "Не удалось изменить название."
+                                } finally {
+                                    busy = false
+                                }
+                            }
+                        }
+                    ) { Text("Сохранить") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { projectToRename = null }) { Text("Отмена") }
+                }
+            )
+        }
+        projectToDuplicate?.let { project ->
+            AlertDialog(
+                onDismissRequest = { projectToDuplicate = null },
+                title = { Text("Создать независимую копию?") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Исходный GLB и все правки будут скопированы в новый проект. Текущий останется неизменным. Это потребует до " +
+                            String.format(java.util.Locale.ROOT, "%.1f МиБ", project.bytes / 1048576.0) +
+                            " дополнительного места.")
+                        OutlinedTextField(
+                            value = projectTitleInput,
+                            onValueChange = { projectTitleInput = it },
+                            label = { Text("Название копии") },
+                            singleLine = true
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = !busy && !project.damaged &&
+                            projectTitleInput.trim().isNotEmpty() &&
+                            projectTitleInput.trim().length <= 160,
+                        onClick = {
+                            val name = projectTitleInput
+                            val sourceId = project.sourceFileName
+                            val outgoing = if (project.active) pauseDraft else null
+                            projectToDuplicate = null
+                            scope.launch {
+                                busy = true
+                                try {
+                                    outgoing?.let {
+                                        EditorSessionStore.saveCurrent(
+                                            context.applicationContext.filesDir, it)
+                                    }
+                                    val copy = EditorSessionStore.duplicateProject(
+                                        context.applicationContext.filesDir, sourceId, name)
+                                    projectList = EditorSessionStore.listProjects(
+                                        context.applicationContext.filesDir)
+                                    projectListError = null
+                                    message = "Копия «${copy.name}» создана. Открой её в списке проектов."
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (error: Exception) {
+                                    projectListError = error.message ?: "Не удалось скопировать проект."
+                                } finally {
+                                    busy = false
+                                }
+                            }
+                        }
+                    ) { Text("Создать копию") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { projectToDuplicate = null }) { Text("Отмена") }
                 }
             )
         }
@@ -1239,13 +1350,49 @@ private fun EditorScreen() {
                                                 }
                                             }
                                         ) { Text("Открыть") }
-                                        TextButton(
-                                            enabled = !busy && recoveryReady,
-                                            onClick = { projectToDelete = project }
-                                        ) { Text("Удалить") }
                                     } else {
                                         Text("Активный", color = Highlight,
                                             style = MaterialTheme.typography.labelSmall)
+                                    }
+                                    Box {
+                                        TextButton(
+                                            enabled = !busy && recoveryReady,
+                                            onClick = { projectActionsMenu = project.sourceFileName }
+                                        ) { Text("⋮") }
+                                        DropdownMenu(
+                                            expanded = projectActionsMenu == project.sourceFileName,
+                                            onDismissRequest = { projectActionsMenu = null }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Переименовать") },
+                                                enabled = !project.damaged,
+                                                onClick = {
+                                                    projectActionsMenu = null
+                                                    projectTitleInput = project.name
+                                                    projectToRename = project
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Создать копию") },
+                                                enabled = !project.damaged &&
+                                                    projectList.size < EditorSessionStore.MAX_PROJECTS,
+                                                onClick = {
+                                                    projectActionsMenu = null
+                                                    projectTitleInput =
+                                                        (project.name + " — копия").take(160)
+                                                    projectToDuplicate = project
+                                                }
+                                            )
+                                            if (!project.active) {
+                                                DropdownMenuItem(
+                                                    text = { Text("Удалить") },
+                                                    onClick = {
+                                                        projectActionsMenu = null
+                                                        projectToDelete = project
+                                                    }
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }

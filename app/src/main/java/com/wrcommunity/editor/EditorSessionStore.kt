@@ -331,13 +331,14 @@ object EditorSessionStore {
         saveOrdered(filesDir, draft, requestOrder.incrementAndGet(), sameSourceOnly = true)
 
     private suspend fun saveOrdered(
-        filesDir: File, draft: EditorDraft, order: Long,
+        filesDir: File, incoming: EditorDraft, order: Long,
         sameSourceOnly: Boolean = false
     ) =
         withContext(Dispatchers.IO) {
             writeMutex.withLock {
                 if (order < lastCommittedOrder) return@withLock
                 val dir = folder(filesDir)
+                var draft = incoming
                 if (sameSourceOnly) {
                     // Never allow an obsolete autosave worker to re-activate a
                     // project that the user has already switched away from.
@@ -355,6 +356,21 @@ object EditorSessionStore {
                     // After a project switch, these references are changed or
                     // removed, so stale workers cannot restore the old model.
                     if (name != draft.source.file.name) return@withLock
+                    // The title is modified only via renameProject. A queued
+                    // ON_PAUSE/autosave snapshot with the previous name must
+                    // not undo a successfully committed title change.
+                    val storedName = listOf(JSON_NAME, BACKUP_NAME, CHECKPOINT_NAME)
+                        .firstNotNullOfOrNull { entry ->
+                            val file = File(dir, entry)
+                            if (file.isFile && file.length() in 2..MAX_JSON) {
+                                runCatching {
+                                    val json = JSONObject(file.readText(Charsets.UTF_8))
+                                    if (json.getString("file") == draft.source.file.name)
+                                        json.getString("name") else null
+                                }.getOrNull()
+                            } else null
+                        }
+                    if (storedName != null) draft = draft.copy(name = storedName)
                 }
                 if (draft.source.file.parentFile?.canonicalFile != dir.canonicalFile ||
                     !draft.source.file.isFile || draft.source.file.length() != draft.source.bytes)
@@ -586,6 +602,149 @@ object EditorSessionStore {
         if (committed.source != candidate.source)
             throw IOException("Переключение проекта не завершилось.")
         return committed
+    }
+
+    /** Display names never become filesystem paths. New names are stored in JSON only. */
+    private fun checkedProjectTitle(value: String): String {
+        val title = value.trim()
+        if (title.length !in 1..160 || title.any { it.isISOControl() })
+            throw IOException("Название проекта должно содержать 1–160 символов без управляющих знаков.")
+        return title
+    }
+
+    /** Rename either the current project or an inactive one, without touching GLB bytes. */
+    suspend fun renameProject(
+        filesDir: File, sourceFileName: String, requestedName: String
+    ): EditorDraft = withContext(Dispatchers.IO) {
+        val title = checkedProjectTitle(requestedName)
+        writeMutex.withLock {
+            val dir = folder(filesDir)
+            val metadata = projectFile(dir, sourceFileName)
+            val active = File(dir, JSON_NAME)
+            val activeSource = runCatching {
+                JSONObject(active.readText(Charsets.UTF_8)).getString("file")
+            }.getOrNull()
+            val project = if (metadata.isFile) readChecked(metadata, dir)
+                else if (activeSource == sourceFileName) readChecked(active, dir)
+                else throw IOException("Сохранённый проект не найден.")
+            if (project.source.file.name != sourceFileName)
+                throw IOException("Идентификатор проекта не совпадает.")
+            val renamed = project.copy(name = title)
+            if (renamed == project) return@withLock project
+            val json = renamed.encode().toString().toByteArray(Charsets.UTF_8)
+
+            // Update non-active recovery manifests as well. They retain their
+            // own edits and only inherit the new display name.
+            val recovery = listOf(
+                projectCheckpoint(dir, sourceFileName),
+                File(dir, BACKUP_NAME),
+                File(dir, CHECKPOINT_NAME)
+            )
+            for (record in recovery) {
+                if (!record.isFile) continue
+                val old = runCatching { readChecked(record, dir) }.getOrNull() ?: continue
+                if (old.source.file.name == sourceFileName) {
+                    atomicWrite(record, old.copy(name = title).encode()
+                        .toString().toByteArray(Charsets.UTF_8))
+                }
+            }
+            atomicWrite(metadata, json)
+            if (activeSource == sourceFileName) {
+                val current = readChecked(active, dir)
+                if (current.source != project.source)
+                    throw IOException("Активная модель изменилась.")
+                atomicWrite(active, current.copy(name = title).encode()
+                    .toString().toByteArray(Charsets.UTF_8))
+            }
+            // Invalidate already queued writes bearing the stale display name.
+            lastCommittedOrder = requestOrder.incrementAndGet()
+            renamed
+        }
+    }
+
+    /**
+     * Fork creates an INACTIVE, independent project with its own private GLB,
+     * edit manifest and optional manual checkpoint. No new project is activated.
+     * A 150 MiB model may require up to 150 MiB additional disk space.
+     */
+    suspend fun duplicateProject(
+        filesDir: File, sourceFileName: String, requestedName: String
+    ): EditorDraft = withContext(Dispatchers.IO) {
+        val title = checkedProjectTitle(requestedName)
+        writeMutex.withLock {
+            val dir = folder(filesDir)
+            val entry = projectFile(dir, sourceFileName)
+            val currentFile = File(dir, JSON_NAME)
+            val activeSource = runCatching {
+                JSONObject(currentFile.readText(Charsets.UTF_8)).getString("file")
+            }.getOrNull()
+            val sourceDraft = if (entry.isFile) readChecked(entry, dir)
+                else if (activeSource == sourceFileName) readChecked(currentFile, dir)
+                else throw IOException("Проект для копирования не найден.")
+            if (sourceDraft.source.file.name != sourceFileName)
+                throw IOException("Неверный идентификатор проекта.")
+            if (projectRecords(dir).size >= MAX_PROJECTS)
+                throw IOException("Достигнут лимит $MAX_PROJECTS проектов.")
+            val id = UUID.randomUUID().toString()
+            val target = File(dir, "model-$id.glb")
+            val partial = File(dir, ".copy-$id.tmp")
+            val newRecord = projectFile(dir, target.name)
+            val newCheckpoint = projectCheckpoint(dir, target.name)
+            val src = sourceDraft.source.file
+            var complete = false
+            try {
+                // Verify the copied bytes against the trusted stored SHA rather
+                // than relying only on length or successful stream completion.
+                val digest = MessageDigest.getInstance("SHA-256")
+                var copied = 0L
+                FileInputStream(src).use { input ->
+                    FileOutputStream(partial).use { output ->
+                        val buffer = ByteArray(65536)
+                        while (true) {
+                            currentCoroutineContext().ensureActive()
+                            val n = input.read(buffer)
+                            if (n < 0) break
+                            if (n == 0) continue
+                            copied += n
+                            if (copied > GlbHeader.MAX_BYTES)
+                                throw IOException("Копируемый GLB превышает лимит 150 МБ.")
+                            digest.update(buffer, 0, n)
+                            output.write(buffer, 0, n)
+                        }
+                        output.fd.sync()
+                    }
+                }
+                val check = digest.digest().joinToString("") { "%02x".format(it) }
+                if (copied != sourceDraft.source.bytes || check != sourceDraft.source.sha256)
+                    throw IOException("Исходная модель изменилась во время создания копии.")
+                currentCoroutineContext().ensureActive()
+                if (!partial.renameTo(target))
+                    throw IOException("Не удалось сохранить копию GLB.")
+                val copy = sourceDraft.copy(
+                    source = StoredModel(target, copied, check),
+                    name = title
+                )
+                val savedCheckpoint = projectCheckpoint(dir, sourceFileName)
+                val checkDraft = if (savedCheckpoint.isFile) {
+                    runCatching { readChecked(savedCheckpoint, dir) }.getOrNull()
+                        ?.takeIf { it.source == sourceDraft.source }
+                } else null
+                checkDraft?.let {
+                    atomicWrite(newCheckpoint, it.copy(source = copy.source, name = title)
+                        .encode().toString().toByteArray(Charsets.UTF_8))
+                }
+                atomicWrite(newRecord, copy.encode().toString().toByteArray(Charsets.UTF_8))
+                complete = true
+                copy
+            } finally {
+                partial.delete()
+                if (!complete) {
+                    newRecord.delete()
+                    newCheckpoint.delete()
+                    target.delete()
+                }
+            }
+        }
     }
 
     /** Only explicit user-requested removal; active and recovery sources are protected. */
