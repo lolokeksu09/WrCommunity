@@ -123,6 +123,8 @@ private fun EditorScreen() {
     var cameraEpoch by remember { mutableIntStateOf(0) }
     var showInfo by remember { mutableStateOf(false) }
     var confirmModelReplacement by remember { mutableStateOf(false) }
+    var confirmCheckpointRestore by remember { mutableStateOf(false) }
+    var checkpointAvailable by remember { mutableStateOf(false) }
     var referenceUri by remember { mutableStateOf<Uri?>(null) }
     var showReference by remember { mutableStateOf(true) }
     val edit = history.current
@@ -197,16 +199,21 @@ private fun EditorScreen() {
                 originalLocation = location
                 modelLocation = location
                 savedSource = draft.source
-                message = if (restored.fromBackup) {
-                    "Основной черновик повреждён. Восстановлена резервная версия; последние правки могли не сохраниться. Для надёжного хранения экспортируйте GLB."
-                } else {
-                    "Черновик восстановлен. Правки на месте."
+                message = when {
+                    restored.fromCheckpoint ->
+                        "Авточерновики повреждены. Восстановлена ручная контрольная точка; последние изменения могли быть потеряны."
+                    restored.fromBackup ->
+                        "Основной черновик повреждён. Восстановлена резервная версия; последние правки могли не сохраниться. Для надёжного хранения экспортируйте GLB."
+                    else -> "Черновик восстановлен. Правки на месте."
                 }
             }
         } catch (e: Exception) {
             message = e.message?.let { "Не удалось восстановить черновик: $it" }
                 ?: "Не удалось восстановить черновик."
         } finally {
+            checkpointAvailable = runCatching {
+                EditorSessionStore.readCheckpoint(context.applicationContext.filesDir) != null
+            }.getOrDefault(false)
             recoveryReady = true
             busy = false
         }
@@ -363,6 +370,7 @@ private fun EditorScreen() {
                         originalLocation = persistentLocation
                         modelLocation = persistentLocation
                         savedSource = stored
+                        checkpointAvailable = false
                         autosaveProblem = null
                         modelName = committedDraft.name
                         history = EditHistory()
@@ -453,6 +461,61 @@ private fun EditorScreen() {
                 },
                 dismissButton = {
                     TextButton(onClick = { confirmModelReplacement = false }) {
+                        Text("Отмена")
+                    }
+                }
+            )
+        }
+        if (confirmCheckpointRestore) {
+            AlertDialog(
+                onDismissRequest = { confirmCheckpointRestore = false },
+                title = { Text("Вернуть контрольную точку?") },
+                text = {
+                    Text("Текущие правки будут заменены ручным снимком. Этот откат нельзя отменить через историю Undo. Сначала экспортируй GLB, если нужно сохранить текущий результат.")
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmCheckpointRestore = false
+                        scope.launch {
+                            busy = true
+                            try {
+                                val checkpoint = EditorSessionStore.restoreCheckpoint(
+                                    context.applicationContext.filesDir)
+                                if (checkpoint.source != savedSource)
+                                    throw java.io.IOException("Контрольная точка относится к другой модели.")
+                                layerHistory = LayerHistory(states = listOf(checkpoint.visible))
+                                partHistory = PartHistory(steps = listOf(checkpoint.parts))
+                                sculptHistory = SculptHistory(states = listOf(checkpoint.strokes))
+                                history = EditHistory(steps = listOf(checkpoint.global))
+                                sculptDraft = checkpoint.brush
+                                selectedPartId = checkpoint.selected
+                                cameraView = CameraView.entries.firstOrNull {
+                                    it.name == checkpoint.camera
+                                } ?: CameraView.FRONT
+                                cameraEpoch++
+                                sculptMode = false
+                                showLayers = false
+                                isPickingBrushCenter = false
+                                suggestedStrokes = emptyList()
+                                surfacePicker = null
+                                pickerLocation = null
+                                nodeLocation = null
+                                modelForPicking = null
+                                modelLocation = originalLocation
+                                autosaveProblem = null
+                                message = "Контрольная точка восстановлена."
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (error: Exception) {
+                                message = error.message ?: "Не удалось вернуть контрольную точку."
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    }) { Text("Вернуть") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmCheckpointRestore = false }) {
                         Text("Отмена")
                     }
                 }
@@ -765,6 +828,43 @@ private fun EditorScreen() {
                         style = MaterialTheme.typography.labelSmall, color = TextSecondary,
                         modifier = Modifier.weight(1f))
                     TextButton(onClick = { showLayers = true }) { Text("Управлять слоями") }
+                }
+            }
+
+            if (savedSource != null && recoveryReady) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().background(PanelTone)
+                        .padding(horizontal = 14.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Контрольная точка", modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    TextButton(
+                        onClick = {
+                            val snapshot = pauseDraft
+                            if (snapshot != null) scope.launch {
+                                busy = true
+                                try {
+                                    EditorSessionStore.saveCheckpoint(
+                                        context.applicationContext.filesDir, snapshot)
+                                    checkpointAvailable = true
+                                    message = "Контрольная точка сохранена. Автосохранение её не перезапишет."
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (error: Exception) {
+                                    message = error.message ?: "Не удалось сохранить контрольную точку."
+                                } finally {
+                                    busy = false
+                                }
+                            }
+                        },
+                        enabled = !busy && !layerBusy && !pickingBusy
+                    ) { Text("Запомнить") }
+                    TextButton(
+                        onClick = { confirmCheckpointRestore = true },
+                        enabled = !busy && checkpointAvailable
+                    ) { Text("Вернуть") }
                 }
             }
 
