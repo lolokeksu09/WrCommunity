@@ -80,7 +80,7 @@ object EditorProjectArchive {
 
     /** Copy the upload to a private bounded staging area for ZIP central-directory
      * validation. A failed archive is never committed over the active draft. */
-    suspend fun import(filesDir: File, input: InputStream): EditorDraft =
+    suspend fun importProject(filesDir: File, input: InputStream): EditorDraft =
         withContext(Dispatchers.IO) {
             val stageFolder = File(filesDir, "editor-archive-import")
             if (!stageFolder.isDirectory && !stageFolder.mkdirs())
