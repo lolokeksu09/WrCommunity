@@ -750,7 +750,7 @@ private fun EditorScreen() {
                 TextButton(
                     enabled = !busy && recoveryReady,
                     onClick = { showProjects = true }
-                ) { Text("Проекты") }
+                ) { Text("Мои") }
                 FilledTonalButton(
                     onClick = {
                         if (savedSource != null && hasModelEdits) {
@@ -1151,6 +1151,7 @@ private fun EditorScreen() {
                                         val sizeMiB = project.bytes / (1024.0 * 1024.0)
                                         Text(
                                             (if (project.active) "Открыт · " else "") +
+                                                (if (project.damaged) "Повреждён · " else "") +
                                                 String.format(java.util.Locale.ROOT, "%.1f МиБ", sizeMiB),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = TextSecondary
@@ -1158,7 +1159,7 @@ private fun EditorScreen() {
                                     }
                                     if (!project.active) {
                                         TextButton(
-                                            enabled = !busy && !layerBusy && recoveryReady,
+                                            enabled = !busy && !layerBusy && recoveryReady && !project.damaged,
                                             onClick = {
                                                 val outgoing = pauseDraft
                                                 val projectId = project.sourceFileName
