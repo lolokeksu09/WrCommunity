@@ -89,7 +89,7 @@ class EditorSessionStoreTest {
             assertTrue("Uncommitted import must survive a stale autosave", pending.file.isFile)
             EditorSessionStore.save(root, draft(pending))
             assertEquals(pending.sha256, EditorSessionStore.restore(root)!!.source.sha256)
-            assertFalse("Previous committed source can now be reclaimed", first.file.exists())
+            assertTrue("Previous committed source is saved for re-opening", first.file.exists())
         } finally { root.deleteRecursively() }
     }
 
@@ -155,7 +155,7 @@ class EditorSessionStoreTest {
             val folder = EditorSessionStore.folder(root)
             assertFalse("Backup from a different source must be invalidated",
                 File(folder, "draft.backup.json").exists())
-            assertFalse(first.file.exists())
+            assertTrue("Earlier project must survive a model switch", first.file.exists())
             File(folder, "draft.json").writeText("{broken")
             try {
                 EditorSessionStore.restoreWithStatus(root)
@@ -369,7 +369,7 @@ class EditorSessionStoreTest {
             assertTrue(second.file.exists())
             assertEquals(first.sha256,EditorSessionStore.restore(root)!!.source.sha256)
             EditorSessionStore.save(root,draft(second))
-            assertFalse(first.file.exists())
+            assertTrue("Earlier project must survive a model switch", first.file.exists())
             assertEquals(second.sha256,EditorSessionStore.restore(root)!!.source.sha256)
         } finally { root.deleteRecursively() }
     }
