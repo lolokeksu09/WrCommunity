@@ -87,7 +87,8 @@ object GlbTransformExporter {
         edit: ModelEdit,
         visibleMaterials: Set<Int>? = null,
         partEdits: Map<Int, PartEdit> = emptyMap(),
-        sculptStrokes: List<SculptStroke> = emptyList()
+        sculptStrokes: List<SculptStroke> = emptyList(),
+        vertexMoves: List<VertexMove> = emptyList()
     ) = withContext(Dispatchers.IO) {
             val file = File(Uri.parse(originalLocation).path ?: throw IOException("Исходный GLB не найден."))
             if (!file.isFile || file.length() > GlbHeader.MAX_BYTES) {
@@ -100,7 +101,8 @@ object GlbTransformExporter {
                 else GlbLayers.filter(original, visibleMaterials)
             val sculpted = GlbSculpt.apply(layersCopy,
                 sculptStrokes.filter { visibleMaterials == null || it.materialId in visibleMaterials })
-            val partCopy = GlbPartTransforms.apply(sculpted, partEdits)
+            val withVertices = GlbVertexEditor.apply(sculpted, vertexMoves)
+            val partCopy = GlbPartTransforms.apply(withVertices, partEdits)
             val data = transform(partCopy, edit)
             GlbIntegrity.validate(data)
             val resolver = context.contentResolver
