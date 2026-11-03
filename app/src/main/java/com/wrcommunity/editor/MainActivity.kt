@@ -98,6 +98,13 @@ private fun EditorScreen() {
     var layerHistory by remember { mutableStateOf(LayerHistory()) }
     var partHistory by remember { mutableStateOf(PartHistory()) }
     var sculptHistory by remember { mutableStateOf(SculptHistory()) }
+    var vertexHistory by remember { mutableStateOf(VertexHistory()) }
+    var vertexMode by remember { mutableStateOf(false) }
+    var vertexTargets by remember { mutableStateOf<List<VertexPrimitive>>(emptyList()) }
+    var vertexTargetsError by remember { mutableStateOf<String?>(null) }
+    var vertexPrimitiveIndex by remember { mutableIntStateOf(0) }
+    var vertexIndex by remember { mutableIntStateOf(0) }
+    var vertexStep by remember { mutableStateOf(0.01f) }
     var sculptDraft by remember { mutableStateOf(SculptStroke(materialId = 0)) }
     var symmetryAxis by remember { mutableIntStateOf(0) }
     var sculptMode by remember { mutableStateOf(false) }
@@ -145,9 +152,11 @@ private fun EditorScreen() {
     val visibleMaterials = layerHistory.current
     val partEdits = partHistory.current
     val sculptStrokes = sculptHistory.current
+    val vertexMoves = vertexHistory.current
     val hasModelEdits = !edit.isIdentity ||
         visibleMaterials != materialLayers.map { it.id }.toSet() ||
-        partEdits.isNotEmpty() || sculptStrokes.isNotEmpty()
+        partEdits.isNotEmpty() || sculptStrokes.isNotEmpty() ||
+        vertexMoves.isNotEmpty()
 
     // Flush the current edit immediately when Android backgrounds the editor.
     // The background worker survives destruction of this Compose screen.
@@ -157,7 +166,7 @@ private fun EditorScreen() {
             visible = visibleMaterials, parts = partEdits,
             strokes = sculptStrokes, selected = selectedPartId,
             brush = sculptDraft, camera = cameraView.name,
-            symmetryAxis = symmetryAxis
+            symmetryAxis = symmetryAxis, vertexMoves = vertexMoves
         )
     } else null
     val currentPauseDraft by rememberUpdatedState(pauseDraft)
@@ -209,6 +218,25 @@ private fun EditorScreen() {
         }
     }
 
+    // Choose a mesh primitive and an exact POSITION index, not an imprecise
+    // screen-space guess. The list reads only glTF JSON, not the whole BIN.
+    LaunchedEffect(savedSource) {
+        vertexTargets = emptyList()
+        vertexTargetsError = null
+        vertexPrimitiveIndex = 0
+        vertexIndex = 0
+        val source = savedSource ?: return@LaunchedEffect
+        try {
+            vertexTargets = withContext(Dispatchers.IO) {
+                GlbVertexEditor.targets(source.file)
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            vertexTargetsError = error.message ?: "Не удалось прочитать вершины модели."
+        }
+    }
+
     // Restore the last unfinished edit from app-private persistent storage.
     // All expensive file reading and checksum work runs off the UI thread.
     LaunchedEffect(Unit) {
@@ -235,6 +263,7 @@ private fun EditorScreen() {
                 layerHistory = LayerHistory(states = listOf(draft.visible))
                 partHistory = PartHistory(steps = listOf(draft.parts))
                 sculptHistory = SculptHistory(states = listOf(draft.strokes))
+                vertexHistory = VertexHistory(states = listOf(draft.vertexMoves))
                 history = EditHistory(steps = listOf(draft.global))
                 sculptDraft = draft.brush
                 symmetryAxis = draft.symmetryAxis
@@ -271,7 +300,7 @@ private fun EditorScreen() {
     // not replace a newer manifest.
     LaunchedEffect(recoveryReady, savedSource, modelName, history.current,
         layerHistory.current, partHistory.current, sculptHistory.current,
-        selectedPartId, sculptDraft, cameraView, symmetryAxis) {
+        vertexHistory.current, selectedPartId, sculptDraft, cameraView, symmetryAxis) {
         val source = savedSource
         if (!recoveryReady || source == null) return@LaunchedEffect
         kotlinx.coroutines.delay(600)
@@ -280,7 +309,7 @@ private fun EditorScreen() {
             visible = layerHistory.current, parts = partHistory.current,
             strokes = sculptHistory.current, selected = selectedPartId,
             brush = sculptDraft, camera = cameraView.name,
-            symmetryAxis = symmetryAxis
+            symmetryAxis = symmetryAxis, vertexMoves = vertexHistory.current
         )
         try {
             EditorSessionStore.saveCurrent(context.applicationContext.filesDir, snapshot)
@@ -294,10 +323,11 @@ private fun EditorScreen() {
 
     // A change in layer visibility creates an independent preview GLB.
     // Cancellation prevents stale previews overwriting newer selections.
-    LaunchedEffect(originalLocation, visibleMaterials, partEdits, sculptStrokes) {
+    LaunchedEffect(originalLocation, visibleMaterials, partEdits, sculptStrokes, vertexMoves) {
         val origin = originalLocation ?: return@LaunchedEffect
         val allIds = materialLayers.map { it.id }.toSet()
-        if (visibleMaterials == allIds && partEdits.isEmpty() && sculptStrokes.isEmpty()) {
+        if (visibleMaterials == allIds && partEdits.isEmpty() &&
+            sculptStrokes.isEmpty() && vertexMoves.isEmpty()) {
             modelLocation = origin
             layerBusy = false
             return@LaunchedEffect
@@ -308,7 +338,8 @@ private fun EditorScreen() {
             modelLocation = GlbLayers.preview(
                 context.applicationContext, origin, visibleMaterials,
                 partEdits.filterKeys { it in visibleMaterials },
-                sculptStrokes.filter { it.materialId in visibleMaterials }
+                sculptStrokes.filter { it.materialId in visibleMaterials },
+                vertexMoves
             )
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -418,6 +449,8 @@ private fun EditorScreen() {
                         layerHistory = LayerHistory(states = listOf(groups.map { it.id }.toSet()))
                         partHistory = PartHistory()
                         sculptHistory = SculptHistory()
+                        vertexHistory = VertexHistory()
+                        vertexMode = false
                         sculptDraft = committedDraft.brush
                         symmetryAxis = 0
                         sculptMode = false
@@ -465,13 +498,14 @@ private fun EditorScreen() {
             val selectedMaterials = layerHistory.current
             val partsSnapshot = partHistory.current.filterKeys { it in selectedMaterials }
             val sculptSnapshot = sculptHistory.current.filter { it.materialId in selectedMaterials }
+            val vertexSnapshot = vertexHistory.current
             scope.launch {
                 busy = true
                 try {
                     GlbTransformExporter.export(
                         context.applicationContext, location, uri, snapshot,
                         selectedMaterials.takeIf { materialLayers.isNotEmpty() },
-                        partsSnapshot, sculptSnapshot
+                        partsSnapshot, sculptSnapshot, vertexSnapshot
                     )
                     message = "GLB сохранён. Исходная модель не изменена."
                 } catch (cancelled: CancellationException) {
@@ -515,6 +549,8 @@ private fun EditorScreen() {
                         layerHistory = LayerHistory(states = listOf(draft.visible))
                         partHistory = PartHistory(steps = listOf(draft.parts))
                         sculptHistory = SculptHistory(states = listOf(draft.strokes))
+                        vertexHistory = VertexHistory(states = listOf(draft.vertexMoves))
+                        vertexMode = false
                         history = EditHistory(steps = listOf(draft.global))
                         sculptDraft = draft.brush
                         symmetryAxis = draft.symmetryAxis
@@ -813,6 +849,7 @@ private fun EditorScreen() {
                                 layerHistory = LayerHistory(states = listOf(checkpoint.visible))
                                 partHistory = PartHistory(steps = listOf(checkpoint.parts))
                                 sculptHistory = SculptHistory(states = listOf(checkpoint.strokes))
+                                vertexHistory = VertexHistory(states = listOf(checkpoint.vertexMoves))
                                 history = EditHistory(steps = listOf(checkpoint.global))
                                 sculptDraft = checkpoint.brush
                                 symmetryAxis = checkpoint.symmetryAxis
@@ -1316,6 +1353,8 @@ private fun EditorScreen() {
                                                             layerHistory = LayerHistory(states = listOf(opened.visible))
                                                             partHistory = PartHistory(steps = listOf(opened.parts))
                                                             sculptHistory = SculptHistory(states = listOf(opened.strokes))
+                                                            vertexHistory = VertexHistory(states = listOf(opened.vertexMoves))
+                                                            vertexMode = false
                                                             history = EditHistory(steps = listOf(opened.global))
                                                             sculptDraft = opened.brush
                                                             symmetryAxis = opened.symmetryAxis
