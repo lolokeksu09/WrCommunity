@@ -163,6 +163,22 @@ class EditorProjectLibraryTest {
         } finally { root.deleteRecursively() }
     }
 
+    @Test fun recoveredBackupCanRepairCorruptedPrimaryWithoutSwitchingProjects() = runBlocking {
+        val root = Files.createTempDirectory("project-repair").toFile()
+        try {
+            val a = draft(source(root, 90), "Repair.glb")
+            EditorSessionStore.save(root, a)
+            EditorSessionStore.save(root, a.copy(camera = "LEFT"))
+            File(EditorSessionStore.folder(root), "draft.json").writeText("{broken")
+            val recovered = EditorSessionStore.restoreWithStatus(root)!!
+            assertTrue(recovered.fromBackup)
+            EditorSessionStore.saveCurrent(root, recovered.draft.copy(camera = "TOP"))
+            val repaired = EditorSessionStore.restoreWithStatus(root)!!
+            assertFalse(repaired.fromBackup)
+            assertEquals("TOP", repaired.draft.camera)
+        } finally { root.deleteRecursively() }
+    }
+
     @Test fun projectLimitRejectsNewImportWithoutDestroyingCurrent() = runBlocking {
         val root = Files.createTempDirectory("project-limit").toFile()
         try {
