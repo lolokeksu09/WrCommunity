@@ -176,6 +176,15 @@ object EditorProjectArchive {
                     original.brush.materialId !in available ||
                     (original.selected != null && original.selected !in available))
                     throw IOException("Правки архива ссылаются на отсутствующие материалы.")
+                // Vertex offsets reference the ORIGINAL mesh / primitive indices.
+                // Reject a crafted ZIP before it can replace the current project.
+                val vertexTargets = GlbVertexEditor.targets(glbPath)
+                    .associateBy { it.mesh to it.primitive }
+                if (original.vertexMoves.any { move ->
+                        val target = vertexTargets[move.mesh to move.primitive]
+                        target == null || move.vertex !in 0 until target.vertices
+                    })
+                    throw IOException("Правки архива ссылаются на отсутствующие вершины.")
 
                 imported = EditorSessionStore.importSource(filesDir, glbPath)
                 val restored = original.copy(source = imported)
