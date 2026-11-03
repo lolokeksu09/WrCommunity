@@ -128,7 +128,8 @@ object GlbLayers {
     suspend fun preview(
         context: Context, sourceLocation: String, visible: Set<Int>,
         partEdits: Map<Int, PartEdit> = emptyMap(),
-        sculptStrokes: List<SculptStroke> = emptyList()
+        sculptStrokes: List<SculptStroke> = emptyList(),
+        vertexMoves: List<VertexMove> = emptyList()
     ): String =
         withContext(Dispatchers.IO) {
             val src = File(Uri.parse(sourceLocation).path ?: throw IOException("GLB недоступен."))
@@ -139,7 +140,8 @@ object GlbLayers {
                 val shaped = GlbSculpt.apply(filtered,
                     sculptStrokes.filter { it.materialId in visible })
                 currentCoroutineContext().ensureActive()
-                val adjusted = GlbPartTransforms.apply(shaped, partEdits)
+                val withVertices = GlbVertexEditor.apply(shaped, vertexMoves)
+                val adjusted = GlbPartTransforms.apply(withVertices, partEdits)
                 currentCoroutineContext().ensureActive()
                 dst.writeBytes(adjusted)
                 // Bound cache usage without touching the user's original document.
