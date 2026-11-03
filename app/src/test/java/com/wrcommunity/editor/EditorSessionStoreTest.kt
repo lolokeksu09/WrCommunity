@@ -71,7 +71,9 @@ class EditorSessionStoreTest {
             val missing = StoredModel(File(source.file.parentFile, "model-" +
                 java.util.UUID.randomUUID() + ".glb"), 48, source.sha256)
             EditorSessionStore.saveWhenPaused(root, draft(missing)).join()
-            assertNotNull(EditorSessionStore.backgroundSaveError())
+            // A pending flush for another (or missing) source is stale after
+            // the user changes projects, so it is skipped without an error.
+            assertNull(EditorSessionStore.backgroundSaveError())
             assertEquals(source.sha256, EditorSessionStore.restore(root)!!.source.sha256)
         } finally { root.deleteRecursively() }
     }
