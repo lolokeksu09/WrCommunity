@@ -341,12 +341,19 @@ object EditorSessionStore {
                 if (sameSourceOnly) {
                     // Never allow an obsolete autosave worker to re-activate a
                     // project that the user has already switched away from.
-                    val manifestFile = File(dir, JSON_NAME)
-                    val name = if (manifestFile.isFile && manifestFile.length() in 2..MAX_JSON) {
-                        runCatching {
-                            JSONObject(manifestFile.readText(Charsets.UTF_8)).getString("file")
-                        }.getOrNull()
-                    } else null
+                    val name = listOf(JSON_NAME, BACKUP_NAME, CHECKPOINT_NAME)
+                        .firstNotNullOfOrNull { entry ->
+                            val file = File(dir, entry)
+                            if (file.isFile && file.length() in 2..MAX_JSON) {
+                                runCatching {
+                                    JSONObject(file.readText(Charsets.UTF_8)).getString("file")
+                                }.getOrNull()
+                            } else null
+                        }
+                    // Recovering from a damaged primary is permitted if the
+                    // backup/checkpoint still belongs to this exact source.
+                    // After a project switch, these references are changed or
+                    // removed, so stale workers cannot restore the old model.
                     if (name != draft.source.file.name) return@withLock
                 }
                 if (draft.source.file.parentFile?.canonicalFile != dir.canonicalFile ||
