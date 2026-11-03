@@ -104,6 +104,7 @@ private fun EditorScreen() {
     var vertexTargetsError by remember { mutableStateOf<String?>(null) }
     var vertexPrimitiveIndex by remember { mutableIntStateOf(0) }
     var vertexIndex by remember { mutableIntStateOf(0) }
+    var vertexIndexInput by remember { mutableStateOf("0") }
     var vertexStep by remember { mutableStateOf(0.01f) }
     var sculptDraft by remember { mutableStateOf(SculptStroke(materialId = 0)) }
     var symmetryAxis by remember { mutableIntStateOf(0) }
@@ -1575,16 +1576,150 @@ private fun EditorScreen() {
                             Text("Редактирование: ${selectedPart.name}",
                                 style = MaterialTheme.typography.titleMedium,
                                 maxLines = 2)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (sculptMode) {
-                                    Button(onClick = { sculptMode = false }) { Text("Положение") }
-                                    OutlinedButton(onClick = { sculptMode = true }) { Text("Форма") }
+                            Row(
+                                Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                if (!sculptMode && !vertexMode) {
+                                    Button(onClick = { sculptMode = false; vertexMode = false }) {
+                                        Text("Положение")
+                                    }
                                 } else {
-                                    OutlinedButton(onClick = { sculptMode = false }) { Text("Положение") }
-                                    Button(onClick = { sculptMode = true }) { Text("Форма") }
+                                    OutlinedButton(onClick = { sculptMode = false; vertexMode = false }) {
+                                        Text("Положение")
+                                    }
+                                }
+                                if (sculptMode && !vertexMode) {
+                                    Button(onClick = { sculptMode = true; vertexMode = false }) {
+                                        Text("Форма")
+                                    }
+                                } else {
+                                    OutlinedButton(onClick = { sculptMode = true; vertexMode = false }) {
+                                        Text("Форма")
+                                    }
+                                }
+                                if (vertexMode) {
+                                    Button(onClick = { vertexMode = true; sculptMode = false }) {
+                                        Text("Вершины")
+                                    }
+                                } else {
+                                    OutlinedButton(onClick = { vertexMode = true; sculptMode = false }) {
+                                        Text("Вершины")
+                                    }
                                 }
                             }
-                            if (!sculptMode) {
+                            if (vertexMode) {
+                                Text("Точное изменение POSITION-вершины",
+                                    style = MaterialTheme.typography.titleSmall)
+                                Text("Выбор по индексу вершины исходного GLB. Выделение касанием пока не поддерживается.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary)
+                                val options = vertexTargets.filter { it.materialId == partId }
+                                val target = options.getOrNull(
+                                    vertexPrimitiveIndex.takeIf { it in options.indices } ?: 0)
+                                if (target == null) {
+                                    Text(vertexTargetsError ?: "Для материала нет доступных статических TRIANGLES с FLOAT VEC3.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFFFB4A2))
+                                } else {
+                                    val current = options.indexOf(target)
+                                    Text("Меш #${target.mesh}, примитив #${target.primitive} · ${target.vertices} вершин",
+                                        style = MaterialTheme.typography.bodySmall)
+                                    if (options.size > 1) {
+                                        Stepper("Примитив", "${current+1}/${options.size}",
+                                            {
+                                                vertexPrimitiveIndex = (current-1).coerceAtLeast(0)
+                                                vertexIndex = 0
+                                                vertexIndexInput = "0"
+                                            }, {
+                                                vertexPrimitiveIndex = (current+1).coerceAtMost(options.lastIndex)
+                                                vertexIndex = 0
+                                                vertexIndexInput = "0"
+                                            })
+                                    }
+                                    OutlinedTextField(
+                                        value = vertexIndexInput,
+                                        onValueChange = { entered ->
+                                            if (entered.length <= 7 && entered.all { it.isDigit() }) {
+                                                vertexIndexInput = entered
+                                                entered.toIntOrNull()?.let { vertexIndex = it }
+                                            }
+                                        },
+                                        singleLine = true,
+                                        label = { Text("Индекс вершины (0…${target.vertices-1})") },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Row(
+                                        Modifier.horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        listOf(.01f to "0,01", .1f to "0,1", 1f to "1,0")
+                                            .forEach { (size, label) ->
+                                                if (vertexStep == size) {
+                                                    Button(onClick = { vertexStep = size }) {
+                                                        Text("Шаг $label")
+                                                    }
+                                                } else {
+                                                    OutlinedButton(onClick = { vertexStep = size }) {
+                                                        Text("Шаг $label")
+                                                    }
+                                                }
+                                            }
+                                    }
+                                    val selectedIndex = vertexIndexInput.toIntOrNull()
+                                    val canMove = !busy && !layerBusy &&
+                                        selectedIndex != null && selectedIndex in 0 until target.vertices &&
+                                        vertexHistory.current.size < 64
+                                    fun nudge(axis: Int, sign: Float) {
+                                        if (selectedIndex == null) return
+                                        val offset = vertexStep * sign
+                                        val move = when (axis) {
+                                            0 -> VertexMove(target.mesh, target.primitive, selectedIndex, offset, 0f, 0f)
+                                            1 -> VertexMove(target.mesh, target.primitive, selectedIndex, 0f, offset, 0f)
+                                            else -> VertexMove(target.mesh, target.primitive, selectedIndex, 0f, 0f, offset)
+                                        }
+                                        try {
+                                            vertexHistory = vertexHistory.add(move)
+                                        } catch (error: Exception) {
+                                            message = error.message ?: "Не удалось переместить вершину."
+                                        }
+                                    }
+                                    listOf(0 to "X", 1 to "Y", 2 to "Z").forEach { (axis, name) ->
+                                        Row(Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically) {
+                                            Text(name, Modifier.weight(1f))
+                                            OutlinedButton(
+                                                enabled = canMove,
+                                                onClick = { nudge(axis, -1f) }
+                                            ) { Text("−") }
+                                            OutlinedButton(
+                                                enabled = canMove,
+                                                onClick = { nudge(axis, 1f) }
+                                            ) { Text("+") }
+                                        }
+                                    }
+                                }
+                                Text("Правки вершин: ${vertexHistory.current.size}/64",
+                                    style = MaterialTheme.typography.labelMedium)
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    OutlinedButton(
+                                        enabled = vertexHistory.canUndo,
+                                        onClick = { vertexHistory = vertexHistory.undo() }
+                                    ) { Text("↶") }
+                                    OutlinedButton(
+                                        enabled = vertexHistory.canRedo,
+                                        onClick = { vertexHistory = vertexHistory.redo() }
+                                    ) { Text("↷") }
+                                    TextButton(
+                                        enabled = vertexHistory.current.isNotEmpty(),
+                                        onClick = { vertexHistory = vertexHistory.reset() }
+                                    ) { Text("Сброс") }
+                                }
+                                Text("Редактируется исходная сетка выбранного примитива. Общие буферы других примитивов не меняются.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary)
+                            } else if (!sculptMode) {
                             Row(
                                 Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
