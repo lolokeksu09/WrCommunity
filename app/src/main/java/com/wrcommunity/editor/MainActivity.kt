@@ -98,6 +98,14 @@ private fun EditorScreen() {
     var layerHistory by remember { mutableStateOf(LayerHistory()) }
     var partHistory by remember { mutableStateOf(PartHistory()) }
     var sculptHistory by remember { mutableStateOf(SculptHistory()) }
+    var vertexHistory by remember { mutableStateOf(VertexHistory()) }
+    var vertexMode by remember { mutableStateOf(false) }
+    var vertexTargets by remember { mutableStateOf<List<VertexPrimitive>>(emptyList()) }
+    var vertexTargetsError by remember { mutableStateOf<String?>(null) }
+    var vertexPrimitiveIndex by remember { mutableIntStateOf(0) }
+    var vertexIndex by remember { mutableIntStateOf(0) }
+    var vertexIndexInput by remember { mutableStateOf("0") }
+    var vertexStep by remember { mutableStateOf(0.01f) }
     var sculptDraft by remember { mutableStateOf(SculptStroke(materialId = 0)) }
     var symmetryAxis by remember { mutableIntStateOf(0) }
     var sculptMode by remember { mutableStateOf(false) }
@@ -145,9 +153,11 @@ private fun EditorScreen() {
     val visibleMaterials = layerHistory.current
     val partEdits = partHistory.current
     val sculptStrokes = sculptHistory.current
+    val vertexMoves = vertexHistory.current
     val hasModelEdits = !edit.isIdentity ||
         visibleMaterials != materialLayers.map { it.id }.toSet() ||
-        partEdits.isNotEmpty() || sculptStrokes.isNotEmpty()
+        partEdits.isNotEmpty() || sculptStrokes.isNotEmpty() ||
+        vertexMoves.isNotEmpty()
 
     // Flush the current edit immediately when Android backgrounds the editor.
     // The background worker survives destruction of this Compose screen.
@@ -157,7 +167,7 @@ private fun EditorScreen() {
             visible = visibleMaterials, parts = partEdits,
             strokes = sculptStrokes, selected = selectedPartId,
             brush = sculptDraft, camera = cameraView.name,
-            symmetryAxis = symmetryAxis
+            symmetryAxis = symmetryAxis, vertexMoves = vertexMoves
         )
     } else null
     val currentPauseDraft by rememberUpdatedState(pauseDraft)
@@ -209,6 +219,26 @@ private fun EditorScreen() {
         }
     }
 
+    // Choose a mesh primitive and an exact POSITION index, not an imprecise
+    // screen-space guess. The list reads only glTF JSON, not the whole BIN.
+    LaunchedEffect(savedSource) {
+        vertexTargets = emptyList()
+        vertexTargetsError = null
+        vertexPrimitiveIndex = 0
+        vertexIndex = 0
+        vertexIndexInput = "0"
+        val source = savedSource ?: return@LaunchedEffect
+        try {
+            vertexTargets = withContext(Dispatchers.IO) {
+                GlbVertexEditor.targets(source.file)
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            vertexTargetsError = error.message ?: "Не удалось прочитать вершины модели."
+        }
+    }
+
     // Restore the last unfinished edit from app-private persistent storage.
     // All expensive file reading and checksum work runs off the UI thread.
     LaunchedEffect(Unit) {
@@ -235,6 +265,7 @@ private fun EditorScreen() {
                 layerHistory = LayerHistory(states = listOf(draft.visible))
                 partHistory = PartHistory(steps = listOf(draft.parts))
                 sculptHistory = SculptHistory(states = listOf(draft.strokes))
+                vertexHistory = VertexHistory(states = listOf(draft.vertexMoves))
                 history = EditHistory(steps = listOf(draft.global))
                 sculptDraft = draft.brush
                 symmetryAxis = draft.symmetryAxis
@@ -271,7 +302,7 @@ private fun EditorScreen() {
     // not replace a newer manifest.
     LaunchedEffect(recoveryReady, savedSource, modelName, history.current,
         layerHistory.current, partHistory.current, sculptHistory.current,
-        selectedPartId, sculptDraft, cameraView, symmetryAxis) {
+        vertexHistory.current, selectedPartId, sculptDraft, cameraView, symmetryAxis) {
         val source = savedSource
         if (!recoveryReady || source == null) return@LaunchedEffect
         kotlinx.coroutines.delay(600)
@@ -280,7 +311,7 @@ private fun EditorScreen() {
             visible = layerHistory.current, parts = partHistory.current,
             strokes = sculptHistory.current, selected = selectedPartId,
             brush = sculptDraft, camera = cameraView.name,
-            symmetryAxis = symmetryAxis
+            symmetryAxis = symmetryAxis, vertexMoves = vertexHistory.current
         )
         try {
             EditorSessionStore.saveCurrent(context.applicationContext.filesDir, snapshot)
@@ -294,10 +325,11 @@ private fun EditorScreen() {
 
     // A change in layer visibility creates an independent preview GLB.
     // Cancellation prevents stale previews overwriting newer selections.
-    LaunchedEffect(originalLocation, visibleMaterials, partEdits, sculptStrokes) {
+    LaunchedEffect(originalLocation, visibleMaterials, partEdits, sculptStrokes, vertexMoves) {
         val origin = originalLocation ?: return@LaunchedEffect
         val allIds = materialLayers.map { it.id }.toSet()
-        if (visibleMaterials == allIds && partEdits.isEmpty() && sculptStrokes.isEmpty()) {
+        if (visibleMaterials == allIds && partEdits.isEmpty() &&
+            sculptStrokes.isEmpty() && vertexMoves.isEmpty()) {
             modelLocation = origin
             layerBusy = false
             return@LaunchedEffect
@@ -308,7 +340,8 @@ private fun EditorScreen() {
             modelLocation = GlbLayers.preview(
                 context.applicationContext, origin, visibleMaterials,
                 partEdits.filterKeys { it in visibleMaterials },
-                sculptStrokes.filter { it.materialId in visibleMaterials }
+                sculptStrokes.filter { it.materialId in visibleMaterials },
+                vertexMoves
             )
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -418,6 +451,8 @@ private fun EditorScreen() {
                         layerHistory = LayerHistory(states = listOf(groups.map { it.id }.toSet()))
                         partHistory = PartHistory()
                         sculptHistory = SculptHistory()
+                        vertexHistory = VertexHistory()
+                        vertexMode = false
                         sculptDraft = committedDraft.brush
                         symmetryAxis = 0
                         sculptMode = false
@@ -465,13 +500,14 @@ private fun EditorScreen() {
             val selectedMaterials = layerHistory.current
             val partsSnapshot = partHistory.current.filterKeys { it in selectedMaterials }
             val sculptSnapshot = sculptHistory.current.filter { it.materialId in selectedMaterials }
+            val vertexSnapshot = vertexHistory.current
             scope.launch {
                 busy = true
                 try {
                     GlbTransformExporter.export(
                         context.applicationContext, location, uri, snapshot,
                         selectedMaterials.takeIf { materialLayers.isNotEmpty() },
-                        partsSnapshot, sculptSnapshot
+                        partsSnapshot, sculptSnapshot, vertexSnapshot
                     )
                     message = "GLB сохранён. Исходная модель не изменена."
                 } catch (cancelled: CancellationException) {
@@ -515,6 +551,8 @@ private fun EditorScreen() {
                         layerHistory = LayerHistory(states = listOf(draft.visible))
                         partHistory = PartHistory(steps = listOf(draft.parts))
                         sculptHistory = SculptHistory(states = listOf(draft.strokes))
+                        vertexHistory = VertexHistory(states = listOf(draft.vertexMoves))
+                        vertexMode = false
                         history = EditHistory(steps = listOf(draft.global))
                         sculptDraft = draft.brush
                         symmetryAxis = draft.symmetryAxis
@@ -813,6 +851,7 @@ private fun EditorScreen() {
                                 layerHistory = LayerHistory(states = listOf(checkpoint.visible))
                                 partHistory = PartHistory(steps = listOf(checkpoint.parts))
                                 sculptHistory = SculptHistory(states = listOf(checkpoint.strokes))
+                                vertexHistory = VertexHistory(states = listOf(checkpoint.vertexMoves))
                                 history = EditHistory(steps = listOf(checkpoint.global))
                                 sculptDraft = checkpoint.brush
                                 symmetryAxis = checkpoint.symmetryAxis
@@ -1316,6 +1355,8 @@ private fun EditorScreen() {
                                                             layerHistory = LayerHistory(states = listOf(opened.visible))
                                                             partHistory = PartHistory(steps = listOf(opened.parts))
                                                             sculptHistory = SculptHistory(states = listOf(opened.strokes))
+                                                            vertexHistory = VertexHistory(states = listOf(opened.vertexMoves))
+                                                            vertexMode = false
                                                             history = EditHistory(steps = listOf(opened.global))
                                                             sculptDraft = opened.brush
                                                             symmetryAxis = opened.symmetryAxis
@@ -1536,16 +1577,150 @@ private fun EditorScreen() {
                             Text("Редактирование: ${selectedPart.name}",
                                 style = MaterialTheme.typography.titleMedium,
                                 maxLines = 2)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (sculptMode) {
-                                    Button(onClick = { sculptMode = false }) { Text("Положение") }
-                                    OutlinedButton(onClick = { sculptMode = true }) { Text("Форма") }
+                            Row(
+                                Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                if (!sculptMode && !vertexMode) {
+                                    Button(onClick = { sculptMode = false; vertexMode = false }) {
+                                        Text("Положение")
+                                    }
                                 } else {
-                                    OutlinedButton(onClick = { sculptMode = false }) { Text("Положение") }
-                                    Button(onClick = { sculptMode = true }) { Text("Форма") }
+                                    OutlinedButton(onClick = { sculptMode = false; vertexMode = false }) {
+                                        Text("Положение")
+                                    }
+                                }
+                                if (sculptMode && !vertexMode) {
+                                    Button(onClick = { sculptMode = true; vertexMode = false }) {
+                                        Text("Форма")
+                                    }
+                                } else {
+                                    OutlinedButton(onClick = { sculptMode = true; vertexMode = false }) {
+                                        Text("Форма")
+                                    }
+                                }
+                                if (vertexMode) {
+                                    Button(onClick = { vertexMode = true; sculptMode = false }) {
+                                        Text("Вершины")
+                                    }
+                                } else {
+                                    OutlinedButton(onClick = { vertexMode = true; sculptMode = false }) {
+                                        Text("Вершины")
+                                    }
                                 }
                             }
-                            if (!sculptMode) {
+                            if (vertexMode) {
+                                Text("Точное изменение POSITION-вершины",
+                                    style = MaterialTheme.typography.titleSmall)
+                                Text("Выбор по индексу вершины исходного GLB. Выделение касанием пока не поддерживается.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary)
+                                val options = vertexTargets.filter { it.materialId == partId }
+                                val target = options.getOrNull(
+                                    vertexPrimitiveIndex.takeIf { it in options.indices } ?: 0)
+                                if (target == null) {
+                                    Text(vertexTargetsError ?: "Для материала нет доступных статических TRIANGLES с FLOAT VEC3.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFFFB4A2))
+                                } else {
+                                    val current = options.indexOf(target)
+                                    Text("Меш #${target.mesh}, примитив #${target.primitive} · ${target.vertices} вершин",
+                                        style = MaterialTheme.typography.bodySmall)
+                                    if (options.size > 1) {
+                                        Stepper("Примитив", "${current+1}/${options.size}",
+                                            {
+                                                vertexPrimitiveIndex = (current-1).coerceAtLeast(0)
+                                                vertexIndex = 0
+                                                vertexIndexInput = "0"
+                                            }, {
+                                                vertexPrimitiveIndex = (current+1).coerceAtMost(options.lastIndex)
+                                                vertexIndex = 0
+                                                vertexIndexInput = "0"
+                                            })
+                                    }
+                                    OutlinedTextField(
+                                        value = vertexIndexInput,
+                                        onValueChange = { entered ->
+                                            if (entered.length <= 7 && entered.all { it.isDigit() }) {
+                                                vertexIndexInput = entered
+                                                entered.toIntOrNull()?.let { vertexIndex = it }
+                                            }
+                                        },
+                                        singleLine = true,
+                                        label = { Text("Индекс вершины (0…${target.vertices-1})") },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Row(
+                                        Modifier.horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        listOf(.01f to "0,01", .1f to "0,1", 1f to "1,0")
+                                            .forEach { (size, label) ->
+                                                if (vertexStep == size) {
+                                                    Button(onClick = { vertexStep = size }) {
+                                                        Text("Шаг $label")
+                                                    }
+                                                } else {
+                                                    OutlinedButton(onClick = { vertexStep = size }) {
+                                                        Text("Шаг $label")
+                                                    }
+                                                }
+                                            }
+                                    }
+                                    val selectedIndex = vertexIndexInput.toIntOrNull()
+                                    val canMove = !busy && !layerBusy &&
+                                        selectedIndex != null && selectedIndex in 0 until target.vertices &&
+                                        vertexHistory.current.size < 64
+                                    fun nudge(axis: Int, sign: Float) {
+                                        if (selectedIndex == null) return
+                                        val offset = vertexStep * sign
+                                        val move = when (axis) {
+                                            0 -> VertexMove(target.mesh, target.primitive, selectedIndex, offset, 0f, 0f)
+                                            1 -> VertexMove(target.mesh, target.primitive, selectedIndex, 0f, offset, 0f)
+                                            else -> VertexMove(target.mesh, target.primitive, selectedIndex, 0f, 0f, offset)
+                                        }
+                                        try {
+                                            vertexHistory = vertexHistory.add(move)
+                                        } catch (error: Exception) {
+                                            message = error.message ?: "Не удалось переместить вершину."
+                                        }
+                                    }
+                                    listOf(0 to "X", 1 to "Y", 2 to "Z").forEach { (axis, name) ->
+                                        Row(Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically) {
+                                            Text(name, Modifier.weight(1f))
+                                            OutlinedButton(
+                                                enabled = canMove,
+                                                onClick = { nudge(axis, -1f) }
+                                            ) { Text("−") }
+                                            OutlinedButton(
+                                                enabled = canMove,
+                                                onClick = { nudge(axis, 1f) }
+                                            ) { Text("+") }
+                                        }
+                                    }
+                                }
+                                Text("Правки вершин: ${vertexHistory.current.size}/64",
+                                    style = MaterialTheme.typography.labelMedium)
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    OutlinedButton(
+                                        enabled = vertexHistory.canUndo,
+                                        onClick = { vertexHistory = vertexHistory.undo() }
+                                    ) { Text("↶") }
+                                    OutlinedButton(
+                                        enabled = vertexHistory.canRedo,
+                                        onClick = { vertexHistory = vertexHistory.redo() }
+                                    ) { Text("↷") }
+                                    TextButton(
+                                        enabled = vertexHistory.current.isNotEmpty(),
+                                        onClick = { vertexHistory = vertexHistory.reset() }
+                                    ) { Text("Сброс") }
+                                }
+                                Text("Редактируется исходная сетка выбранного примитива. Общие буферы других примитивов не меняются.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary)
+                            } else if (!sculptMode) {
                             Row(
                                 Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)

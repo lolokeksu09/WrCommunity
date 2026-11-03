@@ -87,17 +87,19 @@ object GlbTransformExporter {
         edit: ModelEdit,
         visibleMaterials: Set<Int>? = null,
         partEdits: Map<Int, PartEdit> = emptyMap(),
-        sculptStrokes: List<SculptStroke> = emptyList()
+        sculptStrokes: List<SculptStroke> = emptyList(),
+        vertexMoves: List<VertexMove> = emptyList()
     ) = withContext(Dispatchers.IO) {
             val file = File(Uri.parse(originalLocation).path ?: throw IOException("Исходный GLB не найден."))
             if (!file.isFile || file.length() > GlbHeader.MAX_BYTES) {
                 throw IOException("Исходный GLB недоступен или слишком большой.")
             }
             val original = file.readBytes()
-            // Filter the renderable primitives first; apply the global transform second.
-            // The underlying vertex buffers and textures remain binary-identical.
-            val layersCopy = if (visibleMaterials == null) original
-                else GlbLayers.filter(original, visibleMaterials)
+            // Vertex IDs refer to the ORIGINAL mesh/primitive order.
+            // Apply before material filtering, which can reorder primitives.
+            val vertexEdited = GlbVertexEditor.apply(original, vertexMoves)
+            val layersCopy = if (visibleMaterials == null) vertexEdited
+                else GlbLayers.filter(vertexEdited, visibleMaterials)
             val sculpted = GlbSculpt.apply(layersCopy,
                 sculptStrokes.filter { visibleMaterials == null || it.materialId in visibleMaterials })
             val partCopy = GlbPartTransforms.apply(sculpted, partEdits)

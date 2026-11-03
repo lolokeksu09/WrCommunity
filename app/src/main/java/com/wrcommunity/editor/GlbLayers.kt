@@ -128,17 +128,21 @@ object GlbLayers {
     suspend fun preview(
         context: Context, sourceLocation: String, visible: Set<Int>,
         partEdits: Map<Int, PartEdit> = emptyMap(),
-        sculptStrokes: List<SculptStroke> = emptyList()
+        sculptStrokes: List<SculptStroke> = emptyList(),
+        vertexMoves: List<VertexMove> = emptyList()
     ): String =
         withContext(Dispatchers.IO) {
             val src = File(Uri.parse(sourceLocation).path ?: throw IOException("GLB недоступен."))
             val dst = File(context.cacheDir, "layer-view-${UUID.randomUUID()}.glb")
             try {
-                val filtered = filter(src.readBytes(), visible)
+                // Original mesh/primitive indices must be resolved before
+                // filtering changes the primitive order.
+                val withVertices = GlbVertexEditor.apply(src.readBytes(), vertexMoves)
+                currentCoroutineContext().ensureActive()
+                val filtered = filter(withVertices, visible)
                 currentCoroutineContext().ensureActive()
                 val shaped = GlbSculpt.apply(filtered,
                     sculptStrokes.filter { it.materialId in visible })
-                currentCoroutineContext().ensureActive()
                 val adjusted = GlbPartTransforms.apply(shaped, partEdits)
                 currentCoroutineContext().ensureActive()
                 dst.writeBytes(adjusted)
