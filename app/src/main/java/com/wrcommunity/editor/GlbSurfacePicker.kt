@@ -20,6 +20,16 @@ data class SurfaceHit(
     val center: BrushTarget
 )
 
+/** Exact source mesh/primitive/vertex address chosen from the nearest hit face. */
+data class SurfaceVertexHit(
+    val materialId: Int,
+    val mesh: Int,
+    val primitive: Int,
+    val vertex: Int,
+    val x: Float, val y: Float, val z: Float,
+    val distance: Float
+)
+
 /**
  * Exact closest TRIANGLES intersection (Möller–Trumbore), limited to one
  * untransformed mesh node. Mesh data is decoded once, off the UI thread.
@@ -31,6 +41,8 @@ data class SurfaceHit(
 class GlbSurfacePicker private constructor(private val parts: List<Part>) {
     private class Part(
         val material: Int,
+        val mesh: Int,
+        val primitive: Int,
         val positions: FloatArray,
         val triangles: IntArray,
         val bounds: FloatArray // min x/y/z, max x/y/z
@@ -77,6 +89,57 @@ class GlbSurfacePicker private constructor(private val parts: List<Part>) {
         }
         return SurfaceHit(selectedMaterial, px, py, pz, nearest,
             BrushTarget(center(px, 0), center(py, 1), center(pz, 2)))
+    }
+
+    /**
+     * Chooses the closest vertex of the exact frontmost hit triangle.
+     * Ignores occluded materials: hidden surfaces may be selected, while a
+     * visible surface in front of a different material blocks selection.
+     *
+     * Mesh/primitive are ORIGINAL glTF indices if the picker was constructed
+     * from the unfiltered source mesh with current vertex/sculpt deformations.
+     */
+    fun pickVertex(ray: SurfaceRay, selectedMaterial: Int, visible: Set<Int>): SurfaceVertexHit? {
+        if (selectedMaterial !in visible ||
+            !ray.ox.isFinite() || !ray.oy.isFinite() || !ray.oz.isFinite() ||
+            !ray.dx.isFinite() || !ray.dy.isFinite() || !ray.dz.isFinite() ||
+            ray.dx * ray.dx + ray.dy * ray.dy + ray.dz * ray.dz < 1e-14f)
+            return null
+
+        var nearest = Float.POSITIVE_INFINITY
+        var winner: Part? = null
+        var hitTriangle = -1
+        for (part in parts) {
+            if (part.material !in visible || !boxMayHit(ray, part.bounds, nearest)) continue
+            val result = part.tree.trace(ray, nearest)
+            if (result.distance != null && result.triangleIndex != null) {
+                nearest = result.distance
+                winner = part
+                hitTriangle = result.triangleIndex
+            }
+        }
+        val part = winner ?: return null
+        if (part.material != selectedMaterial || hitTriangle < 0) return null
+        val px = ray.ox + ray.dx * nearest
+        val py = ray.oy + ray.dy * nearest
+        val pz = ray.oz + ray.dz * nearest
+        var bestVertex = -1
+        var bestDistance = Double.POSITIVE_INFINITY
+        for (corner in 0..2) {
+            val vertex = part.triangles[hitTriangle * 3 + corner]
+            val i = vertex * 3
+            val dx = (part.positions[i] - px).toDouble()
+            val dy = (part.positions[i + 1] - py).toDouble()
+            val dz = (part.positions[i + 2] - pz).toDouble()
+            val d2 = dx * dx + dy * dy + dz * dz
+            if (d2 < bestDistance || (d2 == bestDistance && vertex < bestVertex)) {
+                bestDistance = d2
+                bestVertex = vertex
+            }
+        }
+        if (bestVertex < 0) return null
+        return SurfaceVertexHit(part.material, part.mesh, part.primitive,
+            bestVertex, px, py, pz, nearest)
     }
 
     private fun boxMayHit(ray: SurfaceRay, box: FloatArray, closest: Float): Boolean {
@@ -219,7 +282,8 @@ class GlbSurfacePicker private constructor(private val parts: List<Part>) {
                 }
                 totalTriangles += indices.size / 3
                 if (totalTriangles > 2_000_000L) throw IOException("Слишком большая сетка для точной кисти.")
-                parts.add(Part(primitive.optInt("material", -1), vertices, indices, bounds))
+                parts.add(Part(primitive.optInt("material", -1), meshId, i,
+                    vertices, indices, bounds))
             }
             if (parts.isEmpty()) throw IOException("Меш пуст.")
             return GlbSurfacePicker(parts)
