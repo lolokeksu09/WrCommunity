@@ -37,10 +37,19 @@ data class VertexHistory(
     val current: List<VertexMove> get() = states[index]
     val canUndo: Boolean get() = index > 0
     val canRedo: Boolean get() = index < states.lastIndex
-    fun add(move: VertexMove): VertexHistory {
-        move.check()
-        if (current.size >= 64) throw IOException("Лимит 64 правки вершин.")
-        val next = states.take(index+1).takeLast(49) + listOf(current + move)
+    fun add(move: VertexMove): VertexHistory = addGroup(listOf(move))
+
+    /** All changed vertices form one Undo/Redo transaction. */
+    fun addGroup(moves: List<VertexMove>): VertexHistory {
+        if (moves.isEmpty()) throw IOException("Группа вершин пуста.")
+        if (current.size + moves.size > 64)
+            throw IOException("Лимит 64 правки вершин. Уменьши выделение или сохрани GLB.")
+        moves.forEach { it.check() }
+        val first = moves.first()
+        if (moves.any { it.mesh != first.mesh || it.primitive != first.primitive } ||
+            moves.map { it.vertex }.toSet().size != moves.size)
+            throw IOException("В одной операции нужны разные вершины одного примитива.")
+        val next = states.take(index+1).takeLast(49) + listOf(current + moves)
         return VertexHistory(next, next.lastIndex)
     }
     fun undo() = if (canUndo) copy(index=index-1) else this

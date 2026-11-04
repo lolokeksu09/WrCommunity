@@ -62,6 +62,46 @@ class GlbSurfacePicker private constructor(private val parts: List<Part>) {
             part.positions[at], part.positions[at + 1], part.positions[at + 2])
     }
 
+    /**
+     * Grow vertex selection by mesh TOPOLOGY: triangles shared by vertex IDs.
+     * Never cross a primitive (or material) boundary, even if two surfaces
+     * happen to overlap in 3D. Reject overly large rings rather than silently
+     * selecting only some of the vertices.
+     *
+     * Vertex indices are stable ORIGINAL GLB indices. Call off the UI thread
+     * for dense meshes; this method does no file reads or BVH rebuilding.
+     */
+    fun connectedVertices(
+        mesh: Int, primitive: Int, pivot: Int, rings: Int,
+        maxVertices: Int = VertexGroupEdits.MAX_SELECTION
+    ): Set<Int>? {
+        if (rings !in 0..3) throw IOException("Число колец должно быть от 0 до 3.")
+        if (maxVertices !in 1..VertexGroupEdits.MAX_SELECTION)
+            throw IOException("Лимит выделения должен быть от 1 до 64.")
+        val part = parts.firstOrNull { it.mesh == mesh && it.primitive == primitive }
+            ?: return null
+        if (pivot !in 0 until part.positions.size / 3) return null
+        val selected = linkedSetOf(pivot)
+        var boundary: Set<Int> = setOf(pivot)
+        repeat(rings) {
+            val grown = linkedSetOf<Int>()
+            for (tri in part.triangles.indices step 3) {
+                val a = part.triangles[tri]
+                val b = part.triangles[tri + 1]
+                val c = part.triangles[tri + 2]
+                if (a !in boundary && b !in boundary && c !in boundary) continue
+                if (a !in selected) grown.add(a)
+                if (b !in selected) grown.add(b)
+                if (c !in selected) grown.add(c)
+                if (selected.size + grown.size > maxVertices)
+                    throw IOException("Слишком много соседних вершин. Выбери меньше колец.")
+            }
+            selected.addAll(grown)
+            boundary = grown
+        }
+        return selected
+    }
+
     fun pick(ray: SurfaceRay, selectedMaterial: Int, visible: Set<Int>): SurfaceHit? {
         if (selectedMaterial !in visible || !ray.ox.isFinite() || !ray.oy.isFinite() ||
             !ray.oz.isFinite() || !ray.dx.isFinite() || !ray.dy.isFinite() ||

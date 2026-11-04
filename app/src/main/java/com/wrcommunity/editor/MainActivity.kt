@@ -106,12 +106,16 @@ private fun EditorScreen() {
     var vertexPickerError by remember { mutableStateOf<String?>(null) }
     var isPickingVertex by remember { mutableStateOf(false) }
     var activeVertex by remember { mutableStateOf<SurfaceVertexHit?>(null) }
+    var selectedVertexGroup by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var additiveVertexPicking by remember { mutableStateOf(false) }
+    var vertexGroupBusy by remember { mutableStateOf(false) }
     // One active 3D axis-drag gesture; the GLB changes only on ACTION_UP.
     var vertexDragAxis by remember { mutableIntStateOf(-1) }
     var vertexDragSession by remember { mutableStateOf<VertexAxisDrag?>(null) }
     var vertexDragPreview by remember { mutableStateOf(0f) }
     var vertexDragSource by remember { mutableStateOf<String?>(null) }
     var vertexDragSelected by remember { mutableStateOf<SurfaceVertexHit?>(null) }
+    var vertexDragGroup by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var vertexPrimitiveIndex by remember { mutableIntStateOf(0) }
     var vertexIndex by remember { mutableIntStateOf(0) }
     var vertexIndexInput by remember { mutableStateOf("0") }
@@ -168,6 +172,23 @@ private fun EditorScreen() {
         visibleMaterials != materialLayers.map { it.id }.toSet() ||
         partEdits.isNotEmpty() || sculptStrokes.isNotEmpty() ||
         vertexMoves.isNotEmpty()
+
+    /** Update an entire selected vertex group as ONE undoable operation. */
+    fun commitVertexNudge(
+        mesh: Int, primitive: Int, vertex: Int,
+        dx: Float, dy: Float, dz: Float
+    ) {
+        val count = vertexTargets.firstOrNull {
+            it.mesh == mesh && it.primitive == primitive
+        }?.vertices ?: throw java.io.IOException("Не найден примитив выбранной вершины.")
+        val focused = activeVertex
+        val selected = if (focused != null && focused.mesh == mesh &&
+            focused.primitive == primitive && vertex in selectedVertexGroup)
+            selectedVertexGroup else setOf(vertex)
+        val group = VertexGroupEdits.moves(mesh, primitive, selected, dx, dy, dz,
+            vertexCount = count, historyCount = vertexHistory.current.size)
+        vertexHistory = vertexHistory.addGroup(group)
+    }
 
     // Flush the current edit immediately when Android backgrounds the editor.
     // The background worker survives destruction of this Compose screen.
@@ -238,12 +259,15 @@ private fun EditorScreen() {
         vertexIndex = 0
         vertexIndexInput = "0"
         activeVertex = null
+        selectedVertexGroup = emptySet()
+        additiveVertexPicking = false
         isPickingVertex = false
         vertexDragAxis = -1
         vertexDragSession = null
         vertexDragPreview = 0f
         vertexDragSource = null
         vertexDragSelected = null
+        vertexDragGroup = emptySet()
         val source = savedSource ?: return@LaunchedEffect
         try {
             vertexTargets = withContext(Dispatchers.IO) {
@@ -429,6 +453,7 @@ private fun EditorScreen() {
         vertexDragPreview = 0f
         vertexDragSource = null
         vertexDragSelected = null
+        vertexDragGroup = emptySet()
     }
 
     // A large reference photo must not freeze the rendering/gesture thread.
@@ -1061,6 +1086,9 @@ private fun EditorScreen() {
                                                         vertexDragSession = started
                                                         vertexDragSource = modelLocation
                                                         vertexDragSelected = selected
+                                                        vertexDragGroup = selectedVertexGroup
+                                                            .takeIf { selected.vertex in it }
+                                                            ?: setOf(selected.vertex)
                                                         vertexDragPreview = 0f
                                                     }
                                                 }
@@ -1083,8 +1111,17 @@ private fun EditorScreen() {
                                                             selected.mesh, selected.primitive,
                                                             selected.vertex, local)
                                                         if (move != null) {
-                                                            vertexHistory = vertexHistory.add(move)
-                                                            message = "Перемещение вершины сохранено одним шагом Undo."
+                                                            val count = vertexTargets.firstOrNull {
+                                                                it.mesh == selected.mesh &&
+                                                                    it.primitive == selected.primitive
+                                                            }?.vertices ?: throw java.io.IOException(
+                                                                "Примитив выбранной вершины недоступен.")
+                                                            val planned = VertexGroupEdits.moves(
+                                                                selected.mesh, selected.primitive,
+                                                                vertexDragGroup, move.dx, move.dy, move.dz,
+                                                                count, vertexHistory.current.size)
+                                                            vertexHistory = vertexHistory.addGroup(planned)
+                                                            message = "Перемещено вершин: ${planned.size}. Одно действие Undo."
                                                         } else {
                                                             message = "Сдвиг меньше выбранного шага — геометрия не изменена."
                                                         }
@@ -1093,6 +1130,7 @@ private fun EditorScreen() {
                                                     vertexDragSession = null
                                                     vertexDragPreview = 0f
                                                     vertexDragSelected = null
+                                                    vertexDragGroup = emptySet()
                                                     vertexDragSource = null
                                                 }
                                             }
@@ -1101,6 +1139,7 @@ private fun EditorScreen() {
                                             vertexDragSession = null
                                             vertexDragPreview = 0f
                                             vertexDragSelected = null
+                                            vertexDragGroup = emptySet()
                                             vertexDragSource = null
                                             message = error.message ?: "Ошибка осевого перемещения."
                                         }
@@ -1122,11 +1161,13 @@ private fun EditorScreen() {
                                         message = "Для выбора вершины используй одно касание."
                                     } else if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
                                         isPickingVertex = false
+                                        additiveVertexPicking = false
                                         showLayers = true
                                     } else if (event.actionMasked == MotionEvent.ACTION_UP) {
                                         isPickingVertex = false
                                         pickingBusy = true
                                         val selectedMaterial = selected
+                                        val wasAdditive = additiveVertexPicking
                                         val allVisible = visibleMaterials.toSet()
                                         val chosenLocation = modelLocation
                                         val chosenSource = originalLocation
@@ -1162,17 +1203,39 @@ private fun EditorScreen() {
                                                     }
                                                     if (hit != null && choice >= 0 &&
                                                         hit.vertex in 0 until available[choice].vertices) {
-                                                        vertexPrimitiveIndex = choice
-                                                        vertexIndex = hit.vertex
-                                                        vertexIndexInput = hit.vertex.toString()
-                                                        activeVertex = hit
-                                                        vertexMode = true
-                                                        sculptMode = false
-                                                        showLayers = false
-                                                        message = "Выбрана вершина #${hit.vertex} · меш #${hit.mesh}, примитив #${hit.primitive}."
+                                                        val anchor = activeVertex
+                                                        if (wasAdditive && anchor != null &&
+                                                            (hit.mesh != anchor.mesh ||
+                                                             hit.primitive != anchor.primitive)) {
+                                                            showLayers = false
+                                                            message = "Группа ограничена одним примитивом. Коснись вершины той же части."
+                                                        } else if (wasAdditive && anchor != null) {
+                                                            if (hit.vertex !in selectedVertexGroup &&
+                                                                selectedVertexGroup.size +
+                                                                    vertexHistory.current.size >= 64) {
+                                                                message = "Лимит 64 правки вершин. Сократи выделение."
+                                                            } else {
+                                                                selectedVertexGroup = selectedVertexGroup + hit.vertex
+                                                                message = "В группе ${selectedVertexGroup.size} вершин."
+                                                            }
+                                                            showLayers = false
+                                                        } else {
+                                                            vertexPrimitiveIndex = choice
+                                                            vertexIndex = hit.vertex
+                                                            vertexIndexInput = hit.vertex.toString()
+                                                            activeVertex = hit
+                                                            selectedVertexGroup = setOf(hit.vertex)
+                                                            vertexMode = true
+                                                            sculptMode = false
+                                                            showLayers = false
+                                                            message = "Выбрана вершина #${hit.vertex} · меш #${hit.mesh}, примитив #${hit.primitive}."
+                                                        }
                                                     } else {
-                                                        activeVertex = null
-                                                        showLayers = true
+                                                        if (!wasAdditive) {
+                                                            activeVertex = null
+                                                            selectedVertexGroup = emptySet()
+                                                        }
+                                                        showLayers = !wasAdditive
                                                         message = "Вершина не найдена на видимом выбранном материале. Поверни модель или скрой перекрывающий слой."
                                                     }
                                                 } catch (error: Exception) {
@@ -1183,7 +1246,10 @@ private fun EditorScreen() {
                                                         message = error.message ?: "Не удалось выбрать вершину."
                                                     }
                                                 } finally {
-                                                    if (request == requestId) pickingBusy = false
+                                                    if (request == requestId) {
+                                                        pickingBusy = false
+                                                        additiveVertexPicking = false
+                                                    }
                                                 }
                                             }
                                         } catch (error: Exception) {
@@ -1385,7 +1451,73 @@ private fun EditorScreen() {
                                 color = TextPrimary
                             )
                             Text(
-                                "Перетаскивание: выбери ось, затем проведи пальцем по сцене.",
+                                "Выделено: ${selectedVertexGroup.size} / 64 вершин" +
+                                    " · доступно операций: ${64 - vertexHistory.current.size}",
+                                color = TextSecondary,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                            Row(
+                                Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                OutlinedButton(
+                                    enabled = !busy && !pickingBusy && !layerBusy &&
+                                        vertexSurfacePicker != null &&
+                                        selectedVertexGroup.size + vertexHistory.current.size < 64,
+                                    onClick = {
+                                        additiveVertexPicking = true
+                                        isPickingVertex = true
+                                        isPickingBrushCenter = false
+                                        showLayers = false
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 9.dp)
+                                ) { Text("+ Касанием") }
+                                listOf(1, 2, 3).forEach { ring ->
+                                    OutlinedButton(
+                                        enabled = !busy && !pickingBusy && !layerBusy &&
+                                            !vertexGroupBusy && vertexSurfacePicker != null &&
+                                            vertexHistory.current.size < 64,
+                                        onClick = {
+                                            val picker = vertexSurfacePicker
+                                            val pivot = activeVertex
+                                            val source = originalLocation
+                                            if (picker != null && pivot != null) {
+                                                scope.launch {
+                                                    vertexGroupBusy = true
+                                                    try {
+                                                        val max = 64 - vertexHistory.current.size
+                                                        val neighboring = withContext(Dispatchers.Default) {
+                                                            picker.connectedVertices(
+                                                                pivot.mesh, pivot.primitive, pivot.vertex,
+                                                                ring, maxVertices=max)
+                                                        } ?: throw java.io.IOException("Примитив недоступен.")
+                                                        if (originalLocation == source &&
+                                                            vertexSurfacePicker === picker &&
+                                                            activeVertex == pivot) {
+                                                            selectedVertexGroup = neighboring
+                                                            message = "Кольцо $ring: ${neighboring.size} вершин выделено."
+                                                        }
+                                                    } catch (error: Exception) {
+                                                        message = error.message ?:
+                                                            "Не удалось выделить соседние вершины."
+                                                    } finally {
+                                                        vertexGroupBusy = false
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 8.dp)
+                                    ) { Text("Кольцо $ring") }
+                                }
+                                TextButton(
+                                    enabled = selectedVertexGroup.size > 1,
+                                    onClick = {
+                                        selectedVertexGroup = setOf(selectedVertex.vertex)
+                                    }
+                                ) { Text("Одна") }
+                            }
+                            Text(
+                                "Перетаскивание: выбери ось, затем проведи пальцем по сцене. Группа переместится целиком.",
                                 color = TextSecondary,
                                 style = MaterialTheme.typography.labelSmall
                             )
@@ -1398,7 +1530,8 @@ private fun EditorScreen() {
                                         OutlinedButton(
                                             enabled = !busy && !layerBusy && !pickingBusy &&
                                                 vertexSurfacePicker != null &&
-                                                vertexHistory.current.size < 64,
+                                                selectedVertexGroup.isNotEmpty() &&
+                                                selectedVertexGroup.size + vertexHistory.current.size <= 64,
                                             onClick = {
                                                 vertexDragAxis = axis
                                                 vertexDragSession = null
@@ -1418,22 +1551,22 @@ private fun EditorScreen() {
                                     listOf(-1f to "−", 1f to "+").forEach { (sign, mark) ->
                                         OutlinedButton(
                                             enabled = !busy && !layerBusy &&
-                                                !pickingBusy && vertexHistory.current.size < 64,
+                                                !pickingBusy && selectedVertexGroup.isNotEmpty() &&
+                                                selectedVertexGroup.size + vertexHistory.current.size <= 64,
                                             onClick = {
                                                 val delta = vertexStep * sign
-                                                val move = when(axis) {
-                                                    0 -> VertexMove(
-                                                        selectedVertex.mesh, selectedVertex.primitive,
-                                                        selectedVertex.vertex, delta, 0f, 0f)
-                                                    1 -> VertexMove(
-                                                        selectedVertex.mesh, selectedVertex.primitive,
-                                                        selectedVertex.vertex, 0f, delta, 0f)
-                                                    else -> VertexMove(
-                                                        selectedVertex.mesh, selectedVertex.primitive,
-                                                        selectedVertex.vertex, 0f, 0f, delta)
-                                                }
                                                 try {
-                                                    vertexHistory = vertexHistory.add(move)
+                                                    when (axis) {
+                                                        0 -> commitVertexNudge(
+                                                            selectedVertex.mesh, selectedVertex.primitive,
+                                                            selectedVertex.vertex, delta, 0f, 0f)
+                                                        1 -> commitVertexNudge(
+                                                            selectedVertex.mesh, selectedVertex.primitive,
+                                                            selectedVertex.vertex, 0f, delta, 0f)
+                                                        else -> commitVertexNudge(
+                                                            selectedVertex.mesh, selectedVertex.primitive,
+                                                            selectedVertex.vertex, 0f, 0f, delta)
+                                                    }
                                                 } catch (error: Exception) {
                                                     message = error.message ?:
                                                         "Не удалось изменить вершину."
@@ -2016,6 +2149,8 @@ private fun EditorScreen() {
                                         partId in visibleMaterials,
                                     onClick = {
                                         activeVertex = null
+                                        selectedVertexGroup = emptySet()
+                                        additiveVertexPicking = false
                                         isPickingBrushCenter = false
                                         isPickingVertex = true
                                         showLayers = false
@@ -2046,6 +2181,7 @@ private fun EditorScreen() {
                                                 vertexIndex = 0
                                                 vertexIndexInput = "0"
                                                 activeVertex = null
+                                                selectedVertexGroup = emptySet()
                                             }, {
                                                 vertexPrimitiveIndex = (current+1).coerceAtMost(options.lastIndex)
                                                 vertexIndex = 0
@@ -2059,6 +2195,7 @@ private fun EditorScreen() {
                                             if (entered.length <= 7 && entered.all { it.isDigit() }) {
                                                 vertexIndexInput = entered
                                                 activeVertex = null
+                                                selectedVertexGroup = emptySet()
                                                 entered.toIntOrNull()?.let { vertexIndex = it }
                                             }
                                         },
@@ -2066,6 +2203,28 @@ private fun EditorScreen() {
                                         label = { Text("Индекс вершины (0…${target.vertices-1})") },
                                         modifier = Modifier.fillMaxWidth()
                                     )
+                                    OutlinedButton(
+                                        enabled = !busy && !layerBusy &&
+                                            partEdits.isEmpty() &&
+                                            vertexSurfacePicker != null &&
+                                            (vertexIndexInput.toIntOrNull()?.let {
+                                                it in 0 until target.vertices
+                                            } == true),
+                                        onClick = {
+                                            val index = vertexIndexInput.toIntOrNull()
+                                            val point = index?.let {
+                                                vertexSurfacePicker?.vertexPosition(
+                                                    target.mesh, target.primitive, it)
+                                            }
+                                            if (index != null && point != null) {
+                                                activeVertex = SurfaceVertexHit(
+                                                    partId, target.mesh, target.primitive,
+                                                    index, point.x, point.y, point.z, 0f)
+                                                selectedVertexGroup = setOf(index)
+                                                showLayers = false
+                                            } else message = "Неверный индекс вершины."
+                                        }
+                                    ) { Text("Выделить индекс для группы") }
                                     Row(
                                         Modifier.horizontalScroll(rememberScrollState()),
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -2090,13 +2249,15 @@ private fun EditorScreen() {
                                     fun nudge(axis: Int, sign: Float) {
                                         if (selectedIndex == null) return
                                         val offset = vertexStep * sign
-                                        val move = when (axis) {
-                                            0 -> VertexMove(target.mesh, target.primitive, selectedIndex, offset, 0f, 0f)
-                                            1 -> VertexMove(target.mesh, target.primitive, selectedIndex, 0f, offset, 0f)
-                                            else -> VertexMove(target.mesh, target.primitive, selectedIndex, 0f, 0f, offset)
-                                        }
                                         try {
-                                            vertexHistory = vertexHistory.add(move)
+                                            when (axis) {
+                                                0 -> commitVertexNudge(
+                                                    target.mesh, target.primitive, selectedIndex, offset, 0f, 0f)
+                                                1 -> commitVertexNudge(
+                                                    target.mesh, target.primitive, selectedIndex, 0f, offset, 0f)
+                                                else -> commitVertexNudge(
+                                                    target.mesh, target.primitive, selectedIndex, 0f, 0f, offset)
+                                            }
                                         } catch (error: Exception) {
                                             message = error.message ?: "Не удалось переместить вершину."
                                         }
