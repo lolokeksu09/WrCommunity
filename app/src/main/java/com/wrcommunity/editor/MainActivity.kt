@@ -991,7 +991,94 @@ private fun EditorScreen() {
                             modifier = Modifier.fillMaxSize(),
                             cameraManipulator = cameraManipulator,
                             onTouchEvent = { event, _ ->
-                                if (!isPickingBrushCenter) false
+                                if (isPickingVertex) {
+                                    val model = modelForPicking
+                                    val picker = vertexSurfacePicker
+                                    val selected = selectedPartId
+                                    if (model == null || picker == null || selected == null ||
+                                        pickingBusy || layerBusy || partEdits.isNotEmpty() ||
+                                        nodeLocation != modelLocation) {
+                                        isPickingVertex = false
+                                        showLayers = true
+                                        message = "Выбор вершины недоступен. Проверь модель и видимость слоёв."
+                                    } else if (event.pointerCount > 1) {
+                                        isPickingVertex = false
+                                        showLayers = true
+                                        message = "Для выбора вершины используй одно касание."
+                                    } else if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                                        isPickingVertex = false
+                                        showLayers = true
+                                    } else if (event.actionMasked == MotionEvent.ACTION_UP) {
+                                        isPickingVertex = false
+                                        pickingBusy = true
+                                        val selectedMaterial = selected
+                                        val allVisible = visibleMaterials.toSet()
+                                        val chosenLocation = modelLocation
+                                        val chosenSource = originalLocation
+                                        val request = requestId
+                                        try {
+                                            @Suppress("DEPRECATION")
+                                            val ray = touchCamera.screenPointToRay(event.x, event.y)
+                                            val near = ray.getPoint(0f)
+                                            val far = ray.getPoint(1f)
+                                            val a = model.getLocalPosition(
+                                                Position(near.x, near.y, near.z))
+                                            val b = model.getLocalPosition(
+                                                Position(far.x, far.y, far.z))
+                                            val surfaceRay = SurfaceRay(
+                                                a.x, a.y, a.z,
+                                                b.x-a.x, b.y-a.y, b.z-a.z)
+                                            scope.launch {
+                                                try {
+                                                    val hit = withContext(Dispatchers.Default) {
+                                                        picker.pickVertex(surfaceRay, selectedMaterial, allVisible)
+                                                    }
+                                                    if (request != requestId ||
+                                                        chosenLocation != modelLocation ||
+                                                        chosenSource != originalLocation ||
+                                                        selectedPartId != selectedMaterial ||
+                                                        allVisible != visibleMaterials)
+                                                        return@launch
+                                                    val available = vertexTargets.filter {
+                                                        it.materialId == selectedMaterial
+                                                    }
+                                                    val choice = if (hit == null) -1 else available.indexOfFirst {
+                                                        it.mesh == hit.mesh && it.primitive == hit.primitive
+                                                    }
+                                                    if (hit != null && choice >= 0 &&
+                                                        hit.vertex in 0 until available[choice].vertices) {
+                                                        vertexPrimitiveIndex = choice
+                                                        vertexIndex = hit.vertex
+                                                        vertexIndexInput = hit.vertex.toString()
+                                                        activeVertex = hit
+                                                        vertexMode = true
+                                                        sculptMode = false
+                                                        showLayers = false
+                                                        message = "Выбрана вершина #${hit.vertex} · меш #${hit.mesh}, примитив #${hit.primitive}."
+                                                    } else {
+                                                        activeVertex = null
+                                                        showLayers = true
+                                                        message = "Вершина не найдена на видимом выбранном материале. Поверни модель или скрой перекрывающий слой."
+                                                    }
+                                                } catch (error: Exception) {
+                                                    if (request == requestId &&
+                                                        chosenLocation == modelLocation) {
+                                                        activeVertex = null
+                                                        showLayers = true
+                                                        message = error.message ?: "Не удалось выбрать вершину."
+                                                    }
+                                                } finally {
+                                                    if (request == requestId) pickingBusy = false
+                                                }
+                                            }
+                                        } catch (error: Exception) {
+                                            pickingBusy = false
+                                            showLayers = true
+                                            message = error.message ?: "Не удалось построить луч касания."
+                                        }
+                                    }
+                                    true
+                                } else if (!isPickingBrushCenter) false
                                 else {
                                     val model = modelForPicking
                                     val picker = surfacePicker
