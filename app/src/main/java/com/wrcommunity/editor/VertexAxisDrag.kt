@@ -82,8 +82,13 @@ class VertexAxisDrag private constructor(
         val difference = endpoint - startedAt
         if (!difference.isFinite()) return null
         val bounded = difference.coerceIn(-3.0, 3.0)
-        val snapped = (bounded / step.toDouble()).roundToInt() * step
-        return snapped.coerceIn(-3f, 3f)
+        // Float(0.01) is not an exact decimal; multiplying the snapped
+        // integer by that binary approximation biases negative and positive
+        // moves by an ULP. Quantize as decimal Double, then round to Float
+        // once, matching the existing VertexMove and UI step values.
+        val decimalStep = step.toString().toDouble()
+        val snapped = (bounded / decimalStep).roundToInt() * decimalStep
+        return snapped.toFloat().coerceIn(-3f, 3f)
     }
 
     /** Returns one undoable modeling operation, or null for a zero-length drag. */
