@@ -16,7 +16,8 @@ internal class TriangleBvh(
     internal data class Trace(
         val distance: Float?,
         val testedTriangles: Int,
-        val visitedNodes: Int
+        val visitedNodes: Int,
+        val triangleIndex: Int? = null
     )
     private class Node(
         val bounds: FloatArray,
@@ -117,6 +118,7 @@ internal class TriangleBvh(
         if (ray.dx * ray.dx + ray.dy * ray.dy + ray.dz * ray.dz < 1e-14f)
             return Trace(null, 0, 0)
         var best = maxDistance
+        var bestTriangle = -1
         var tests = 0
         var visits = 0
         val pending = java.util.ArrayDeque<Int>()
@@ -170,10 +172,14 @@ internal class TriangleBvh(
                 val v = (ray.dx * qx + ray.dy * qy + ray.dz * qz) * inv
                 if (v < 0f || u + v > 1f) continue
                 val hit = (e2x * qx + e2y * qy + e2z * qz) * inv
-                if (hit > 1e-6f && hit < best && hit.isFinite()) best = hit
+                if (hit > 1e-6f && hit < best && hit.isFinite()) {
+                    best = hit
+                    bestTriangle = order[n]
+                }
             }
         }
-        return Trace(best.takeIf { it < maxDistance }, tests, visits)
+        return Trace(best.takeIf { it < maxDistance }, tests, visits,
+            bestTriangle.takeIf { it >= 0 })
     }
 
     private fun entry(ray: SurfaceRay, bounds: FloatArray, distance: Float): Float? {
