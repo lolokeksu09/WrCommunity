@@ -2067,6 +2067,8 @@ private fun EditorScreen() {
                                         partId in visibleMaterials,
                                     onClick = {
                                         activeVertex = null
+                                        selectedVertexGroup = emptySet()
+                                        additiveVertexPicking = false
                                         isPickingBrushCenter = false
                                         isPickingVertex = true
                                         showLayers = false
@@ -2097,6 +2099,7 @@ private fun EditorScreen() {
                                                 vertexIndex = 0
                                                 vertexIndexInput = "0"
                                                 activeVertex = null
+                                                selectedVertexGroup = emptySet()
                                             }, {
                                                 vertexPrimitiveIndex = (current+1).coerceAtMost(options.lastIndex)
                                                 vertexIndex = 0
@@ -2110,6 +2113,7 @@ private fun EditorScreen() {
                                             if (entered.length <= 7 && entered.all { it.isDigit() }) {
                                                 vertexIndexInput = entered
                                                 activeVertex = null
+                                                selectedVertexGroup = emptySet()
                                                 entered.toIntOrNull()?.let { vertexIndex = it }
                                             }
                                         },
@@ -2141,13 +2145,15 @@ private fun EditorScreen() {
                                     fun nudge(axis: Int, sign: Float) {
                                         if (selectedIndex == null) return
                                         val offset = vertexStep * sign
-                                        val move = when (axis) {
-                                            0 -> VertexMove(target.mesh, target.primitive, selectedIndex, offset, 0f, 0f)
-                                            1 -> VertexMove(target.mesh, target.primitive, selectedIndex, 0f, offset, 0f)
-                                            else -> VertexMove(target.mesh, target.primitive, selectedIndex, 0f, 0f, offset)
-                                        }
                                         try {
-                                            vertexHistory = vertexHistory.add(move)
+                                            when (axis) {
+                                                0 -> commitVertexNudge(
+                                                    target.mesh, target.primitive, selectedIndex, offset, 0f, 0f)
+                                                1 -> commitVertexNudge(
+                                                    target.mesh, target.primitive, selectedIndex, 0f, offset, 0f)
+                                                else -> commitVertexNudge(
+                                                    target.mesh, target.primitive, selectedIndex, 0f, 0f, offset)
+                                            }
                                         } catch (error: Exception) {
                                             message = error.message ?: "Не удалось переместить вершину."
                                         }
