@@ -197,4 +197,42 @@ class GlbSurfacePickerTest {
         GlbIntegrity.validate(changed)
     }
 
+    @Test fun adjacentRingsUseTriangleTopologyNotNearbyOtherMaterial() {
+        val picker = GlbSurfacePicker.fromBytes(fixture())
+        assertEquals(setOf(1), picker.connectedVertices(0,0,1,0))
+        assertEquals(setOf(0,1,2), picker.connectedVertices(0,0,1,1))
+        assertEquals(setOf(0,1,2), picker.connectedVertices(0,0,1,2))
+        // The second material is physically close but uses a different
+        // primitive: topological selection must never cross that boundary.
+        assertEquals(setOf(0,1,2), picker.connectedVertices(0,1,1,2))
+        assertNull(picker.connectedVertices(0,9,0,1))
+        assertNull(picker.connectedVertices(0,0,99,1))
+    }
+
+    @Test fun ringCapacityFailsExplicitlyAndDoesNotReturnPartialSelection() {
+        val picker = GlbSurfacePicker.fromBytes(fixture())
+        try {
+            picker.connectedVertices(0,0,0,1,maxVertices=2)
+            fail("Partial vertex ring should not be returned")
+        } catch (_: IOException) { }
+        try {
+            picker.connectedVertices(0,0,0,4)
+            fail("Unlimited ring traversal")
+        } catch (_: IOException) { }
+    }
+
+    @Test fun groupMoveChangesAllSelectedPositionsButNotAnotherPrimitive() {
+        val before = fixture()
+        val picked = GlbSurfacePicker.fromBytes(before)
+        val neighbors = picked.connectedVertices(0,0,1,1)!!
+        val moves = VertexGroupEdits.moves(
+            0,0,neighbors,0f,0f,.2f,vertexCount=3,historyCount=0)
+        val result = GlbVertexEditor.apply(before,VertexHistory().addGroup(moves).current)
+        val edited = GlbSurfacePicker.fromBytes(result)
+        for (i in 0..2) assertEquals(.2f,edited.vertexPosition(0,0,i)!!.z,1e-5f)
+        for (i in 0..2) assertEquals(-1f,edited.vertexPosition(0,1,i)!!.z,1e-5f)
+        GlbIntegrity.validate(result)
+        assertArrayEquals(fixture(),before)
+    }
+
 }
