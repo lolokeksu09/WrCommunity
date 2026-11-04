@@ -1130,11 +1130,13 @@ private fun EditorScreen() {
                                         message = "Для выбора вершины используй одно касание."
                                     } else if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
                                         isPickingVertex = false
+                                        additiveVertexPicking = false
                                         showLayers = true
                                     } else if (event.actionMasked == MotionEvent.ACTION_UP) {
                                         isPickingVertex = false
                                         pickingBusy = true
                                         val selectedMaterial = selected
+                                        val wasAdditive = additiveVertexPicking
                                         val allVisible = visibleMaterials.toSet()
                                         val chosenLocation = modelLocation
                                         val chosenSource = originalLocation
@@ -1170,17 +1172,39 @@ private fun EditorScreen() {
                                                     }
                                                     if (hit != null && choice >= 0 &&
                                                         hit.vertex in 0 until available[choice].vertices) {
-                                                        vertexPrimitiveIndex = choice
-                                                        vertexIndex = hit.vertex
-                                                        vertexIndexInput = hit.vertex.toString()
-                                                        activeVertex = hit
-                                                        vertexMode = true
-                                                        sculptMode = false
-                                                        showLayers = false
-                                                        message = "Выбрана вершина #${hit.vertex} · меш #${hit.mesh}, примитив #${hit.primitive}."
+                                                        val anchor = activeVertex
+                                                        if (wasAdditive && anchor != null &&
+                                                            (hit.mesh != anchor.mesh ||
+                                                             hit.primitive != anchor.primitive)) {
+                                                            showLayers = false
+                                                            message = "Группа ограничена одним примитивом. Коснись вершины той же части."
+                                                        } else if (wasAdditive && anchor != null) {
+                                                            if (hit.vertex !in selectedVertexGroup &&
+                                                                selectedVertexGroup.size +
+                                                                    vertexHistory.current.size >= 64) {
+                                                                message = "Лимит 64 правки вершин. Сократи выделение."
+                                                            } else {
+                                                                selectedVertexGroup = selectedVertexGroup + hit.vertex
+                                                                message = "В группе ${selectedVertexGroup.size} вершин."
+                                                            }
+                                                            showLayers = false
+                                                        } else {
+                                                            vertexPrimitiveIndex = choice
+                                                            vertexIndex = hit.vertex
+                                                            vertexIndexInput = hit.vertex.toString()
+                                                            activeVertex = hit
+                                                            selectedVertexGroup = setOf(hit.vertex)
+                                                            vertexMode = true
+                                                            sculptMode = false
+                                                            showLayers = false
+                                                            message = "Выбрана вершина #${hit.vertex} · меш #${hit.mesh}, примитив #${hit.primitive}."
+                                                        }
                                                     } else {
-                                                        activeVertex = null
-                                                        showLayers = true
+                                                        if (!wasAdditive) {
+                                                            activeVertex = null
+                                                            selectedVertexGroup = emptySet()
+                                                        }
+                                                        showLayers = !wasAdditive
                                                         message = "Вершина не найдена на видимом выбранном материале. Поверни модель или скрой перекрывающий слой."
                                                     }
                                                 } catch (error: Exception) {
@@ -1191,7 +1215,10 @@ private fun EditorScreen() {
                                                         message = error.message ?: "Не удалось выбрать вершину."
                                                     }
                                                 } finally {
-                                                    if (request == requestId) pickingBusy = false
+                                                    if (request == requestId) {
+                                                        pickingBusy = false
+                                                        additiveVertexPicking = false
+                                                    }
                                                 }
                                             }
                                         } catch (error: Exception) {
