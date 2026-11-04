@@ -1086,6 +1086,9 @@ private fun EditorScreen() {
                                                         vertexDragSession = started
                                                         vertexDragSource = modelLocation
                                                         vertexDragSelected = selected
+                                                        vertexDragGroup = selectedVertexGroup
+                                                            .takeIf { selected.vertex in it }
+                                                            ?: setOf(selected.vertex)
                                                         vertexDragPreview = 0f
                                                     }
                                                 }
@@ -1108,8 +1111,17 @@ private fun EditorScreen() {
                                                             selected.mesh, selected.primitive,
                                                             selected.vertex, local)
                                                         if (move != null) {
-                                                            vertexHistory = vertexHistory.add(move)
-                                                            message = "Перемещение вершины сохранено одним шагом Undo."
+                                                            val count = vertexTargets.firstOrNull {
+                                                                it.mesh == selected.mesh &&
+                                                                    it.primitive == selected.primitive
+                                                            }?.vertices ?: throw java.io.IOException(
+                                                                "Примитив выбранной вершины недоступен.")
+                                                            val planned = VertexGroupEdits.moves(
+                                                                selected.mesh, selected.primitive,
+                                                                vertexDragGroup, move.dx, move.dy, move.dz,
+                                                                count, vertexHistory.current.size)
+                                                            vertexHistory = vertexHistory.addGroup(planned)
+                                                            message = "Перемещено вершин: ${planned.size}. Одно действие Undo."
                                                         } else {
                                                             message = "Сдвиг меньше выбранного шага — геометрия не изменена."
                                                         }
@@ -1118,6 +1130,7 @@ private fun EditorScreen() {
                                                     vertexDragSession = null
                                                     vertexDragPreview = 0f
                                                     vertexDragSelected = null
+                                                    vertexDragGroup = emptySet()
                                                     vertexDragSource = null
                                                 }
                                             }
@@ -1126,6 +1139,7 @@ private fun EditorScreen() {
                                             vertexDragSession = null
                                             vertexDragPreview = 0f
                                             vertexDragSelected = null
+                                            vertexDragGroup = emptySet()
                                             vertexDragSource = null
                                             message = error.message ?: "Ошибка осевого перемещения."
                                         }
