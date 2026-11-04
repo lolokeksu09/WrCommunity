@@ -46,15 +46,16 @@ class VertexGroupEditingTest {
             VertexMove(0,0,it,.01f,0f,0f)
         })
         assertEquals(62, full.current.size)
-        val excess = VertexGroupEdits.moves(0,0,setOf(63,64,65),
-            .1f,0f,0f,100,full.current.size)
-        // Producing a plan is pure; the actual history commit refuses it.
+        // The plan must fail before modifying history. No partial subset of
+        // three vertices may be committed when only two slots are available.
         try {
+            val excess = VertexGroupEdits.moves(0,0,setOf(63,64,65),
+                .1f,0f,0f,100,full.current.size)
             full.addGroup(excess)
             fail("Partial group append would violate the 64-move limit")
         } catch (_: IOException) { }
         assertEquals(62, full.current.size)
-        assertEquals(0, full.index)
+        assertEquals(1, full.index)
     }
 
     @Test fun addingAfterUndoDiscardsRedoAsOneAtomicGroup() {
