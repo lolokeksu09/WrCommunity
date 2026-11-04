@@ -29,7 +29,10 @@ class VertexAxisDragTest {
         val zSession = VertexAxisDrag.begin(vertex, 2, 0.1f, obliqueStart)!!
         // The camera direction has components along X and Z; dragging a ray
         // perpendicular to the viewing direction is resolved in local 3D.
-        val end = SurfaceRay(4f, 0f, 4.45f, -1f, 0f, -1f)
+        // Avoid an exact half-step boundary, which cannot be represented
+        // unambiguously as Float camera coordinates (4.45f rounds slightly
+        // below .45 and ties could legitimately snap either way).
+        val end = SurfaceRay(4f, 0f, 4.47f, -1f, 0f, -1f)
         assertEquals(.5f, zSession.delta(end)!!, 1e-4f)
     }
 
