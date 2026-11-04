@@ -173,6 +173,23 @@ private fun EditorScreen() {
         partEdits.isNotEmpty() || sculptStrokes.isNotEmpty() ||
         vertexMoves.isNotEmpty()
 
+    /** Update an entire selected vertex group as ONE undoable operation. */
+    fun commitVertexNudge(
+        mesh: Int, primitive: Int, vertex: Int,
+        dx: Float, dy: Float, dz: Float
+    ) {
+        val count = vertexTargets.firstOrNull {
+            it.mesh == mesh && it.primitive == primitive
+        }?.vertices ?: throw java.io.IOException("Не найден примитив выбранной вершины.")
+        val focused = activeVertex
+        val selected = if (focused != null && focused.mesh == mesh &&
+            focused.primitive == primitive && vertex in selectedVertexGroup)
+            selectedVertexGroup else setOf(vertex)
+        val group = VertexGroupEdits.moves(mesh, primitive, selected, dx, dy, dz,
+            vertexCount = count, historyCount = vertexHistory.current.size)
+        vertexHistory = vertexHistory.addGroup(group)
+    }
+
     // Flush the current edit immediately when Android backgrounds the editor.
     // The background worker survives destruction of this Compose screen.
     val pauseDraft = if (recoveryReady) savedSource?.let { source ->
@@ -1456,19 +1473,18 @@ private fun EditorScreen() {
                                                 !pickingBusy && vertexHistory.current.size < 64,
                                             onClick = {
                                                 val delta = vertexStep * sign
-                                                val move = when(axis) {
-                                                    0 -> VertexMove(
-                                                        selectedVertex.mesh, selectedVertex.primitive,
-                                                        selectedVertex.vertex, delta, 0f, 0f)
-                                                    1 -> VertexMove(
-                                                        selectedVertex.mesh, selectedVertex.primitive,
-                                                        selectedVertex.vertex, 0f, delta, 0f)
-                                                    else -> VertexMove(
-                                                        selectedVertex.mesh, selectedVertex.primitive,
-                                                        selectedVertex.vertex, 0f, 0f, delta)
-                                                }
                                                 try {
-                                                    vertexHistory = vertexHistory.add(move)
+                                                    when (axis) {
+                                                        0 -> commitVertexNudge(
+                                                            selectedVertex.mesh, selectedVertex.primitive,
+                                                            selectedVertex.vertex, delta, 0f, 0f)
+                                                        1 -> commitVertexNudge(
+                                                            selectedVertex.mesh, selectedVertex.primitive,
+                                                            selectedVertex.vertex, 0f, delta, 0f)
+                                                        else -> commitVertexNudge(
+                                                            selectedVertex.mesh, selectedVertex.primitive,
+                                                            selectedVertex.vertex, 0f, 0f, delta)
+                                                    }
                                                 } catch (error: Exception) {
                                                     message = error.message ?:
                                                         "Не удалось изменить вершину."
