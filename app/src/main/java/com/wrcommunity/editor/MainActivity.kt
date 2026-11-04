@@ -2203,6 +2203,28 @@ private fun EditorScreen() {
                                         label = { Text("Индекс вершины (0…${target.vertices-1})") },
                                         modifier = Modifier.fillMaxWidth()
                                     )
+                                    OutlinedButton(
+                                        enabled = !busy && !layerBusy &&
+                                            partEdits.isEmpty() &&
+                                            vertexSurfacePicker != null &&
+                                            (vertexIndexInput.toIntOrNull()?.let {
+                                                it in 0 until target.vertices
+                                            } == true),
+                                        onClick = {
+                                            val index = vertexIndexInput.toIntOrNull()
+                                            val point = index?.let {
+                                                vertexSurfacePicker?.vertexPosition(
+                                                    target.mesh, target.primitive, it)
+                                            }
+                                            if (index != null && point != null) {
+                                                activeVertex = SurfaceVertexHit(
+                                                    partId, target.mesh, target.primitive,
+                                                    index, point.x, point.y, point.z, 0f)
+                                                selectedVertexGroup = setOf(index)
+                                                showLayers = false
+                                            } else message = "Неверный индекс вершины."
+                                        }
+                                    ) { Text("Выделить индекс для группы") }
                                     Row(
                                         Modifier.horizontalScroll(rememberScrollState()),
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
