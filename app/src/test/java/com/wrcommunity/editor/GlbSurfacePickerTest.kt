@@ -162,5 +162,23 @@ class GlbSurfacePickerTest {
         assertEquals(0, selected.vertex)
         assertArrayEquals(fixture(),source)
     }
+    @Test fun vertexAnchorReadsExactCurrentPositionsAfterEdits() {
+        val original = fixture()
+        val picker = GlbSurfacePicker.fromBytes(original)
+        val before = picker.vertexPosition(0, 0, 1)!!
+        assertEquals(1f, before.x, 1e-6f)
+        assertEquals(0f, before.y, 1e-6f)
+        assertEquals(0f, before.z, 1e-6f)
+        assertNull(picker.vertexPosition(0, 0, 99))
+        assertNull(picker.vertexPosition(0, 4, 1))
+        assertNull(picker.vertexPosition(2, 0, 1))
+        val output = GlbVertexEditor.apply(original,
+            listOf(VertexMove(0, 0, 1, .25f, 0f, 0f)))
+        val after = GlbSurfacePicker.fromBytes(output).vertexPosition(0, 0, 1)!!
+        assertEquals(1.25f, after.x, 1e-6f)
+        assertEquals(0f, after.y, 1e-6f)
+        assertEquals(0f, after.z, 1e-6f)
+        assertArrayEquals(fixture(), original)
+    }
 
 }
