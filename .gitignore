@@ -1,0 +1,13 @@
+/.gradle/
+/build/
+/app/build/
+/.idea/
+*.iml
+/local.properties
+*.keystore
+*.jks
+*.glb
+*.gltf
+*.bin
+*.nom
+.DS_Store

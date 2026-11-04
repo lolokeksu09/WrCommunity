@@ -1,46 +1,136 @@
-name: Closed project integrity
+name: Android CI
+
 on:
   pull_request:
   push:
-    branches: [main]
+    branches:
+      - main
+      - feat/android-3d-editor-foundation
+      - 'feat/android-editor-v*'
+  workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Project Workflow Standard
+        run: python3 standards/project-workflow-v1.4-rc3/tools/check_standard.py standards/project-workflow-v1.4-rc3
+      - name: Test release certificate verification
+        run: python3 -m unittest discover -s tools -p 'test_verify_editor_release.py' -v
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+      - name: Build and unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      # Feature and PR runs build an UNSIGNED release APK. It is an input for
+      # local signing with the existing private key, never a public installer.
+      - name: Build unsigned release for independent signing
+        if: github.ref != 'refs/heads/main'
+        run: gradle --no-daemon :app:assembleRelease
+      - name: Archive unsigned release (NOT installable)
+        if: github.ref != 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-3d-editor-release-unsigned
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+      # Never expose the private signing key on a push to an editable feature
+      # branch, or on pull_request. Only trusted main can produce an update.
+      - name: Build and verify signed release (trusted main only)
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        env:
+          EDITOR_KEYSTORE_B64: ${{ secrets.EDITOR_KEYSTORE_B64 }}
+          EDITOR_STORE_PASSWORD: ${{ secrets.EDITOR_STORE_PASSWORD }}
+          EDITOR_KEY_PASSWORD: ${{ secrets.EDITOR_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$EDITOR_KEYSTORE_B64" || -z "$EDITOR_STORE_PASSWORD" || -z "$EDITOR_KEY_PASSWORD" ]]; then
+            echo "::error::Release blocked: configure all three EDITOR signing secrets for the existing private signing key."
+            exit 1
+          fi
+          KEYSTORE="$RUNNER_TEMP/editor-upload.jks"
+          trap 'rm -f "$KEYSTORE"' EXIT
+          printf '%s' "$EDITOR_KEYSTORE_B64" | base64 --decode > "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+          export ANDROID_SIGNING_KEYSTORE_PATH="$KEYSTORE"
+          export ANDROID_SIGNING_STORE_PASSWORD="$EDITOR_STORE_PASSWORD"
+          export ANDROID_SIGNING_KEY_PASSWORD="$EDITOR_KEY_PASSWORD"
+          gradle --no-daemon :app:assembleRelease
+          python3 tools/verify_editor_release.py \
+            app/build/outputs/apk/release/app-release.apk \
+            --gradle app/build.gradle.kts \
+            --apksigner "$ANDROID_HOME/build-tools/36.0.0/apksigner" \
+            --aapt "$ANDROID_HOME/build-tools/36.0.0/aapt"
+      - name: Upload verified signed release (trusted main only)
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-3d-editor-release
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+      - name: Archive Android SDK apksigner for independent verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-3d-editor-apksigner
+          path: ${{ env.ANDROID_HOME }}/build-tools/36.0.0/lib/apksigner.jar
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-3d-editor-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  # Legacy ruleset names are retained; the checks now validate this Android-only repository.
   integration:
-    runs-on: ubuntu-24.04
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Verify active repository contains no application
-        run: |
-          set -euo pipefail
-          test -f README.md
-          test -f .github/workflows/ci.yml
-          test "$(git ls-files | wc -l)" -eq 2
-          echo "WrCommunity application and deployment source are absent."
+      - name: Require Android compilation, GLB unit tests, release validation
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: test "$BUILD_RESULT" = success
+
   docker-smoke:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify container deployment definition has been removed
+      - name: Verify local-only 3D editor has no server deployment
         run: |
           set -euo pipefail
+          test -f app/build.gradle.kts
+          test -f app/src/main/AndroidManifest.xml
+          test ! -e Dockerfile
           test ! -e compose.yml
           test ! -e compose.local.yml
-          test ! -e Dockerfile
-          test ! -e scripts
-          test ! -e web
           test ! -e server
-          echo "No Docker deployment is present in this branch."
+          test ! -e web
+          echo "Android-only app; no Docker or backend deployment exists."
+
   quality-gate:
+    needs: [build, integration, docker-smoke]
     if: always()
-    needs: [integration, docker-smoke]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
-      - name: Require closure checks
+      - name: Require all Android and local-only checks
         env:
+          BUILD_RESULT: ${{ needs.build.result }}
           INTEGRATION_RESULT: ${{ needs.integration.result }}
           DOCKER_SMOKE_RESULT: ${{ needs.docker-smoke.result }}
         run: |
+          test "$BUILD_RESULT" = success
           test "$INTEGRATION_RESULT" = success
           test "$DOCKER_SMOKE_RESULT" = success
-          echo "Repository closure is internally consistent."
