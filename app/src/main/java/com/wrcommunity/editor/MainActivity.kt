@@ -102,6 +102,10 @@ private fun EditorScreen() {
     var vertexMode by remember { mutableStateOf(false) }
     var vertexTargets by remember { mutableStateOf<List<VertexPrimitive>>(emptyList()) }
     var vertexTargetsError by remember { mutableStateOf<String?>(null) }
+    var vertexSurfacePicker by remember { mutableStateOf<GlbSurfacePicker?>(null) }
+    var vertexPickerError by remember { mutableStateOf<String?>(null) }
+    var isPickingVertex by remember { mutableStateOf(false) }
+    var activeVertex by remember { mutableStateOf<SurfaceVertexHit?>(null) }
     var vertexPrimitiveIndex by remember { mutableIntStateOf(0) }
     var vertexIndex by remember { mutableIntStateOf(0) }
     var vertexIndexInput by remember { mutableStateOf("0") }
@@ -227,6 +231,8 @@ private fun EditorScreen() {
         vertexPrimitiveIndex = 0
         vertexIndex = 0
         vertexIndexInput = "0"
+        activeVertex = null
+        isPickingVertex = false
         val source = savedSource ?: return@LaunchedEffect
         try {
             vertexTargets = withContext(Dispatchers.IO) {
@@ -373,6 +379,34 @@ private fun EditorScreen() {
         } catch (_: Exception) {
             // Some glTF scenes cannot support accurate ray picking. Keep
             // all manual coordinate-based sculpt controls available.
+        }
+    }
+
+    // The display preview filters hidden primitives, which changes primitive
+    // indices. Build vertex selection from the ORIGINAL unfiltered mesh with
+    // its live vertex/sculpt changes so hits retain stable source IDs.
+    LaunchedEffect(originalLocation, vertexMoves, sculptStrokes, partEdits) {
+        vertexSurfacePicker = null
+        vertexPickerError = null
+        val origin = originalLocation ?: return@LaunchedEffect
+        if (partEdits.isNotEmpty()) {
+            vertexPickerError = "Для выбора вершины касанием сбрось изменения положения частей."
+            return@LaunchedEffect
+        }
+        try {
+            val picker = withContext(Dispatchers.Default) {
+                val path = Uri.parse(origin).path
+                    ?: throw java.io.IOException("Исходная модель недоступна.")
+                val original = File(path).readBytes()
+                val withVertices = GlbVertexEditor.apply(original, vertexMoves)
+                val shaped = GlbSculpt.apply(withVertices, sculptStrokes)
+                GlbSurfacePicker.fromBytes(shaped)
+            }
+            vertexSurfacePicker = picker
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            vertexPickerError = error.message ?: "Эта сцена не поддерживает точный выбор вершин."
         }
     }
 
@@ -1632,10 +1666,12 @@ private fun EditorScreen() {
                                                 vertexPrimitiveIndex = (current-1).coerceAtLeast(0)
                                                 vertexIndex = 0
                                                 vertexIndexInput = "0"
+                                                activeVertex = null
                                             }, {
                                                 vertexPrimitiveIndex = (current+1).coerceAtMost(options.lastIndex)
                                                 vertexIndex = 0
                                                 vertexIndexInput = "0"
+                                                activeVertex = null
                                             })
                                     }
                                     OutlinedTextField(
@@ -1643,6 +1679,7 @@ private fun EditorScreen() {
                                         onValueChange = { entered ->
                                             if (entered.length <= 7 && entered.all { it.isDigit() }) {
                                                 vertexIndexInput = entered
+                                                activeVertex = null
                                                 entered.toIntOrNull()?.let { vertexIndex = it }
                                             }
                                         },
