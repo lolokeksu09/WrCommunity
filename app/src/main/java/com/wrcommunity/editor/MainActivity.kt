@@ -1222,6 +1222,101 @@ private fun EditorScreen() {
                     }
                 }
 
+                if (isPickingVertex) {
+                    Surface(
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(14.dp),
+                        color = Color(0xEE252434),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Row(
+                            Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("Коснись вершины видимой сетки",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = TextPrimary,
+                                modifier = Modifier.weight(1f, fill = false))
+                            TextButton(onClick = {
+                                isPickingVertex = false
+                                showLayers = true
+                            }) { Text("Отмена") }
+                        }
+                    }
+                }
+                val selectedVertex = activeVertex
+                if (selectedVertex != null && vertexMode &&
+                    !showLayers && !isPickingVertex &&
+                    selectedPartId == selectedVertex.materialId &&
+                    vertexTargets.any {
+                        it.mesh == selectedVertex.mesh &&
+                        it.primitive == selectedVertex.primitive &&
+                        selectedVertex.vertex in 0 until it.vertices
+                    }) {
+                    Surface(
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(10.dp),
+                        color = Color(0xEE252434),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Column(
+                            Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                "Вершина #${selectedVertex.vertex} · шаг ${String.format(java.util.Locale.ROOT, "%.2f", vertexStep)}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = TextPrimary
+                            )
+                            Row(
+                                Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf(0 to "X", 1 to "Y", 2 to "Z").forEach { (axis,label) ->
+                                    listOf(-1f to "−", 1f to "+").forEach { (sign, mark) ->
+                                        OutlinedButton(
+                                            enabled = !busy && !layerBusy &&
+                                                !pickingBusy && vertexHistory.current.size < 64,
+                                            onClick = {
+                                                val delta = vertexStep * sign
+                                                val move = when(axis) {
+                                                    0 -> VertexMove(
+                                                        selectedVertex.mesh, selectedVertex.primitive,
+                                                        selectedVertex.vertex, delta, 0f, 0f)
+                                                    1 -> VertexMove(
+                                                        selectedVertex.mesh, selectedVertex.primitive,
+                                                        selectedVertex.vertex, 0f, delta, 0f)
+                                                    else -> VertexMove(
+                                                        selectedVertex.mesh, selectedVertex.primitive,
+                                                        selectedVertex.vertex, 0f, 0f, delta)
+                                                }
+                                                try {
+                                                    vertexHistory = vertexHistory.add(move)
+                                                } catch (error: Exception) {
+                                                    message = error.message ?:
+                                                        "Не удалось изменить вершину."
+                                                }
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 9.dp)
+                                        ) { Text("$label$mark") }
+                                    }
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                TextButton(
+                                    enabled = vertexHistory.canUndo,
+                                    onClick = { vertexHistory = vertexHistory.undo() }
+                                ) { Text("↶ Отмена") }
+                                TextButton(onClick = { showLayers = true }) {
+                                    Text("Настройки")
+                                }
+                                TextButton(onClick = { activeVertex = null }) {
+                                    Text("Закрыть")
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if (isPickingBrushCenter) {
                     Surface(
                         modifier = Modifier.align(Alignment.BottomCenter).padding(14.dp),
@@ -1733,9 +1828,29 @@ private fun EditorScreen() {
                             if (vertexMode) {
                                 Text("Точное изменение POSITION-вершины",
                                     style = MaterialTheme.typography.titleSmall)
-                                Text("Выбор по индексу вершины исходного GLB. Выделение касанием пока не поддерживается.",
+                                Text("Выбор точной вершины по касанию или по индексу исходного GLB.",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = TextSecondary)
+                                Button(
+                                    enabled = !busy && !layerBusy && !pickingBusy &&
+                                        vertexSurfacePicker != null &&
+                                        nodeLocation == modelLocation &&
+                                        partEdits.isEmpty() &&
+                                        partId in visibleMaterials,
+                                    onClick = {
+                                        activeVertex = null
+                                        isPickingBrushCenter = false
+                                        isPickingVertex = true
+                                        showLayers = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("Выбрать вершину касанием") }
+                                if (vertexSurfacePicker == null) {
+                                    Text(vertexPickerError ?:
+                                        "Подготовка точного выбора. Для сложных сцен доступен ввод индекса.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextSecondary)
+                                }
                                 val options = vertexTargets.filter { it.materialId == partId }
                                 val target = options.getOrNull(
                                     vertexPrimitiveIndex.takeIf { it in options.indices } ?: 0)
