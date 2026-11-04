@@ -55,7 +55,7 @@ data class EditorDraft(
         fun stroke(v: SculptStroke) = JSONObject()
             .put("id", v.materialId).put("x", v.centerX).put("y", v.centerY)
             .put("z", v.centerZ).put("radius", v.radius)
-            .put("axis", v.axis).put("strength", v.strength)
+            .put("axis", v.axis).put("strength", v.strength).put("mode", v.mode.name)
         return JSONObject().put("format", 1)
             .put("file", source.file.name).put("bytes", source.bytes)
             .put("hash", source.sha256).put("name", name).put("camera", camera)
@@ -120,7 +120,12 @@ data class EditorDraft(
             fun stroke(v: JSONObject): SculptStroke =
                 SculptStroke(v.getInt("id"), v.getInt("x"), v.getInt("y"),
                     v.getInt("z"), v.getInt("radius"), v.getInt("axis"),
-                    v.getInt("strength")).also { it.check() }
+                    v.getInt("strength"),
+                    when (v.optString("mode", "PUSH")) {
+                        "PUSH" -> SculptMode.PUSH
+                        "SMOOTH" -> SculptMode.SMOOTH
+                        else -> throw IOException("Неизвестный режим кисти.")
+                    }).also { it.check() }
             val arr = root.getJSONArray("strokes")
             if (arr.length() > 20) throw IOException("Слишком много штрихов.")
             val strokes = (0 until arr.length()).map { stroke(arr.getJSONObject(it)) }

@@ -92,3 +92,45 @@ jobs:
           name: android-3d-editor-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+  # Legacy ruleset names are retained; the checks now validate this Android-only repository.
+  integration:
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require Android compilation, GLB unit tests, release validation
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: test "$BUILD_RESULT" = success
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify local-only 3D editor has no server deployment
+        run: |
+          set -euo pipefail
+          test -f app/build.gradle.kts
+          test -f app/src/main/AndroidManifest.xml
+          test ! -e Dockerfile
+          test ! -e compose.yml
+          test ! -e compose.local.yml
+          test ! -e server
+          test ! -e web
+          echo "Android-only app; no Docker or backend deployment exists."
+
+  quality-gate:
+    needs: [build, integration, docker-smoke]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all Android and local-only checks
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+          DOCKER_SMOKE_RESULT: ${{ needs.docker-smoke.result }}
+        run: |
+          test "$BUILD_RESULT" = success
+          test "$INTEGRATION_RESULT" = success
+          test "$DOCKER_SMOKE_RESULT" = success
