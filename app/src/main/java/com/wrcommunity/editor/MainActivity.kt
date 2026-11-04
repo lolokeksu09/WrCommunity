@@ -1246,7 +1246,8 @@ private fun EditorScreen() {
                 }
                 val selectedVertex = activeVertex
                 if (selectedVertex != null && vertexMode &&
-                    !showLayers && !isPickingVertex &&
+                    !showLayers && !isPickingVertex && partEdits.isEmpty() &&
+                    savedSource != null && nodeLocation == modelLocation &&
                     selectedPartId == selectedVertex.materialId &&
                     vertexTargets.any {
                         it.mesh == selectedVertex.mesh &&
