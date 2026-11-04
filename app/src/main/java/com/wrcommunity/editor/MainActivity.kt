@@ -106,12 +106,16 @@ private fun EditorScreen() {
     var vertexPickerError by remember { mutableStateOf<String?>(null) }
     var isPickingVertex by remember { mutableStateOf(false) }
     var activeVertex by remember { mutableStateOf<SurfaceVertexHit?>(null) }
+    var selectedVertexGroup by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var additiveVertexPicking by remember { mutableStateOf(false) }
+    var vertexGroupBusy by remember { mutableStateOf(false) }
     // One active 3D axis-drag gesture; the GLB changes only on ACTION_UP.
     var vertexDragAxis by remember { mutableIntStateOf(-1) }
     var vertexDragSession by remember { mutableStateOf<VertexAxisDrag?>(null) }
     var vertexDragPreview by remember { mutableStateOf(0f) }
     var vertexDragSource by remember { mutableStateOf<String?>(null) }
     var vertexDragSelected by remember { mutableStateOf<SurfaceVertexHit?>(null) }
+    var vertexDragGroup by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var vertexPrimitiveIndex by remember { mutableIntStateOf(0) }
     var vertexIndex by remember { mutableIntStateOf(0) }
     var vertexIndexInput by remember { mutableStateOf("0") }
@@ -238,12 +242,15 @@ private fun EditorScreen() {
         vertexIndex = 0
         vertexIndexInput = "0"
         activeVertex = null
+        selectedVertexGroup = emptySet()
+        additiveVertexPicking = false
         isPickingVertex = false
         vertexDragAxis = -1
         vertexDragSession = null
         vertexDragPreview = 0f
         vertexDragSource = null
         vertexDragSelected = null
+        vertexDragGroup = emptySet()
         val source = savedSource ?: return@LaunchedEffect
         try {
             vertexTargets = withContext(Dispatchers.IO) {
@@ -429,6 +436,7 @@ private fun EditorScreen() {
         vertexDragPreview = 0f
         vertexDragSource = null
         vertexDragSelected = null
+        vertexDragGroup = emptySet()
     }
 
     // A large reference photo must not freeze the rendering/gesture thread.
