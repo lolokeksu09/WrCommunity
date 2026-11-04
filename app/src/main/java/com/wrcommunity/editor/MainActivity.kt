@@ -1437,7 +1437,73 @@ private fun EditorScreen() {
                                 color = TextPrimary
                             )
                             Text(
-                                "Перетаскивание: выбери ось, затем проведи пальцем по сцене.",
+                                "Выделено: ${selectedVertexGroup.size} / 64 вершин" +
+                                    " · доступно операций: ${64 - vertexHistory.current.size}",
+                                color = TextSecondary,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                            Row(
+                                Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                OutlinedButton(
+                                    enabled = !busy && !pickingBusy && !layerBusy &&
+                                        vertexSurfacePicker != null &&
+                                        selectedVertexGroup.size + vertexHistory.current.size < 64,
+                                    onClick = {
+                                        additiveVertexPicking = true
+                                        isPickingVertex = true
+                                        isPickingBrushCenter = false
+                                        showLayers = false
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 9.dp)
+                                ) { Text("+ Касанием") }
+                                listOf(1, 2, 3).forEach { ring ->
+                                    OutlinedButton(
+                                        enabled = !busy && !pickingBusy && !layerBusy &&
+                                            !vertexGroupBusy && vertexSurfacePicker != null &&
+                                            vertexHistory.current.size < 64,
+                                        onClick = {
+                                            val picker = vertexSurfacePicker
+                                            val pivot = activeVertex
+                                            val source = originalLocation
+                                            if (picker != null && pivot != null) {
+                                                scope.launch {
+                                                    vertexGroupBusy = true
+                                                    try {
+                                                        val max = 64 - vertexHistory.current.size
+                                                        val neighboring = withContext(Dispatchers.Default) {
+                                                            picker.connectedVertices(
+                                                                pivot.mesh, pivot.primitive, pivot.vertex,
+                                                                ring, maxVertices=max)
+                                                        } ?: throw java.io.IOException("Примитив недоступен.")
+                                                        if (originalLocation == source &&
+                                                            vertexSurfacePicker === picker &&
+                                                            activeVertex == pivot) {
+                                                            selectedVertexGroup = neighboring
+                                                            message = "Кольцо $ring: ${neighboring.size} вершин выделено."
+                                                        }
+                                                    } catch (error: Exception) {
+                                                        message = error.message ?:
+                                                            "Не удалось выделить соседние вершины."
+                                                    } finally {
+                                                        vertexGroupBusy = false
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 8.dp)
+                                    ) { Text("Кольцо $ring") }
+                                }
+                                TextButton(
+                                    enabled = selectedVertexGroup.size > 1,
+                                    onClick = {
+                                        selectedVertexGroup = setOf(selectedVertex.vertex)
+                                    }
+                                ) { Text("Одна") }
+                            }
+                            Text(
+                                "Перетаскивание: выбери ось, затем проведи пальцем по сцене. Группа переместится целиком.",
                                 color = TextSecondary,
                                 style = MaterialTheme.typography.labelSmall
                             )
@@ -1450,7 +1516,8 @@ private fun EditorScreen() {
                                         OutlinedButton(
                                             enabled = !busy && !layerBusy && !pickingBusy &&
                                                 vertexSurfacePicker != null &&
-                                                vertexHistory.current.size < 64,
+                                                selectedVertexGroup.isNotEmpty() &&
+                                                selectedVertexGroup.size + vertexHistory.current.size <= 64,
                                             onClick = {
                                                 vertexDragAxis = axis
                                                 vertexDragSession = null
@@ -1470,7 +1537,8 @@ private fun EditorScreen() {
                                     listOf(-1f to "−", 1f to "+").forEach { (sign, mark) ->
                                         OutlinedButton(
                                             enabled = !busy && !layerBusy &&
-                                                !pickingBusy && vertexHistory.current.size < 64,
+                                                !pickingBusy && selectedVertexGroup.isNotEmpty() &&
+                                                selectedVertexGroup.size + vertexHistory.current.size <= 64,
                                             onClick = {
                                                 val delta = vertexStep * sign
                                                 try {
