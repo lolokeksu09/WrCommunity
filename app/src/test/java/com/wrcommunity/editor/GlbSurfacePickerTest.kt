@@ -162,5 +162,39 @@ class GlbSurfacePickerTest {
         assertEquals(0, selected.vertex)
         assertArrayEquals(fixture(),source)
     }
+    @Test fun vertexAnchorReadsExactCurrentPositionsAfterEdits() {
+        val original = fixture()
+        val picker = GlbSurfacePicker.fromBytes(original)
+        val before = picker.vertexPosition(0, 0, 1)!!
+        assertEquals(1f, before.x, 1e-6f)
+        assertEquals(0f, before.y, 1e-6f)
+        assertEquals(0f, before.z, 1e-6f)
+        assertNull(picker.vertexPosition(0, 0, 99))
+        assertNull(picker.vertexPosition(0, 4, 1))
+        assertNull(picker.vertexPosition(2, 0, 1))
+        val output = GlbVertexEditor.apply(original,
+            listOf(VertexMove(0, 0, 1, .25f, 0f, 0f)))
+        val after = GlbSurfacePicker.fromBytes(output).vertexPosition(0, 0, 1)!!
+        assertEquals(1.25f, after.x, 1e-6f)
+        assertEquals(0f, after.y, 1e-6f)
+        assertEquals(0f, after.z, 1e-6f)
+        assertArrayEquals(fixture(), original)
+    }
+    @Test fun axisGestureActuallyMovesGlbPositionWithoutMutatingAnotherPrimitive() {
+        val src = fixture()
+        val picker = GlbSurfacePicker.fromBytes(src)
+        val anchor = picker.vertexPosition(0, 0, 1)!!
+        val beforeOther = picker.vertexPosition(0, 1, 1)!!
+        val start = SurfaceRay(.4f, 0f, 5f, 0f, 0f, -1f)
+        val end = SurfaceRay(.7f, 0f, 5f, 0f, 0f, -1f)
+        val gesture = VertexAxisDrag.begin(anchor, 0, .1f, start)!!
+        val move = gesture.move(0, 0, 1, end)!!
+        val changed = GlbVertexEditor.apply(src, listOf(move))
+        val after = GlbSurfacePicker.fromBytes(changed)
+        assertEquals(1.3f, after.vertexPosition(0, 0, 1)!!.x, 1e-5f)
+        assertEquals(beforeOther, after.vertexPosition(0, 1, 1))
+        assertArrayEquals(fixture(), src)
+        GlbIntegrity.validate(changed)
+    }
 
 }

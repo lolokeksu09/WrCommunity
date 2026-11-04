@@ -106,6 +106,12 @@ private fun EditorScreen() {
     var vertexPickerError by remember { mutableStateOf<String?>(null) }
     var isPickingVertex by remember { mutableStateOf(false) }
     var activeVertex by remember { mutableStateOf<SurfaceVertexHit?>(null) }
+    // One active 3D axis-drag gesture; the GLB changes only on ACTION_UP.
+    var vertexDragAxis by remember { mutableIntStateOf(-1) }
+    var vertexDragSession by remember { mutableStateOf<VertexAxisDrag?>(null) }
+    var vertexDragPreview by remember { mutableStateOf(0f) }
+    var vertexDragSource by remember { mutableStateOf<String?>(null) }
+    var vertexDragSelected by remember { mutableStateOf<SurfaceVertexHit?>(null) }
     var vertexPrimitiveIndex by remember { mutableIntStateOf(0) }
     var vertexIndex by remember { mutableIntStateOf(0) }
     var vertexIndexInput by remember { mutableStateOf("0") }
@@ -233,6 +239,11 @@ private fun EditorScreen() {
         vertexIndexInput = "0"
         activeVertex = null
         isPickingVertex = false
+        vertexDragAxis = -1
+        vertexDragSession = null
+        vertexDragPreview = 0f
+        vertexDragSource = null
+        vertexDragSelected = null
         val source = savedSource ?: return@LaunchedEffect
         try {
             vertexTargets = withContext(Dispatchers.IO) {
@@ -408,6 +419,16 @@ private fun EditorScreen() {
         } catch (error: Exception) {
             vertexPickerError = error.message ?: "Эта сцена не поддерживает точный выбор вершин."
         }
+    }
+
+    // A geometry/scene switch cancels any pending drag before a stale pointer
+    // event can apply a move to a different model.
+    LaunchedEffect(modelLocation, partEdits, savedSource) {
+        vertexDragAxis = -1
+        vertexDragSession = null
+        vertexDragPreview = 0f
+        vertexDragSource = null
+        vertexDragSelected = null
     }
 
     // A large reference photo must not freeze the rendering/gesture thread.
@@ -991,7 +1012,101 @@ private fun EditorScreen() {
                             modifier = Modifier.fillMaxSize(),
                             cameraManipulator = cameraManipulator,
                             onTouchEvent = { event, _ ->
-                                if (isPickingVertex) {
+                                if (vertexDragAxis >= 0) {
+                                    val selected = activeVertex
+                                    val model = modelForPicking
+                                    val picker = vertexSurfacePicker
+                                    val anchor = selected?.let {
+                                        picker?.vertexPosition(it.mesh, it.primitive, it.vertex)
+                                    }
+                                    if (selected == null || model == null || anchor == null ||
+                                        !vertexMode || partEdits.isNotEmpty() ||
+                                        !recoveryReady || busy || layerBusy || pickingBusy ||
+                                        selectedPartId != selected.materialId ||
+                                        selected.materialId !in visibleMaterials ||
+                                        nodeLocation != modelLocation) {
+                                        vertexDragAxis = -1
+                                        vertexDragSession = null
+                                        vertexDragPreview = 0f
+                                        message = "Перемещение отменено: модель или выбранная вершина изменилась."
+                                    } else if (event.pointerCount != 1 ||
+                                        event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                                        vertexDragAxis = -1
+                                        vertexDragSession = null
+                                        vertexDragPreview = 0f
+                                        message = "Осевой жест отменён."
+                                    } else if (event.actionMasked == MotionEvent.ACTION_DOWN ||
+                                        event.actionMasked == MotionEvent.ACTION_MOVE ||
+                                        event.actionMasked == MotionEvent.ACTION_UP) {
+                                        try {
+                                            @Suppress("DEPRECATION")
+                                            val ray = touchCamera.screenPointToRay(event.x, event.y)
+                                            val near = ray.getPoint(0f)
+                                            val far = ray.getPoint(1f)
+                                            val a = model.getLocalPosition(
+                                                Position(near.x, near.y, near.z))
+                                            val b = model.getLocalPosition(
+                                                Position(far.x, far.y, far.z))
+                                            val local = SurfaceRay(a.x, a.y, a.z,
+                                                b.x-a.x, b.y-a.y, b.z-a.z)
+                                            when (event.actionMasked) {
+                                                MotionEvent.ACTION_DOWN -> {
+                                                    val started = VertexAxisDrag.begin(
+                                                        anchor, vertexDragAxis, vertexStep, local)
+                                                    if (started == null) {
+                                                        vertexDragAxis = -1
+                                                        vertexDragSession = null
+                                                        message = "Ось почти совпадает с направлением камеры. Измени вид и попробуй ещё раз."
+                                                    } else {
+                                                        vertexDragSession = started
+                                                        vertexDragSource = modelLocation
+                                                        vertexDragSelected = selected
+                                                        vertexDragPreview = 0f
+                                                    }
+                                                }
+                                                MotionEvent.ACTION_MOVE -> {
+                                                    val session = vertexDragSession
+                                                    if (session != null &&
+                                                        vertexDragSource == modelLocation &&
+                                                        vertexDragSelected == selected) {
+                                                        vertexDragPreview = session.delta(local)
+                                                            ?: throw java.io.IOException(
+                                                                "Невозможно измерить сдвиг из этого ракурса.")
+                                                    }
+                                                }
+                                                MotionEvent.ACTION_UP -> {
+                                                    val session = vertexDragSession
+                                                    if (session != null &&
+                                                        vertexDragSource == modelLocation &&
+                                                        vertexDragSelected == selected) {
+                                                        val move = session.move(
+                                                            selected.mesh, selected.primitive,
+                                                            selected.vertex, local)
+                                                        if (move != null) {
+                                                            vertexHistory = vertexHistory.add(move)
+                                                            message = "Перемещение вершины сохранено одним шагом Undo."
+                                                        } else {
+                                                            message = "Сдвиг меньше выбранного шага — геометрия не изменена."
+                                                        }
+                                                    }
+                                                    vertexDragAxis = -1
+                                                    vertexDragSession = null
+                                                    vertexDragPreview = 0f
+                                                    vertexDragSelected = null
+                                                    vertexDragSource = null
+                                                }
+                                            }
+                                        } catch (error: Exception) {
+                                            vertexDragAxis = -1
+                                            vertexDragSession = null
+                                            vertexDragPreview = 0f
+                                            vertexDragSelected = null
+                                            vertexDragSource = null
+                                            message = error.message ?: "Ошибка осевого перемещения."
+                                        }
+                                    }
+                                    true
+                                } else if (isPickingVertex) {
                                     val model = modelForPicking
                                     val picker = vertexSurfacePicker
                                     val selected = selectedPartId
@@ -1246,7 +1361,8 @@ private fun EditorScreen() {
                 }
                 val selectedVertex = activeVertex
                 if (selectedVertex != null && vertexMode &&
-                    !showLayers && !isPickingVertex && partEdits.isEmpty() &&
+                    !showLayers && !isPickingVertex && vertexDragAxis < 0 &&
+                    partEdits.isEmpty() &&
                     savedSource != null && nodeLocation == modelLocation &&
                     selectedPartId == selectedVertex.materialId &&
                     vertexTargets.any {
@@ -1268,6 +1384,32 @@ private fun EditorScreen() {
                                 style = MaterialTheme.typography.labelMedium,
                                 color = TextPrimary
                             )
+                            Text(
+                                "Перетаскивание: выбери ось, затем проведи пальцем по сцене.",
+                                color = TextSecondary,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                            Row(
+                                Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf(0 to "Тянуть X", 1 to "Тянуть Y", 2 to "Тянуть Z")
+                                    .forEach { (axis, label) ->
+                                        OutlinedButton(
+                                            enabled = !busy && !layerBusy && !pickingBusy &&
+                                                vertexSurfacePicker != null &&
+                                                vertexHistory.current.size < 64,
+                                            onClick = {
+                                                vertexDragAxis = axis
+                                                vertexDragSession = null
+                                                vertexDragPreview = 0f
+                                                vertexDragSource = null
+                                                vertexDragSelected = null
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 10.dp)
+                                        ) { Text(label) }
+                                    }
+                            }
                             Row(
                                 Modifier.horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1314,6 +1456,40 @@ private fun EditorScreen() {
                                     Text("Закрыть")
                                 }
                             }
+                        }
+                    }
+                }
+
+                if (vertexDragAxis >= 0) {
+                    Surface(
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(14.dp),
+                        color = Color(0xEE252434),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Row(
+                            Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            val axisLabel = when (vertexDragAxis) {
+                                0 -> "X"
+                                1 -> "Y"
+                                else -> "Z"
+                            }
+                            Text(
+                                "Тяни по сцене · $axisLabel: " +
+                                    String.format(java.util.Locale.ROOT, "%+.2f", vertexDragPreview),
+                                color = TextPrimary,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            TextButton(onClick = {
+                                vertexDragAxis = -1
+                                vertexDragSession = null
+                                vertexDragPreview = 0f
+                                vertexDragSource = null
+                                vertexDragSelected = null
+                            }) { Text("Отмена") }
                         }
                     }
                 }

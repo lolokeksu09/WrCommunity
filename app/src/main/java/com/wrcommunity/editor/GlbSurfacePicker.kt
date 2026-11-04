@@ -52,6 +52,16 @@ class GlbSurfacePicker private constructor(private val parts: List<Part>) {
     }
     val materialIds: Set<Int> = parts.mapTo(linkedSetOf()) { it.material }
 
+    /** Current local POSITION of the exact source vertex, including applied edits. */
+    fun vertexPosition(mesh: Int, primitive: Int, vertex: Int): VertexAxisAnchor? {
+        val part = parts.firstOrNull { it.mesh == mesh && it.primitive == primitive }
+            ?: return null
+        if (vertex !in 0 until part.positions.size / 3) return null
+        val at = vertex * 3
+        return VertexAxisAnchor(
+            part.positions[at], part.positions[at + 1], part.positions[at + 2])
+    }
+
     fun pick(ray: SurfaceRay, selectedMaterial: Int, visible: Set<Int>): SurfaceHit? {
         if (selectedMaterial !in visible || !ray.ox.isFinite() || !ray.oy.isFinite() ||
             !ray.oz.isFinite() || !ray.dx.isFinite() || !ray.dy.isFinite() ||
