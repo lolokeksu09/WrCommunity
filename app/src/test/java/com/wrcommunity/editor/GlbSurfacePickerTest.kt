@@ -112,4 +112,55 @@ class GlbSurfacePickerTest {
         assertTrue("Deformed bounds would shift the next center", point.center.x < mapped.x)
     }
 
+    @Test fun touchOnFrontTriangleSelectsNearestActualVertexAndSourceIndex() {
+        val picker = GlbSurfacePicker.fromBytes(fixture())
+        val nearCorner = picker.pickVertex(
+            SurfaceRay(.1f, .1f, 2f, 0f, 0f, -1f), 0, setOf(0, 1))!!
+        assertEquals(0, nearCorner.mesh)
+        assertEquals(0, nearCorner.primitive)
+        assertEquals(0, nearCorner.vertex)
+        assertEquals(0, nearCorner.materialId)
+        assertEquals(0f, nearCorner.z, 1e-5f)
+        val nearB = picker.pickVertex(
+            SurfaceRay(.9f, .03f, 2f, 0f, 0f, -1f), 0, setOf(0, 1))!!
+        assertEquals(1, nearB.vertex)
+        assertEquals(0, nearB.primitive)
+        val nearC = picker.pickVertex(
+            SurfaceRay(.06f, .9f, 2f, 0f, 0f, -1f), 0, setOf(0, 1))!!
+        assertEquals(2, nearC.vertex)
+    }
+
+    @Test fun selectedRearMaterialCannotPickThroughVisibleFrontFace() {
+        val picker = GlbSurfacePicker.fromBytes(fixture())
+        assertNull(picker.pickVertex(forward, 1, setOf(0, 1)))
+        val rear = picker.pickVertex(forward, 1, setOf(1))!!
+        assertEquals(1, rear.primitive)
+        assertEquals(0, rear.mesh)
+        assertEquals(1, rear.materialId)
+        assertEquals(-1f, rear.z, 1e-6f)
+    }
+
+    @Test fun invalidOrOutsideRayCannotSelectVertex() {
+        val picker = GlbSurfacePicker.fromBytes(fixture())
+        assertNull(picker.pickVertex(SurfaceRay(3f, 3f, 2f, 0f, 0f, -1f),
+            0, setOf(0,1)))
+        assertNull(picker.pickVertex(SurfaceRay(Float.NaN, 0f, 2f, 0f,0f,-1f),
+            0, setOf(0,1)))
+        assertNull(picker.pickVertex(forward, 0, emptySet()))
+        assertNull(picker.pickVertex(forward, 7, setOf(0,1)))
+    }
+
+    @Test fun pickingDeformedPreviewStillReturnsOriginalPrimitiveAndVertexIds() {
+        val source = fixture()
+        val moved = GlbVertexEditor.apply(source,
+            listOf(VertexMove(0,0,0,0.1f,0f,0f)))
+        val picker = GlbSurfacePicker.fromBytes(moved)
+        val selected = picker.pickVertex(
+            SurfaceRay(.11f,.05f,2f,0f,0f,-1f),0,setOf(0,1))!!
+        assertEquals(0, selected.mesh)
+        assertEquals(0, selected.primitive)
+        assertEquals(0, selected.vertex)
+        assertArrayEquals(fixture(),source)
+    }
+
 }
