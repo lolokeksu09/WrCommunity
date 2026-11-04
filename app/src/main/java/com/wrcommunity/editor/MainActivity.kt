@@ -1361,7 +1361,8 @@ private fun EditorScreen() {
                 }
                 val selectedVertex = activeVertex
                 if (selectedVertex != null && vertexMode &&
-                    !showLayers && !isPickingVertex && partEdits.isEmpty() &&
+                    !showLayers && !isPickingVertex && vertexDragAxis < 0 &&
+                    partEdits.isEmpty() &&
                     savedSource != null && nodeLocation == modelLocation &&
                     selectedPartId == selectedVertex.materialId &&
                     vertexTargets.any {
@@ -1383,6 +1384,32 @@ private fun EditorScreen() {
                                 style = MaterialTheme.typography.labelMedium,
                                 color = TextPrimary
                             )
+                            Text(
+                                "Перетаскивание: выбери ось, затем проведи пальцем по сцене.",
+                                color = TextSecondary,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                            Row(
+                                Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf(0 to "Тянуть X", 1 to "Тянуть Y", 2 to "Тянуть Z")
+                                    .forEach { (axis, label) ->
+                                        OutlinedButton(
+                                            enabled = !busy && !layerBusy && !pickingBusy &&
+                                                vertexSurfacePicker != null &&
+                                                vertexHistory.current.size < 64,
+                                            onClick = {
+                                                vertexDragAxis = axis
+                                                vertexDragSession = null
+                                                vertexDragPreview = 0f
+                                                vertexDragSource = null
+                                                vertexDragSelected = null
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 10.dp)
+                                        ) { Text(label) }
+                                    }
+                            }
                             Row(
                                 Modifier.horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1429,6 +1456,40 @@ private fun EditorScreen() {
                                     Text("Закрыть")
                                 }
                             }
+                        }
+                    }
+                }
+
+                if (vertexDragAxis >= 0) {
+                    Surface(
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(14.dp),
+                        color = Color(0xEE252434),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Row(
+                            Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            val axisLabel = when (vertexDragAxis) {
+                                0 -> "X"
+                                1 -> "Y"
+                                else -> "Z"
+                            }
+                            Text(
+                                "Тяни по сцене · $axisLabel: " +
+                                    String.format(java.util.Locale.ROOT, "%+.2f", vertexDragPreview),
+                                color = TextPrimary,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            TextButton(onClick = {
+                                vertexDragAxis = -1
+                                vertexDragSession = null
+                                vertexDragPreview = 0f
+                                vertexDragSource = null
+                                vertexDragSelected = null
+                            }) { Text("Отмена") }
                         }
                     }
                 }
