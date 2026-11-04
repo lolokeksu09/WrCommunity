@@ -106,6 +106,12 @@ private fun EditorScreen() {
     var vertexPickerError by remember { mutableStateOf<String?>(null) }
     var isPickingVertex by remember { mutableStateOf(false) }
     var activeVertex by remember { mutableStateOf<SurfaceVertexHit?>(null) }
+    // One active 3D axis-drag gesture; the GLB changes only on ACTION_UP.
+    var vertexDragAxis by remember { mutableIntStateOf(-1) }
+    var vertexDragSession by remember { mutableStateOf<VertexAxisDrag?>(null) }
+    var vertexDragPreview by remember { mutableStateOf(0f) }
+    var vertexDragSource by remember { mutableStateOf<String?>(null) }
+    var vertexDragSelected by remember { mutableStateOf<SurfaceVertexHit?>(null) }
     var vertexPrimitiveIndex by remember { mutableIntStateOf(0) }
     var vertexIndex by remember { mutableIntStateOf(0) }
     var vertexIndexInput by remember { mutableStateOf("0") }
@@ -233,6 +239,11 @@ private fun EditorScreen() {
         vertexIndexInput = "0"
         activeVertex = null
         isPickingVertex = false
+        vertexDragAxis = -1
+        vertexDragSession = null
+        vertexDragPreview = 0f
+        vertexDragSource = null
+        vertexDragSelected = null
         val source = savedSource ?: return@LaunchedEffect
         try {
             vertexTargets = withContext(Dispatchers.IO) {
@@ -408,6 +419,16 @@ private fun EditorScreen() {
         } catch (error: Exception) {
             vertexPickerError = error.message ?: "Эта сцена не поддерживает точный выбор вершин."
         }
+    }
+
+    // A geometry/scene switch cancels any pending drag before a stale pointer
+    // event can apply a move to a different model.
+    LaunchedEffect(modelLocation, partEdits, savedSource) {
+        vertexDragAxis = -1
+        vertexDragSession = null
+        vertexDragPreview = 0f
+        vertexDragSource = null
+        vertexDragSelected = null
     }
 
     // A large reference photo must not freeze the rendering/gesture thread.
