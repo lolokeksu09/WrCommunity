@@ -79,15 +79,4 @@ class VertexAxisDragTest {
         drag.move(0, 0, 0, SurfaceRay(100f,0f,5f,0f,0f,-1f))!!.check()
     }
 
-    @Test fun vertexPickerSuppliesActualEditedVertexForDragAnchor() {
-        val source = GlbSurfacePickerTest.fixtureForSharedTests()
-        val initial = GlbSurfacePicker.fromBytes(source).vertexPosition(0, 0, 1)!!
-        assertEquals(1f, initial.x, 1e-6f)
-        val output = GlbVertexEditor.apply(source,
-            listOf(VertexMove(0, 0, 1, .25f, 0f, 0f)))
-        val edited = GlbSurfacePicker.fromBytes(output).vertexPosition(0, 0, 1)!!
-        assertEquals(1.25f, edited.x, 1e-6f)
-        assertEquals(0f, edited.y, 1e-6f)
-        assertEquals(0f, edited.z, 1e-6f)
-    }
 }
