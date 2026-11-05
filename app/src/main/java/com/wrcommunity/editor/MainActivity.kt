@@ -1351,7 +1351,9 @@ private fun EditorScreen() {
                                                             message = error.message ?: "Не удалось построить луч касания."
                                                         }
                                                     }
-                                                    true
+                                                    // SceneView still needs ACTION_UP to finish its camera
+                                                    // detector and tap recognizer state.
+                                                    false
                                                 }
                                             }
                                             else -> false
