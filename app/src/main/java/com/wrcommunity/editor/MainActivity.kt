@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.view.MotionEvent
+import android.view.ViewConfiguration
 import java.io.File
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
@@ -103,6 +104,7 @@ private fun EditorScreen() {
     var vertexTargets by remember { mutableStateOf<List<VertexPrimitive>>(emptyList()) }
     var vertexTargetsError by remember { mutableStateOf<String?>(null) }
     var vertexSurfacePicker by remember { mutableStateOf<GlbSurfacePicker?>(null) }
+    var vertexPickerSource by remember { mutableStateOf<String?>(null) }
     var vertexPickerError by remember { mutableStateOf<String?>(null) }
     var isPickingVertex by remember { mutableStateOf(false) }
     var activeVertex by remember { mutableStateOf<SurfaceVertexHit?>(null) }
@@ -132,6 +134,7 @@ private fun EditorScreen() {
     val traceRays = remember { mutableListOf<SurfaceRay>() }
     val previousScreenPoint = remember { floatArrayOf(Float.NaN, Float.NaN) }
     var isPickingBrushCenter by remember { mutableStateOf(false) }
+    val partTapGesture = remember { PartTapGesture(ViewConfiguration.get(context).scaledTouchSlop.toFloat()) }
     var materialBounds by remember { mutableStateOf<Map<Int, BrushMaterialBounds>>(emptyMap()) }
     var modelForPicking by remember { mutableStateOf<io.github.sceneview.node.ModelNode?>(null) }
     var showLayers by remember { mutableStateOf(false) }
@@ -420,14 +423,11 @@ private fun EditorScreen() {
     // The display preview filters hidden primitives, which changes primitive
     // indices. Build vertex selection from the ORIGINAL unfiltered mesh with
     // its live vertex/sculpt changes so hits retain stable source IDs.
-    LaunchedEffect(originalLocation, vertexMoves, sculptStrokes, partEdits) {
+    LaunchedEffect(originalLocation, vertexMoves, sculptStrokes) {
         vertexSurfacePicker = null
+        vertexPickerSource = null
         vertexPickerError = null
         val origin = originalLocation ?: return@LaunchedEffect
-        if (partEdits.isNotEmpty()) {
-            vertexPickerError = "Для выбора вершины касанием сбрось изменения положения частей."
-            return@LaunchedEffect
-        }
         try {
             val picker = withContext(Dispatchers.Default) {
                 val path = Uri.parse(origin).path
@@ -438,6 +438,7 @@ private fun EditorScreen() {
                 GlbSurfacePicker.fromBytes(shaped)
             }
             vertexSurfacePicker = picker
+            vertexPickerSource = origin
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
@@ -1259,8 +1260,106 @@ private fun EditorScreen() {
                                         }
                                     }
                                     true
-                                } else if (!isPickingBrushCenter) false
-                                else {
+                                } else if (!isPickingBrushCenter) {
+                                    // Leave camera orbit and pinch gestures untouched.
+                                    if (vertexMode || showLayers || busy || layerBusy ||
+                                        pickingBusy || !recoveryReady) {
+                                        partTapGesture.cancel()
+                                        false
+                                    } else {
+                                        when (event.actionMasked) {
+                                            MotionEvent.ACTION_DOWN -> {
+                                                partTapGesture.down(event.x, event.y, event.pointerCount)
+                                                false
+                                            }
+                                            MotionEvent.ACTION_MOVE -> {
+                                                partTapGesture.move(event.x, event.y, event.pointerCount)
+                                                false
+                                            }
+                                            MotionEvent.ACTION_POINTER_DOWN,
+                                            MotionEvent.ACTION_POINTER_UP,
+                                            MotionEvent.ACTION_CANCEL -> {
+                                                partTapGesture.cancel()
+                                                false
+                                            }
+                                            MotionEvent.ACTION_UP -> {
+                                                if (!partTapGesture.up(event.x, event.y, event.pointerCount)) {
+                                                    false
+                                                } else {
+                                                    val picker = vertexSurfacePicker
+                                                    val source = originalLocation
+                                                    val view = modelLocation
+                                                    val model = modelForPicking
+                                                    if (picker == null || source == null ||
+                                                        vertexPickerSource != source ||
+                                                        model == null || nodeLocation != view) {
+                                                        message = "Выбор касанием недоступен для этой сцены. Используй «Слои»."
+                                                    } else {
+                                                        val request = requestId
+                                                        val visibleAtTap = visibleMaterials.toSet()
+                                                        val editsAtTap = partEdits.toMap()
+                                                        val strokesAtTap = sculptStrokes.toList()
+                                                        val verticesAtTap = vertexMoves.toList()
+                                                        try {
+                                                            @Suppress("DEPRECATION")
+                                                            val ray = touchCamera.screenPointToRay(event.x, event.y)
+                                                            val near = ray.getPoint(0f)
+                                                            val far = ray.getPoint(1f)
+                                                            val a = model.getLocalPosition(
+                                                                Position(near.x, near.y, near.z))
+                                                            val b = model.getLocalPosition(
+                                                                Position(far.x, far.y, far.z))
+                                                            val localRay = SurfaceRay(
+                                                                a.x, a.y, a.z, b.x-a.x, b.y-a.y, b.z-a.z)
+                                                            pickingBusy = true
+                                                            scope.launch {
+                                                                try {
+                                                                    val hit = withContext(Dispatchers.Default) {
+                                                                        picker.pickMaterial(localRay, visibleAtTap, editsAtTap)
+                                                                    }
+                                                                    if (request != requestId ||
+                                                                        source != originalLocation ||
+                                                                        view != modelLocation ||
+                                                                        vertexSurfacePicker !== picker ||
+                                                                        visibleMaterials != visibleAtTap ||
+                                                                        partEdits != editsAtTap ||
+                                                                        sculptStrokes != strokesAtTap ||
+                                                                        vertexMoves != verticesAtTap) return@launch
+                                                                    val part = materialLayers.firstOrNull {
+                                                                        it.id == hit?.materialId
+                                                                    }
+                                                                    if (part == null) {
+                                                                        message = "На этом месте нет видимой части модели."
+                                                                    } else {
+                                                                        selectedPartId = part.id
+                                                                        vertexMode = false
+                                                                        sculptMode = false
+                                                                        activeVertex = null
+                                                                        selectedVertexGroup = emptySet()
+                                                                        showLayers = true
+                                                                        message = "Выбран участок: ${part.name}."
+                                                                    }
+                                                                } catch (error: Exception) {
+                                                                    if (request == requestId && view == modelLocation)
+                                                                        message = error.message ?: "Не удалось выбрать участок."
+                                                                } finally {
+                                                                    if (request == requestId) pickingBusy = false
+                                                                }
+                                                            }
+                                                        } catch (error: Exception) {
+                                                            pickingBusy = false
+                                                            message = error.message ?: "Не удалось построить луч касания."
+                                                        }
+                                                    }
+                                                    // SceneView still needs ACTION_UP to finish its camera
+                                                    // detector and tap recognizer state.
+                                                    false
+                                                }
+                                            }
+                                            else -> false
+                                        }
+                                    }
+                                } else {
                                     val model = modelForPicking
                                     val picker = surfacePicker
                                     if (model == null || picker == null || pickingBusy ||
@@ -1645,6 +1744,33 @@ private fun EditorScreen() {
                                 isPickingBrushCenter = false
                                 showLayers = true
                             }) { Text("Отмена") }
+                        }
+                    }
+                }
+                if (modelLocation != null && !showLayers && !vertexMode &&
+                    !isPickingBrushCenter && !isPickingVertex && vertexDragAxis < 0) {
+                    val chosenPart = materialLayers.firstOrNull { it.id == selectedPartId }
+                    Surface(
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(10.dp),
+                        color = Color(0xEE252434),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                chosenPart?.let { "Участок: ${it.name}" }
+                                    ?: "Коснись участка модели для правки",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = TextPrimary,
+                                maxLines = 1,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            if (chosenPart != null) {
+                                TextButton(onClick = { showLayers = true }) { Text("Править") }
+                            }
                         }
                     }
                 }
@@ -2042,7 +2168,7 @@ private fun EditorScreen() {
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text("Слои модели", style = MaterialTheme.typography.titleLarge)
-                        Text("Выбери материал для точного перемещения, поворота и масштаба его частей.",
+                        Text("Коснись видимой части модели или выбери материал в списке. Правки затрагивают все поверхности этого материала.",
                             style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(

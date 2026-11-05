@@ -50,6 +50,40 @@ class GlbSurfacePickerTest {
         assertEquals(BrushTarget(25,25,50),hit.center)
     }
 
+    @Test fun tapSelectsNearestVisibleMaterialWithoutPreselection() {
+        val picker = GlbSurfacePicker.fromBytes(fixture())
+        assertEquals(0, picker.pickMaterial(forward, setOf(0,1))!!.materialId)
+        val rear = picker.pickMaterial(forward, setOf(1))!!
+        assertEquals(1, rear.materialId)
+        assertEquals(3f, rear.distance, 1e-5f)
+        assertNull(picker.pickMaterial(forward, emptySet()))
+        assertNull(picker.pickMaterial(SurfaceRay(Float.NaN,0f,2f,0f,0f,-1f),setOf(0)))
+        assertNull(picker.pickMaterial(SurfaceRay(3f,3f,2f,0f,0f,-1f),setOf(0,1)))
+    }
+
+    @Test fun tapsFollowMovedPartsAndOcclusion() {
+        val picker = GlbSurfacePicker.fromBytes(fixture())
+        val moved = mapOf(0 to PartEdit(x = 2f))
+        assertEquals(1, picker.pickMaterial(forward,setOf(0,1),moved)!!.materialId)
+        val ray = SurfaceRay(2.25f,.25f,2f,0f,0f,-1f)
+        assertEquals(0, picker.pickMaterial(ray,setOf(0,1),moved)!!.materialId)
+        assertNull(picker.pickMaterial(ray,setOf(1),moved))
+    }
+
+    @Test fun tapsFollowRotatedAndScaledParts() {
+        val picker = GlbSurfacePicker.fromBytes(fixture())
+        val rotatedRay = SurfaceRay(2f,.2f,-.2f,-1f,0f,0f)
+        assertNull(picker.pickMaterial(rotatedRay,setOf(0)))
+        val turned = picker.pickMaterial(rotatedRay,setOf(0),
+            mapOf(0 to PartEdit(rotationY=90)))!!
+        assertEquals(0,turned.materialId)
+        assertEquals(2f,turned.distance,1e-5f)
+        val expandedRay = SurfaceRay(1.4f,.4f,2f,0f,0f,-1f)
+        assertNull(picker.pickMaterial(expandedRay,setOf(0,1)))
+        assertEquals(0,picker.pickMaterial(expandedRay,setOf(0,1),
+            mapOf(0 to PartEdit(scalePercent=200)))!!.materialId)
+    }
+
     @Test fun doesNotSculptAnOccludedMaterial() {
         val picker=GlbSurfacePicker.fromBytes(fixture())
         assertNull(picker.pick(forward,1,setOf(0,1)))

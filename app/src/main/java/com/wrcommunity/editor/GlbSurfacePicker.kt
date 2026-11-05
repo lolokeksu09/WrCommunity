@@ -6,13 +6,21 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /** Ray and hit use the original glTF mesh-local coordinate system. */
 data class SurfaceRay(
     val ox: Float, val oy: Float, val oz: Float,
     val dx: Float, val dy: Float, val dz: Float
 )
+data class SurfacePartHit(
+    val materialId: Int,
+    val x: Float, val y: Float, val z: Float,
+    val distance: Float
+)
+
 data class SurfaceHit(
     val materialId: Int,
     val x: Float, val y: Float, val z: Float,
@@ -100,6 +108,53 @@ class GlbSurfacePicker private constructor(private val parts: List<Part>) {
             boundary = grown
         }
         return selected
+    }
+
+    /**
+     * The frontmost VISIBLE material hit by an unselected tap.
+     * Part edits are glTF child-node TRS, so inverse-transform each ray
+     * before BVH tracing. Parametric t remains unchanged across transforms.
+     */
+    fun pickMaterial(
+        ray: SurfaceRay,
+        visible: Set<Int>,
+        edits: Map<Int, PartEdit> = emptyMap()
+    ): SurfacePartHit? {
+        if (visible.isEmpty() || !ray.ox.isFinite() || !ray.oy.isFinite() ||
+            !ray.oz.isFinite() || !ray.dx.isFinite() || !ray.dy.isFinite() ||
+            !ray.dz.isFinite() ||
+            ray.dx * ray.dx + ray.dy * ray.dy + ray.dz * ray.dz < 1e-14f) return null
+        var nearest = Float.POSITIVE_INFINITY
+        var winner: Part? = null
+        for (part in parts) {
+            if (part.material !in visible) continue
+            val edit = edits[part.material]
+            val localRay = if (edit == null || edit.isIdentity) ray else {
+                edit.check()
+                val theta = Math.toRadians(edit.rotationY.toDouble())
+                val c = cos(theta).toFloat()
+                val s = sin(theta).toFloat()
+                val k = 100f / edit.scalePercent
+                val x = ray.ox - edit.x
+                val y = ray.oy - edit.y
+                val z = ray.oz - edit.z
+                SurfaceRay(
+                    (c * x - s * z) * k, y * k, (s * x + c * z) * k,
+                    (c * ray.dx - s * ray.dz) * k, ray.dy * k,
+                    (s * ray.dx + c * ray.dz) * k
+                )
+            }
+            if (!boxMayHit(localRay, part.bounds, nearest)) continue
+            val hit = part.tree.nearest(localRay, nearest)
+            if (hit != null) {
+                nearest = hit
+                winner = part
+            }
+        }
+        val part = winner ?: return null
+        return SurfacePartHit(part.material,
+            ray.ox + ray.dx * nearest, ray.oy + ray.dy * nearest,
+            ray.oz + ray.dz * nearest, nearest)
     }
 
     fun pick(ray: SurfaceRay, selectedMaterial: Int, visible: Set<Int>): SurfaceHit? {
